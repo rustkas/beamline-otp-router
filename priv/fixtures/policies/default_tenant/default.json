@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "providers": [
+    {"name": "openai", "weight": 70},
+    {"name": "anthropic", "weight": 30}
+  ],
+  "fallbacks": [
+    {
+      "when": {"status": ["timeout", "5xx"]},
+      "retry": 2,
+      "to": "anthropic"
+    },
+    {
+      "when": {"status": ["rate_limited"]},
+      "retry": 1,
+      "to": "local_llm"
+    }
+  ],
+  "sticky": {
+    "enabled": true,
+    "session_key": "user_id",
+    "ttl": "10m"
+  },
+  "metadata": {
+    "strategy": "cp1_json_dsl",
+    "description": "CP1 default policy with JSON-DSL format"
+  }
+}

@@ -1,0 +1,448 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://beamline.example.com/schemas/policy/v1.0.0",
+  "title": "Routing Policy Schema",
+  "description": "Schema for routing policy configuration (JSON-DSL format with backward compatibility)",
+  "type": "object",
+  "required": ["version"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Policy version",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "default": "1.0"
+    },
+    "providers": {
+      "type": "array",
+      "description": "Provider list with weights (JSON-DSL format: 0-100)",
+      "items": {
+        "type": "object",
+        "required": ["name", "weight"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Provider identifier",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "weight": {
+            "type": "integer",
+            "description": "Provider weight (0-100)",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "priority": {
+            "type": "integer",
+            "description": "[CP2+] Provider priority (independent of weights, higher = more priority)",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "weights": {
+      "type": "object",
+      "description": "Provider weights (legacy format: 0.0-1.0 or 0-100)",
+      "patternProperties": {
+        "^[a-z0-9_]+$": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 100.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "fallbacks": {
+      "type": "array",
+      "description": "Fallback rules array (JSON-DSL format)",
+      "items": {
+        "type": "object",
+        "required": ["when", "to"],
+        "properties": {
+          "when": {
+            "type": "object",
+            "description": "Condition object (e.g., {\"status\": [\"timeout\", \"5xx\"]})",
+            "patternProperties": {
+              "^[a-z0-9_]+$": {
+                "oneOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "retry": {
+            "type": "integer",
+            "description": "Number of retries before fallback",
+            "minimum": 0,
+            "maximum": 10,
+            "default": 1
+          },
+          "backoff": {
+            "type": "object",
+            "description": "Backoff strategy configuration (optional)",
+            "properties": {
+              "strategy": {
+                "type": "string",
+                "description": "Backoff strategy",
+                "enum": ["exponential", "linear", "fixed"],
+                "default": "exponential"
+              },
+              "base_ms": {
+                "type": "integer",
+                "description": "Base delay in milliseconds",
+                "minimum": 1,
+                "maximum": 10000,
+                "default": 100
+              },
+              "max_ms": {
+                "type": "integer",
+                "description": "Maximum delay in milliseconds",
+                "minimum": 1,
+                "maximum": 60000,
+                "default": 5000
+              },
+              "jitter": {
+                "type": "boolean",
+                "description": "Enable jitter (random 0-10% of delay)",
+                "default": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "to": {
+            "type": "string",
+            "description": "Fallback provider identifier",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[a-z0-9_]+$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "fallback": {
+      "type": "object",
+      "description": "Fallback provider configuration (legacy format)",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Fallback provider identifier",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "conditions": {
+          "type": "array",
+          "description": "Fallback conditions (legacy format)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["provider"],
+      "additionalProperties": false
+    },
+    "sticky": {
+      "type": "object",
+      "description": "Sticky session configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable sticky sessions"
+        },
+        "session_key": {
+          "type": "string",
+          "description": "Key name for session identifier in context (JSON-DSL format)",
+          "default": "session_id",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "ttl": {
+          "type": "string",
+          "description": "Time-to-live duration (JSON-DSL format: e.g., \"10m\", \"5m\", \"1h\")",
+          "pattern": "^[0-9]+[smh]$"
+        },
+        "ttl_seconds": {
+          "type": "integer",
+          "description": "Time-to-live in seconds (legacy format)",
+          "minimum": 1,
+          "maximum": 86400
+        }
+      },
+      "required": ["enabled"],
+      "additionalProperties": false
+    },
+    "defaults": {
+      "type": "object",
+      "description": "[DEPRECATED] Default values - not used in routing logic, reserved for future use",
+      "additionalProperties": true,
+      "deprecated": true
+    },
+    "escalate_on": {
+      "type": "array",
+      "description": "[DEPRECATED] Escalation conditions - not used in routing logic, reserved for future use",
+      "items": {
+        "type": "string"
+      },
+      "deprecated": true
+    },
+    "pre": {
+      "type": "array",
+      "description": "Pre-processor extensions",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Extension identifier (logical ID from Registry)",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "mode": {
+            "type": "string",
+            "description": "Extension mode",
+            "enum": ["required", "optional"],
+            "default": "optional"
+          },
+          "config": {
+            "type": "object",
+            "description": "Per-policy extension configuration",
+            "additionalProperties": true
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "description": "[CP2] Override extension timeout from Registry (milliseconds)",
+            "minimum": 1,
+            "maximum": 300000
+          },
+          "retry": {
+            "type": "integer",
+            "description": "[CP2] Override extension retry count from Registry",
+            "minimum": 0,
+            "maximum": 10
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "validators": {
+      "type": "array",
+      "description": "Validator extensions",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Validator identifier (logical ID from Registry)",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "on_fail": {
+            "type": "string",
+            "description": "Behavior on validation failure",
+            "enum": ["block", "warn", "ignore"],
+            "default": "block"
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "description": "[CP2] Override validator timeout from Registry (milliseconds)",
+            "minimum": 1,
+            "maximum": 300000
+          },
+          "retry": {
+            "type": "integer",
+            "description": "[CP2] Override validator retry count from Registry",
+            "minimum": 0,
+            "maximum": 10
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "post": {
+      "type": "array",
+      "description": "Post-processor extensions",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Extension identifier (logical ID from Registry)",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "mode": {
+            "type": "string",
+            "description": "Extension mode",
+            "enum": ["required", "optional"],
+            "default": "optional"
+          },
+          "config": {
+            "type": "object",
+            "description": "Per-policy extension configuration",
+            "additionalProperties": true
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "description": "[CP2] Override extension timeout from Registry (milliseconds)",
+            "minimum": 1,
+            "maximum": 300000
+          },
+          "retry": {
+            "type": "integer",
+            "description": "[CP2] Override extension retry count from Registry",
+            "minimum": 0,
+            "maximum": 10
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "[DEPRECATED] Additional policy metadata - not used in routing logic, reserved for future use or internal storage",
+      "additionalProperties": true,
+      "deprecated": true
+    },
+    "timeout_ms": {
+      "type": "integer",
+      "description": "[CP2] Per-policy timeout in milliseconds",
+      "minimum": 1,
+      "maximum": 300000
+    },
+    "circuit_breaker": {
+      "type": "object",
+      "description": "[CP2] Circuit breaker configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable circuit breaker",
+          "default": false
+        },
+        "failure_threshold": {
+          "type": "integer",
+          "description": "Number of consecutive failures before opening circuit",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 5
+        },
+        "success_threshold": {
+          "type": "integer",
+          "description": "Number of consecutive successes in half-open before closing circuit",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 2
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "description": "Time in milliseconds before transitioning from open to half-open",
+          "minimum": 1000,
+          "maximum": 300000,
+          "default": 60000
+        },
+        "half_open_max_calls": {
+          "type": "integer",
+          "description": "Maximum calls allowed in half-open state (rate limiting)",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 3
+        },
+        "error_rate_threshold": {
+          "type": "number",
+          "description": "Error rate threshold (0.0-1.0) to open circuit based on error rate over time window",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.5
+        },
+        "error_rate_window_seconds": {
+          "type": "integer",
+          "description": "Time window in seconds for error rate calculation",
+          "minimum": 1,
+          "maximum": 3600,
+          "default": 60
+        }
+      },
+      "additionalProperties": false
+    },
+    "rate_limit": {
+      "type": "object",
+      "description": "[CP2] Per-policy rate limiting",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable rate limiting"
+        },
+        "requests_per_second": {
+          "type": "integer",
+          "description": "Requests per second limit",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "burst": {
+          "type": "integer",
+          "description": "Burst size",
+          "minimum": 1,
+          "maximum": 1000000
+        }
+      },
+      "additionalProperties": false
+    },
+    "health_check": {
+      "type": "object",
+      "description": "[CP2+] Health check configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable health checks"
+        },
+        "interval_ms": {
+          "type": "integer",
+          "description": "Health check interval in milliseconds",
+          "minimum": 1000,
+          "maximum": 60000
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "description": "Health check timeout in milliseconds",
+          "minimum": 100,
+          "maximum": 10000
+        },
+        "failure_threshold": {
+          "type": "integer",
+          "description": "Number of failures before marking unhealthy",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "anyOf": [
+    {
+      "required": ["providers"]
+    },
+    {
+      "required": ["weights"]
+    }
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,126 @@
+{application, beamline_router,
+ [{description, "Beamline Router Core - Message routing engine"},
+  {vsn, "1.0.0"},
+  {registered, [beamline_router_sup]},
+  %% Make grpcbox optional; core apps shouldn't fail if grpcbox is missing
+  {applications, [kernel, stdlib, sasl, crypto, jsx, telemetry]},
+  {mod, {beamline_router_app, []}},
+  {env, [
+      {grpc_enabled, false},
+      {grpc_port, 9000},
+      {admin_api_key, undefined},  %% Must be set via environment variable or config file (never hardcoded)
+      %% Performance thresholds (in milliseconds)
+      {latency_warn_ms, 10},
+      {latency_crit_ms, 50},
+      {list_policies_latency_warn_ms, 5},
+      {queue_warn, 10},
+      {queue_crit, 100},
+      {policy_count_warn, 100},
+      %% CAF Integration Configuration
+      {caf_push_assignment_enabled, true},  %% Global enable/disable flag
+      {caf_assignment_subject, <<"caf.exec.assign.v1">>},  %% Default assignment subject
+      {caf_push_assignment_allowed_tenants, undefined},  %% List/map of allowed tenants (undefined = allow all)
+      {caf_max_retries, 3},  %% Maximum retry attempts
+      {caf_retry_base_ms, 100},  %% Base retry delay (exponential backoff)
+      {caf_deadline_multiplier, 5},  %% Deadline = expected_latency_ms * multiplier
+      {caf_deadline_min_ms, 5000},  %% Minimum deadline (ms)
+      {caf_deadline_max_ms, 60000},  %% Maximum deadline (ms)
+      %% NATS Configuration
+      {nats_max_payload_size, 1048576},  %% Maximum payload size in bytes (default: 1MB)
+      {nats_tls_enabled, false},  %% Enable TLS for NATS connections
+      %% Extension Security Configuration
+      {extension_max_payload_size, 1048576},  %% Maximum extension payload size (default: 1MB)
+      {extension_max_metadata_size, 65536},  %% Maximum metadata size (default: 64KB)
+      {extension_max_retries, 3},  %% Maximum retry attempts (default: 3)
+      {extension_min_timeout_ms, 10},  %% Minimum timeout (default: 10ms)
+      {extension_max_timeout_ms, 5000},  %% Maximum timeout (default: 5000ms)
+      {extension_max_pipeline_depth, 10},  %% Maximum total extensions in pipeline (default: 10)
+      {extension_max_pre_count, 5},  %% Maximum pre-processors (default: 5)
+      {extension_max_validators_count, 5},  %% Maximum validators (default: 5)
+      {extension_max_post_count, 5},  %% Maximum post-processors (default: 5)
+      {extension_max_per_tenant, 20},  %% Maximum extensions per tenant (default: 20)
+      {extension_max_per_policy, 10},  %% Maximum extensions per policy (default: 10)
+      %% Pipeline Complexity Management (CP2+)
+      {extension_recommended_max_pipeline_total, 4}, %% Recommended max total extensions in pipeline
+      {extension_recommended_max_pre_count, 2},      %% Recommended max pre-processors
+      {extension_recommended_max_validators_count, 2}, %% Recommended max validators
+      {extension_recommended_max_post_count, 2},     %% Recommended max post-processors
+      {extension_estimated_latency_per_extension_ms, 30}, %% Estimated latency per extension call for complexity assessment
+      {nats_tls_cert_file, undefined},  %% Path to TLS certificate file (if TLS enabled)
+      {nats_tls_key_file, undefined},  %% Path to TLS private key file (if TLS enabled)
+      {nats_tls_ca_file, undefined},  %% Path to TLS CA certificate file (if TLS enabled)
+      {nats_connect_timeout_ms, 5000},  %% NATS connection timeout (ms)
+      {nats_reconnect_attempts, 10},  %% Maximum reconnection attempts
+      %% CP1-LC: Result and ACK Consumer Configuration
+      {assignment_enabled, true},  %% Enable assignment publishing (default: true)
+      {ack_enabled, false},  %% Enable ACK consumer (default: false, optional)
+      {ack_subject, <<"caf.exec.assign.v1.ack">>},  %% ACK subject (default: caf.exec.assign.v1.ack)
+      {result_subject, <<"caf.exec.result.v1">>},  %% Result subject (default: caf.exec.result.v1)
+      {usage_subject, <<"beamline.usage.v1.metered">>},  %% Usage event subject (default: beamline.usage.v1.metered)
+      {nats_js_durable_group_results, <<"router-results">>},  %% JetStream durable group for results
+      {nats_js_durable_group_acks, <<"router-acks">>},  %% JetStream durable group for ACKs
+      {nats_js_deliver_group_results, <<"router-results-group">>},  %% Queue group for result consumer (horizontal scaling)
+      {nats_js_deliver_group_acks, <<"router-acks-group">>},  %% Queue group for ACK consumer (horizontal scaling)
+      %% CP2+: Decide Consumer Configuration (JetStream)
+      {decide_subject, <<"beamline.router.v1.decide">>},  %% Decide subject (default: beamline.router.v1.decide)
+      {nats_js_durable_group_decide, <<"router-decide-consumer">>},  %% JetStream durable group for decide
+      {nats_js_deliver_group_decide, <<"router-decide-group">>},  %% Queue group for decide consumer (horizontal scaling)
+      {nats_js_max_deliver, 3},  %% Maximum delivery attempts (default: 3, fallback for all subjects)
+      {js_max_deliver_decide, 5},  %% Maximum delivery attempts for decide (default: 5)
+      {js_max_deliver_results, 10},  %% Maximum delivery attempts for results (default: 10)
+      {nats_js_ack_wait_seconds, 30},  %% ACK wait time in seconds (default: 30)
+      {nats_js_backoff_seconds, [1, 2, 4]},  %% Exponential backoff between redeliveries in seconds (default: [1, 2, 4], fallback for all subjects)
+      {js_backoff_decide, [1000, 5000, 15000]},  %% Backoff delays for decide in milliseconds (default: [1000, 5000, 15000])
+      {idempotency_ttl_seconds, 3600},  %% Idempotency TTL in seconds (default: 1 hour)
+      {result_ack_allowed_tenants, undefined},  %% Allowlist for ExecResult/ACK tenant validation (undefined = allow all)
+      %% CP2+: DLQ Configuration
+      {dlq_subject_pattern, undefined},  %% DLQ subject pattern (undefined = append .dlq to original subject, e.g., "beamline.router.v1.intake.dlq")
+      {dlq_enabled, true},  %% Enable DLQ publication (default: true)
+      %% CP1 Phase 3: RBAC and Policy Enforcement Configuration
+      {rbac_enabled, true},  %% Enable RBAC system (default: true)
+      {audit_retention_days, 90},  %% Audit log retention in days (default: 90)
+      {default_quota, #{
+          max_policies => 10,
+          max_rules_per_policy => 50,
+          max_providers_per_policy => 20
+      }},
+      {rate_limits, #{
+          default_requests_per_minute => 100,
+          premium_requests_per_minute => 1000,
+          enterprise_requests_per_minute => 10000
+      }},
+      {rbac_cache_ttl_seconds, 300},  %% Permission cache TTL in seconds (default: 5 minutes)
+      {rbac_db_enabled, false},  %% Enable PostgreSQL backend for RBAC (default: false, use ETS)
+      %% CP2+ Feature Flags (now baseline - enabled by default)
+      {idempotency_enabled, true},  %% CP2+: Enable idempotency layer (default: true, CP2 baseline)
+      {tracing_enabled, true},  %% CP2+: Enable OpenTelemetry distributed tracing (default: true, CP2 baseline)
+      {tenant_validation_enabled, true},  %% CP2+: Enable tenant validation (default: true, CP2 baseline)
+      {admin_grpc_enabled, true},  %% CP2+: Enable admin gRPC service (RouterAdmin) (default: true, CP2 baseline)
+      {heir_enabled, false},  %% CP2+: Enable HEIR policy store (default: false, CP1 baseline uses static/ETS)
+      {advanced_metrics_enabled, false},  %% CP2+: Enable advanced metrics beyond basic telemetry (default: false, CP1 baseline)
+      %% CP2-LC: Extension Registry Configuration
+      {extension_registry, [
+          {source, auto},  %% Source: database | fixtures | auto (try database, fallback to fixtures)
+          {db_enabled, false},  %% Enable PostgreSQL backend (default: false for CP1, true for CP2-LC)
+          {db_host, "localhost"},  %% Database host
+          {db_port, 5432},  %% Database port
+          {db_name, "beamline"},  %% Database name
+          {db_user, "beamline"},  %% Database user
+          {db_password, ""},  %% Database password (from environment variable)
+          {db_pool_size, 10},  %% Connection pool size
+          {cache_type, ets},  %% Cache type: ets | mnesia
+          {sync_interval_seconds, 60},  %% Periodic sync interval (seconds)
+          {circuit_breaker_enabled, false},  %% CP3: Enable circuit breaker (default: false)
+          {circuit_breaker_failure_threshold, 5},  %% CP3: Failure threshold for circuit breaker
+          {circuit_breaker_timeout_seconds, 60}  %% CP3: Timeout before attempting recovery
+      ]},
+      {grpcbox, [
+          {servers, [
+              {router_grpc_server, [
+                  {port, 9000},
+                  {transport_opts, #{}}
+              ]}
+          ]}
+      ]}
+  ]}
+]}.

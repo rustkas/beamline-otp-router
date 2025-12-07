@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "providers": [
+    {"name": "openai", "weight": 60},
+    {"name": "anthropic", "weight": 40}
+  ],
+  "sticky": {
+    "enabled": true,
+    "session_key": "user_id",
+    "ttl": "15m"
+  },
+  "fallbacks": [
+    {
+      "when": {"status": ["timeout", "5xx"]},
+      "retry": 2,
+      "to": "anthropic"
+    }
+  ],
+  "metadata": {
+    "strategy": "sticky_with_weights",
+    "description": "Sticky routing combined with weighted distribution and fallbacks"
+  }
+}
+

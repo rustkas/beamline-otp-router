@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "providers": [
+    {"name": "openai", "weight": 100}
+  ],
+  "validators": [
+    {
+      "id": "pii_guard",
+      "on_fail": "block"
+    },
+    {
+      "id": "content_filter",
+      "on_fail": "warn"
+    }
+  ],
+  "metadata": {
+    "strategy": "extensions_validators_only",
+    "description": "Only validator extensions"
+  }
+}
+

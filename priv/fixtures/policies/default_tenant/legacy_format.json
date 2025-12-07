@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "weights": {
+    "openai": 0.7,
+    "anthropic": 0.3
+  },
+  "fallback": {
+    "provider": "local_llm",
+    "conditions": ["all_providers_failed", "timeout"]
+  },
+  "sticky": {
+    "enabled": true,
+    "ttl_seconds": 3600
+  },
+  "metadata": {
+    "strategy": "legacy_format",
+    "description": "Pure legacy format: weights map, fallback object, ttl_seconds"
+  }
+}
+

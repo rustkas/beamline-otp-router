@@ -1,0 +1,45 @@
+=== Suite started at 2025-11-12 09:29:13
+=== Starting test, 1 test cases
+=cases         1
+=user          rustkas
+=host          nohost
+=hosts         nohost 
+=emulator_vsn  15.2.7.1
+=emulator      beam
+=otp_release   27
+=started       2025-11-12 09:29:13
+=case          router_policy_store_prop_SUITE:init_per_suite
+=logfile       router_policy_store_prop_suite.init_per_suite.html
+=started       2025-11-12 09:29:13
+=ended         2025-11-12 09:29:13
+=result        ok
+=elapsed       0.095910s
+=case          router_policy_store_prop_SUITE:prop_list_policies_ordering
+=logfile       router_policy_store_prop_suite.prop_list_policies_ordering.html
+=started       2025-11-12 09:29:13
+=ended         2025-11-12 09:29:13
+=result        failed: {test_case_failed,"Property failed"}, [{test_server,
+                                                               ts_tc,1794},
+                                                              {test_server,
+                                                               run_test_case_eval1,
+                                                               1303},
+                                                              {test_server,
+                                                               run_test_case_eval,
+                                                               1235}]
+=elapsed       0.057765s
+=== *** FAILED test case 1 of 1 ***
+=case          router_policy_store_prop_SUITE:end_per_suite
+=logfile       router_policy_store_prop_suite.end_per_suite.html
+=started       2025-11-12 09:29:13
+=ended         2025-11-12 09:29:13
+=result        ok
+=elapsed       0.002177s
+=group_time    0.249s
+=== TEST COMPLETE, 0 ok, 1 failed of 1 test cases
+
+=finished      2025-11-12 09:29:13
+=failed        1
+=successful    0
+=user_skipped  0
+=auto_skipped  0
+=elapsed_time  324716

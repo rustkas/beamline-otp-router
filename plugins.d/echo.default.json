@@ -1,0 +1,20 @@
+{
+  "$schema": "../docs/schemas/plugin.schema.json",
+  "id": "echo.default",
+  "type": "port_client",
+  "mode": "endpoint",
+  "endpoint": "grpc://localhost:7000",
+  "resources": {
+    "cpu": "100m",
+    "memory": "128Mi"
+  },
+  "telemetry": {
+    "enabled": true,
+    "labels": ["echo", "demo"]
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "description": "Echo plugin for demonstration"
+  }
+}
+

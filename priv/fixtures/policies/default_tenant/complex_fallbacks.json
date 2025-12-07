@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "providers": [
+    {"name": "openai", "weight": 50},
+    {"name": "anthropic", "weight": 30},
+    {"name": "cohere", "weight": 20}
+  ],
+  "fallbacks": [
+    {
+      "when": {"status": ["timeout"]},
+      "retry": 3,
+      "to": "anthropic"
+    },
+    {
+      "when": {"status": ["5xx", "503"]},
+      "retry": 2,
+      "to": "cohere"
+    },
+    {
+      "when": {"status": ["rate_limited", "429"]},
+      "retry": 1,
+      "to": "local_llm"
+    },
+    {
+      "when": {
+        "status": ["timeout"],
+        "message_type": ["chat"]
+      },
+      "retry": 2,
+      "to": "anthropic"
+    }
+  ],
+  "metadata": {
+    "strategy": "complex_fallbacks",
+    "description": "Complex fallback chain with multiple conditions and retry counts"
+  }
+}
+

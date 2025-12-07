@@ -1,0 +1,14 @@
+{
+  "id": "pii_guard",
+  "type": "validator",
+  "subject": "beamline.ext.validate.pii_guard.v1",
+  "timeout_ms": 200,
+  "retry": 0,
+  "enabled": true,
+  "config": {},
+  "metadata": {
+    "description": "PII detection validator",
+    "version": "v1"
+  }
+}
+

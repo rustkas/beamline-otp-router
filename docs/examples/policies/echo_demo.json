@@ -1,0 +1,18 @@
+{
+  "id": "echo_demo",
+  "rules": [
+    {
+      "port": "echo",
+      "target": "echo.default",
+      "limits": {
+        "max_size_bytes": 1048576,
+        "timeout_ms": 5000,
+        "max_retries": 3
+      },
+      "weights": {
+        "echo.default": 1.0
+      }
+    }
+  ]
+}
+

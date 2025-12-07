@@ -1,0 +1,161 @@
+=== Suite started at 2025-11-11 20:26:22
+=== Starting test, 4 test cases
+=cases         4
+=user          rustkas
+=host          nohost
+=hosts         nohost 
+=emulator_vsn  15.2.7.1
+=emulator      beam
+=otp_release   27
+=started       2025-11-11 20:26:22
+=case          router_core_telemetry_contract_SUITE:init_per_suite
+=logfile       router_core_telemetry_contract_suite.init_per_suite.html
+=started       2025-11-11 20:26:22
+=ended         2025-11-11 20:26:22
+=result        ok
+=elapsed       0.326931s
+=case          router_core_telemetry_contract_SUITE:test_route_returns_tuple_with_metadata
+=logfile       router_core_telemetry_contract_suite.test_route_returns_tuple_with_metadata.html
+=started       2025-11-11 20:26:22
+=ended         2025-11-11 20:26:22
+=result        failed: {{badmap,undefined},
+                        [{router_decider,decide,3,[]},
+                         {router_core,'-route/2-fun-0-',5,
+                             [{file,
+                                  "/home/rustkas/aigroup/apps/otp/router/src/router_core.erl"},
+                              {line,71}]},
+                         {telemetry,span,3,
+                             [{file,
+                                  "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/telemetry/src/telemetry.erl"},
+                              {line,324}]},
+                         {router_core_telemetry_contract_SUITE,
+                             test_route_returns_tuple_with_metadata,1,
+                             [{file,
+                                  "/home/rustkas/aigroup/apps/otp/router/test/router_core_telemetry_contract_SUITE.erl"},
+                              {line,70}]},
+                         {test_server,ts_tc,3,
+                             [{file,"test_server.erl"},{line,1794}]},
+                         {test_server,run_test_case_eval1,6,
+                             [{file,"test_server.erl"},{line,1303}]},
+                         {test_server,run_test_case_eval,9,
+                             [{file,"test_server.erl"},{line,1235}]}]}, [{router_decider,
+                                                                          decide},
+                                                                         {router_core,
+                                                                          '-route/2-fun-0-',
+                                                                          71},
+                                                                         {telemetry,
+                                                                          span,
+                                                                          324},
+                                                                         {router_core_telemetry_contract_SUITE,
+                                                                          test_route_returns_tuple_with_metadata,
+                                                                          70},
+                                                                         {test_server,
+                                                                          ts_tc,
+                                                                          1794},
+                                                                         {test_server,
+                                                                          run_test_case_eval1,
+                                                                          1303},
+                                                                         {test_server,
+                                                                          run_test_case_eval,
+                                                                          1235}]
+=elapsed       0.012357s
+=== *** FAILED test case 1 of 4 ***
+=case          router_core_telemetry_contract_SUITE:test_route_telemetry_stop_event_no_exception
+=logfile       router_core_telemetry_contract_suite.test_route_telemetry_stop_event_no_exception.html
+=started       2025-11-11 20:26:22
+=ended         2025-11-11 20:26:22
+=result        failed: {test_case_failed,
+                           "Exception thrown: error:{badmap,undefined}\n[{router_decider,decide,3,[]},\n {router_core,'-route/2-fun-0-',5,\n     [{file,\"/home/rustkas/aigroup/apps/otp/router/src/router_core.erl\"},\n      {line,71}]},\n {telemetry,span,3,\n     [{file,\n          \"/home/rustkas/aigroup/apps/otp/router/_build/default/lib/telemetry/src/telemetry.erl\"},\n      {line,324}]},\n {router_core_telemetry_contract_SUITE,\n     test_route_telemetry_stop_event_no_exception,1,\n     [{file,\n          \"/home/rustkas/aigroup/apps/otp/router/test/router_core_telemetry_contract_SUITE.erl\"},\n      {line,125}]},\n {test_server,ts_tc,3,[{file,\"test_server.erl\"},{line,1794}]},\n {test_server,run_test_case_eval1,6,[{file,\"test_server.erl\"},{line,1303}]},\n {test_server,run_test_case_eval,9,[{file,\"test_server.erl\"},{line,1235}]}]"}, [{router_core_telemetry_contract_SUITE,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       test_route_telemetry_stop_event_no_exception,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       151},
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      {test_server,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       ts_tc,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       1794},
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      {test_server,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       run_test_case_eval1,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       1303},
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      {test_server,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       run_test_case_eval,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       1235}]
+=elapsed       0.000209s
+=== *** FAILED test case 2 of 4 ***
+=case          router_core_telemetry_contract_SUITE:test_route_error_returns_correct_format
+=logfile       router_core_telemetry_contract_suite.test_route_error_returns_correct_format.html
+=started       2025-11-11 20:26:22
+=ended         2025-11-11 20:26:22
+=result        failed: {test_case_failed,
+                           "Expected {{error, {missing_tenant_id, _Context}}, StopMetadata}, got: {error,\n                                                                       {missing_tenant_id,\n                                                                        #{context =>\n                                                                           <<\"tenant_id is required in message\">>,\n                                                                          message_id =>\n                                                                           <<\"test-msg\">>}}}"}, [{router_core_telemetry_contract_SUITE,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                test_route_error_returns_correct_format,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                182},
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               {test_server,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ts_tc,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                1794},
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               {test_server,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                run_test_case_eval1,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                1303},
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               {test_server,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                run_test_case_eval,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                1235}]
+=elapsed       0.000047s
+=== *** FAILED test case 3 of 4 ***
+=case          router_core_telemetry_contract_SUITE:test_route_success_returns_correct_format
+=logfile       router_core_telemetry_contract_suite.test_route_success_returns_correct_format.html
+=started       2025-11-11 20:26:22
+=ended         2025-11-11 20:26:22
+=result        failed: {{badmap,undefined},
+                        [{router_decider,decide,3,[]},
+                         {router_core,'-route/2-fun-0-',5,
+                             [{file,
+                                  "/home/rustkas/aigroup/apps/otp/router/src/router_core.erl"},
+                              {line,71}]},
+                         {telemetry,span,3,
+                             [{file,
+                                  "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/telemetry/src/telemetry.erl"},
+                              {line,324}]},
+                         {router_core_telemetry_contract_SUITE,
+                             test_route_success_returns_correct_format,1,
+                             [{file,
+                                  "/home/rustkas/aigroup/apps/otp/router/test/router_core_telemetry_contract_SUITE.erl"},
+                              {line,211}]},
+                         {test_server,ts_tc,3,
+                             [{file,"test_server.erl"},{line,1794}]},
+                         {test_server,run_test_case_eval1,6,
+                             [{file,"test_server.erl"},{line,1303}]},
+                         {test_server,run_test_case_eval,9,
+                             [{file,"test_server.erl"},{line,1235}]}]}, [{router_decider,
+                                                                          decide},
+                                                                         {router_core,
+                                                                          '-route/2-fun-0-',
+                                                                          71},
+                                                                         {telemetry,
+                                                                          span,
+                                                                          324},
+                                                                         {router_core_telemetry_contract_SUITE,
+                                                                          test_route_success_returns_correct_format,
+                                                                          211},
+                                                                         {test_server,
+                                                                          ts_tc,
+                                                                          1794},
+                                                                         {test_server,
+                                                                          run_test_case_eval1,
+                                                                          1303},
+                                                                         {test_server,
+                                                                          run_test_case_eval,
+                                                                          1235}]
+=elapsed       0.000057s
+=== *** FAILED test case 4 of 4 ***
+=case          router_core_telemetry_contract_SUITE:end_per_suite
+=logfile       router_core_telemetry_contract_suite.end_per_suite.html
+=started       2025-11-11 20:26:22
+=ended         2025-11-11 20:26:22
+=result        ok
+=elapsed       0.001951s
+=group_time    0.535s
+=== TEST COMPLETE, 0 ok, 4 failed of 4 test cases
+
+=finished      2025-11-11 20:26:22
+=failed        4
+=successful    0
+=user_skipped  0
+=auto_skipped  0
+=elapsed_time  644285

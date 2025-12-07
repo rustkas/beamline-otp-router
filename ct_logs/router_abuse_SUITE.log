@@ -1,0 +1,168 @@
+===> Verifying dependencies...
+===> Analyzing applications...
+===> Compiling beamline_router
+     ┌─ src/router_circuit_breaker.erl:
+     │
+ 482 │          } = CBState] ->
+     │              ╰── Warning: variable 'CBState' is unused
+
+
+    ┌─ test/router_caf_adapter_enhanced_SUITE.erl:
+    │
+ 64 │  init_per_testcase(_TestCase, Config) ->
+    │  ╰── Warning: function init_per_testcase/2 is unused
+
+    ┌─ test/router_caf_adapter_enhanced_SUITE.erl:
+    │
+ 67 │  end_per_testcase(_TestCase, Config) ->
+    │  ╰── Warning: function end_per_testcase/2 is unused
+
+
+    ┌─ test/router_tenant_allowlist_SUITE.erl:
+    │
+ 49 │  test_allowlist_binary_tenants(_Config) ->
+    │  ╰── Warning: function test_allowlist_binary_tenants/1 is unused
+
+    ┌─ test/router_tenant_allowlist_SUITE.erl:
+    │
+ 68 │  test_allowlist_string_tenants(_Config) ->
+    │  ╰── Warning: function test_allowlist_string_tenants/1 is unused
+
+    ┌─ test/router_tenant_allowlist_SUITE.erl:
+    │
+ 87 │  test_allowlist_mixed_types(_Config) ->
+    │  ╰── Warning: function test_allowlist_mixed_types/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 103 │  test_tenant_id_binary_matches_string_allowlist(_Config) ->
+     │  ╰── Warning: function test_tenant_id_binary_matches_string_allowlist/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 115 │  test_tenant_id_string_matches_binary_allowlist(_Config) ->
+     │  ╰── Warning: function test_tenant_id_string_matches_binary_allowlist/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 128 │  test_allowlist_map_binary_keys(_Config) ->
+     │  ╰── Warning: function test_allowlist_map_binary_keys/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 147 │  test_allowlist_map_string_keys(_Config) ->
+     │  ╰── Warning: function test_allowlist_map_string_keys/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 161 │  test_undefined_tenant_id_with_allowlist(_Config) ->
+     │  ╰── Warning: function test_undefined_tenant_id_with_allowlist/1 is unused
+
+
+    ┌─ test/router_core_SUITE.erl:
+    │
+ 62 │  test_policy_parsing(_Config) ->
+    │  ╰── Warning: function test_policy_parsing/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 123 │  test_basic_decision(_Config) ->
+     │  ╰── Warning: function test_basic_decision/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 144 │  test_missing_tenant_id(_Config) ->
+     │  ╰── Warning: function test_missing_tenant_id/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 163 │  test_policy_not_found(_Config) ->
+     │  ╰── Warning: function test_policy_not_found/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 185 │  test_weighted_routing(_Config) ->
+     │  ╰── Warning: function test_weighted_routing/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 235 │  test_fallback(_Config) ->
+     │  ╰── Warning: function test_fallback/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 257 │  test_telemetry_events(_Config) ->
+     │  ╰── Warning: function test_telemetry_events/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 348 │  test_empty_tenant_id(_Config) ->
+     │  ╰── Warning: function test_empty_tenant_id/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 368 │  test_context_undefined(_Config) ->
+     │  ╰── Warning: function test_context_undefined/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 386 │  test_context_non_map(_Config) ->
+     │  ╰── Warning: function test_context_non_map/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 404 │  test_context_with_correlation_id(_Config) ->
+     │  ╰── Warning: function test_context_with_correlation_id/1 is unused
+
+
+    ┌─ test/router_policy_validator_SUITE.erl:
+    │
+ 40 │  test_empty_weights(_Config) ->
+    │  ╰── Warning: function test_empty_weights/1 is unused
+
+    ┌─ test/router_policy_validator_SUITE.erl:
+    │
+ 53 │  test_zero_weights(_Config) ->
+    │  ╰── Warning: function test_zero_weights/1 is unused
+
+    ┌─ test/router_policy_validator_SUITE.erl:
+    │
+ 74 │  test_negative_weights(_Config) ->
+    │  ╰── Warning: function test_negative_weights/1 is unused
+
+    ┌─ test/router_policy_validator_SUITE.erl:
+    │
+ 90 │  test_weights_out_of_range(_Config) ->
+    │  ╰── Warning: function test_weights_out_of_range/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 106 │  test_duplicate_providers(_Config) ->
+     │  ╰── Warning: function test_duplicate_providers/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 126 │  test_invalid_weight_type(_Config) ->
+     │  ╰── Warning: function test_invalid_weight_type/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 142 │  test_empty_policy_id(_Config) ->
+     │  ╰── Warning: function test_empty_policy_id/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 157 │  test_invalid_sticky_config(_Config) ->
+     │  ╰── Warning: function test_invalid_sticky_config/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 175 │  test_invalid_fallback_config(_Config) ->
+     │  ╰── Warning: function test_invalid_fallback_config/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 193 │  test_valid_policy(_Config) ->
+     │  ╰── Warning: function test_valid_policy/1 is unused
+
+

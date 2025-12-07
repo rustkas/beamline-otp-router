@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "providers": [
+    {"name": "openai", "weight": 100}
+  ],
+  "circuit_breaker": {
+    "enabled": false
+  }
+}
+

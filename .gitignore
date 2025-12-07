@@ -1,0 +1,6 @@
+_build/
+.cursor/
+.windsurf
+.windsurf/
+*.dump
+*.beam

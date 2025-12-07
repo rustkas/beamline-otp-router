@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["policy_id", "tenant_id", "weights"],
+  "properties": {
+    "policy_id": {"type": "string", "minLength": 1, "maxLength": 255, "pattern": "^[a-zA-Z0-9_.-]+$"},
+    "tenant_id": {"type": "string", "minLength": 1, "maxLength": 255},
+    "sticky": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "session_key": {"type": "string", "minLength": 1, "maxLength": 255},
+        "ttl_sec": {"type": "integer", "minimum": 1, "maximum": 86400}
+      },
+      "required": ["enabled"],
+      "additionalProperties": true
+    },
+    "weights": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+    }
+  },
+  "additionalProperties": true
+}

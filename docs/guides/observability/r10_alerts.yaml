@@ -1,0 +1,81 @@
+groups:
+  - name: r10-circuit-breaker.rules
+    interval: 30s
+    rules:
+      # 1) Circuit stuck open
+      - alert: R10CircuitOpenTooLong
+        expr: |
+          max_over_time(
+            router_circuit_breaker_state == 1
+          [5m]) == 1
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+          component: r10
+        annotations:
+          summary: "R10 circuit open too long (tenant={{ $labels.tenant_id }}, provider={{ $labels.provider_id }})"
+          description: >
+            Circuit breaker has been in OPEN state for more than 5 minutes.
+            This may indicate persistent provider failure or misconfiguration.
+            Check provider health, upstream dependencies and recent deployments.
+          runbook_url: "https://github.com/rustkas/orchestrator/blob/main/apps/otp/router/test/R10_RUNBOOK.md#scenario-a-breaker-stuck-in-open-state"
+
+      # 2) High error rate
+      - alert: R10HighErrorRate
+        expr: |
+          router_circuit_breaker_error_rate > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          team: sre
+          component: r10
+        annotations:
+          summary: "R10 high error rate (tenant={{ $labels.tenant_id }}, provider={{ $labels.provider_id }})"
+          description: >
+            Error rate in the sliding window is above 50% for more than 5 minutes.
+            Check provider health, upstream dependencies and recent deployments.
+          runbook_url: "https://github.com/rustkas/orchestrator/blob/main/apps/otp/router/test/R10_RUNBOOK.md#scenario-d-error-rate-trigger-with-mixed-successfailure"
+
+      # 3) Flapping circuit (too many transitions)
+      - alert: R10CircuitFlapping
+        expr: |
+          increase(router_circuit_breaker_state_transitions_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+          component: r10
+        annotations:
+          summary: "R10 flapping circuit (tenant={{ $labels.tenant_id }}, provider={{ $labels.provider_id }})"
+          description: >
+            Circuit breaker is flapping (more than 10 state transitions over 5 minutes).
+            Investigate threshold configuration and traffic patterns.
+          runbook_url: "https://github.com/rustkas/orchestrator/blob/main/apps/otp/router/test/R10_RUNBOOK.md#scenario-b-breaker-flapping-rapid-state-transitions"
+
+      # 4) Latency-based trigger dominates
+      - alert: R10LatencyTriggerDominating
+        expr: |
+          (
+            sum by (tenant_id, provider_id) (
+              increase(router_circuit_breaker_trigger_reason{reason="latency_threshold_exceeded"}[10m])
+            )
+          )
+          /
+          (
+            sum by (tenant_id, provider_id) (
+              increase(router_circuit_breaker_trigger_reason[10m])
+            ) + 1e-9
+          )
+          > 0.7
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+          component: r10
+        annotations:
+          summary: "R10 latency-based trigger dominates (tenant={{ $labels.tenant_id }}, provider={{ $labels.provider_id }})"
+          description: >
+            More than 70% of circuit breaker openings in the last 10 minutes were caused by latency_threshold_exceeded.
+            This may indicate systemic latency issues or misconfigured thresholds.
+          runbook_url: "https://github.com/rustkas/orchestrator/blob/main/apps/otp/router/test/R10_RUNBOOK.md#scenario-c-latency-based-trigger-dominating"

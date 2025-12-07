@@ -1,0 +1,50 @@
+===> Verifying dependencies...
+===> Analyzing applications...
+===> Compiling beamline_router
+     ┌─ src/router_circuit_breaker.erl:
+     │
+ 482 │          } = CBState] ->
+     │              ╰── Warning: variable 'CBState' is unused
+
+
+    ┌─ test/router_tenant_allowlist_SUITE.erl:
+    │
+ 49 │  test_allowlist_binary_tenants(_Config) ->
+    │  ╰── Warning: function test_allowlist_binary_tenants/1 is unused
+
+    ┌─ test/router_tenant_allowlist_SUITE.erl:
+    │
+ 68 │  test_allowlist_string_tenants(_Config) ->
+    │  ╰── Warning: function test_allowlist_string_tenants/1 is unused
+
+    ┌─ test/router_tenant_allowlist_SUITE.erl:
+    │
+ 87 │  test_allowlist_mixed_types(_Config) ->
+    │  ╰── Warning: function test_allowlist_mixed_types/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 103 │  test_tenant_id_binary_matches_string_allowlist(_Config) ->
+     │  ╰── Warning: function test_tenant_id_binary_matches_string_allowlist/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 115 │  test_tenant_id_string_matches_binary_allowlist(_Config) ->
+     │  ╰── Warning: function test_tenant_id_string_matches_binary_allowlist/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 128 │  test_allowlist_map_binary_keys(_Config) ->
+     │  ╰── Warning: function test_allowlist_map_binary_keys/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 147 │  test_allowlist_map_string_keys(_Config) ->
+     │  ╰── Warning: function test_allowlist_map_string_keys/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 161 │  test_undefined_tenant_id_with_allowlist(_Config) ->
+     │  ╰── Warning: function test_undefined_tenant_id_with_allowlist/1 is unused
+
+

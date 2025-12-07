@@ -1,0 +1,514 @@
+%% @doc Fault injection tests for JetStream integration
+%% Tests Router behavior under NATS/JetStream failures: intermittent errors, delays, unstable ack/nak
+%% @test_category slow, jetstream, fault_injection
+-module(router_jetstream_fault_injection_SUITE).
+-include_lib("common_test/include/ct.hrl").
+-include_lib("beamline_router/include/beamline_router.hrl").
+
+%% Suppress warnings for Common Test callbacks and test cases (called automatically by CT framework)
+-compile({nowarn_unused_function, [
+    all/0,
+    groups/0,
+    init_per_suite/1,
+    end_per_suite/1,
+    init_per_testcase/2,
+    end_per_testcase/2,
+    test_intermittent_ack_nak_errors/1,
+    test_processing_delays_redelivery_growth/1,
+    test_maxdeliver_exhaustion_partial_messages/1
+]}).
+
+
+all() ->
+    [
+        {group, fault_injection_tests}
+    ].
+
+groups() ->
+    [
+        {fault_injection_tests, [sequence], [
+            test_intermittent_ack_nak_errors,
+            test_processing_delays_redelivery_growth,
+            test_maxdeliver_exhaustion_partial_messages
+        ]}
+    ].
+
+init_per_suite(Config) ->
+    _ = application:load(beamline_router),
+    ok = application:set_env(beamline_router, grpc_port, 0),
+    ok = application:set_env(beamline_router, grpc_enabled, false),
+    ok = application:set_env(beamline_router, nats_mode, mock),
+    ok = application:set_env(beamline_router, result_subject, <<"caf.exec.result.v1">>),
+    ok = application:set_env(beamline_router, usage_subject, <<"beamline.usage.v1.metered">>),
+    ok = application:set_env(beamline_router, nats_js_max_deliver, 3),  %% Set MaxDeliver to 3 for testing
+    ok = application:set_env(beamline_router, idempotency_enabled, true),  %% Enable idempotency for tests
+    ok = application:set_env(beamline_router, telemetry_enabled, true),
+    case application:ensure_all_started(beamline_router) of
+        {ok, _} ->
+            test_helpers:wait_for_app_start(router_result_consumer, 1000),
+            Config;
+        Error ->
+            ct:fail("Failed to start beamline_router: ~p", [Error])
+    end.
+
+end_per_suite(Config) ->
+    application:stop(beamline_router),
+    Config.
+
+init_per_testcase(_TestCase, Config) ->
+    meck:new(router_nats, [passthrough]),
+    Config.
+
+end_per_testcase(_TestCase, Config) ->
+    meck:unload(router_nats),
+    %% Clean up ETS tables if needed
+    case ets:whereis(router_delivery_count) of
+        undefined -> ok;
+        Table -> ets:delete_all_objects(Table)
+    end,
+    Config.
+
+%% Test: Intermittent ACK/NAK errors (simulating NATS/JetStream failures)
+%% Verifies Router handles periodic ack/nak failures gracefully without crashes
+test_intermittent_ack_nak_errors(_Config) ->
+    AssignmentId = <<"assign-fault-1">>,
+    RequestId = <<"req-fault-1">>,
+    MsgId = <<"msg-fault-1">>,
+    
+    Result = #{
+        <<"assignment_id">> => AssignmentId,
+        <<"request_id">> => RequestId,
+        <<"status">> => <<"success">>,
+        <<"provider_id">> => <<"openai:gpt-4o">>,
+        <<"job">> => #{<<"type">> => <<"text.generate">>},
+        <<"latency_ms">> => 850,
+        <<"cost">> => 0.012,
+        <<"trace_id">> => <<"tr-fault-1">>,
+        <<"tenant_id">> => <<"acme">>,
+        <<"timestamp">> => erlang:system_time(millisecond)
+    },
+    
+    ResultJson = jsx:encode(Result),
+    %% Track metrics
+    RedeliveryMetrics = ets:new(redelivery_metrics, [set, private]),
+    AckErrors = ets:new(ack_errors, [set, private]),
+    
+    HandlerId = {?MODULE, test_intermittent_errors},
+    telemetry:attach(HandlerId, [router_result_consumer, router_jetstream_redelivery_total],
+        fun(_Event, _Measurements, Metadata, _HandlerConfig) ->
+            ets:insert(RedeliveryMetrics, {redelivery, Metadata})
+        end, #{}),
+    
+    %% Mock NATS with intermittent failures
+    %% First ACK fails, second succeeds
+    AckCallCount = ets:new(ack_call_count, [set, private]),
+    meck:expect(router_nats, ack_message, fun(M) ->
+        Count = case ets:lookup(AckCallCount, calls) of
+            [] -> 1;
+            [{calls, C}] -> C + 1
+        end,
+        ets:insert(AckCallCount, {calls, Count}),
+        case Count of
+            1 ->
+                %% First call fails (simulating NATS error)
+                ets:insert(AckErrors, {error, M}),
+                {error, nats_connection_error};
+            _ ->
+                %% Subsequent calls succeed
+                ok
+        end
+    end),
+    
+    %% Mock NAK to track redeliveries
+    meck:expect(router_nats, nak_message, fun(_M) ->
+        ets:insert(RedeliveryMetrics, {nak, undefined}),
+        ok
+    end),
+    
+    %% Mock publish for usage events
+    meck:expect(router_nats, publish, fun(_Subject, _Payload) -> ok end),
+    
+    %% Process result message (first attempt - ACK fails)
+    Headers = #{
+        <<"Nats-Msg-Id">> => MsgId,
+        <<"trace_id">> => <<"tr-fault-1">>,
+        <<"tenant_id">> => <<"acme">>,
+        <<"version">> => <<"1">>
+    },
+    router_result_consumer ! {nats_message, <<"caf.exec.result.v1">>, ResultJson, Headers, MsgId},
+    
+    %% Allow processing (bounded wait)
+    test_helpers:wait_for_condition(fun() ->
+        case ets:lookup(AckCallCount, calls) of
+            [] -> false;
+            [{calls, C}] -> C >= 1
+        end
+    end, 2000),
+    
+    %% Verify ACK was called (may have failed, but was attempted)
+    case ets:lookup(AckCallCount, calls) of
+        [{calls, Count}] when Count >= 1 ->
+            ok;
+        _ ->
+            ct:fail("ACK was not called")
+    end,
+    
+    %% Verify ACK error was recorded (if ACK failed)
+    case ets:lookup(AckErrors, error) of
+        [{error, MsgId}] ->
+            ok;  %% ACK failed as expected
+        [] ->
+            %% ACK may have succeeded on first try (depending on timing)
+            %% This is acceptable - we're testing resilience, not specific failure
+            ok
+    end,
+    
+    %% Verify Router process is still alive (no crash)
+    case whereis(router_result_consumer) of
+        undefined ->
+            ct:fail("router_result_consumer process crashed");
+        Pid1 when is_pid(Pid1) ->
+            true = is_process_alive(Pid1),
+            ok
+    end,
+    
+    %% Process same message again (second attempt - should succeed)
+    router_result_consumer ! {nats_message, <<"caf.exec.result.v1">>, ResultJson, Headers, MsgId},
+    
+    %% Allow processing
+    test_helpers:wait_for_condition(fun() ->
+        case ets:lookup(AckCallCount, calls) of
+            [] -> false;
+            [{calls, C}] -> C >= 2
+        end
+    end, 2000),
+    
+    %% Verify second ACK succeeded (no error recorded)
+    case ets:lookup(AckErrors, error) of
+        [{error, MsgId}] ->
+            ok;  %% Only first error recorded
+        _ ->
+            ct:fail("Unexpected ACK error state")
+    end,
+    
+    %% Verify Router process is still alive
+    case whereis(router_result_consumer) of
+        undefined ->
+            ct:fail("router_result_consumer process crashed after second attempt");
+        Pid2 when is_pid(Pid2) ->
+            true = is_process_alive(Pid2),
+            ok
+    end,
+    
+    telemetry:detach(HandlerId),
+    ets:delete(RedeliveryMetrics),
+    ets:delete(AckErrors),
+    ets:delete(AckCallCount),
+    ok.
+
+%% Test: Processing delays causing redelivery growth
+%% Verifies Router correctly tracks redeliveries when processing is delayed
+test_processing_delays_redelivery_growth(_Config) ->
+    AssignmentId = <<"assign-fault-2">>,
+    RequestId = <<"req-fault-2">>,
+    MsgId = <<"msg-fault-2">>,
+    
+    Result = #{
+        <<"assignment_id">> => AssignmentId,
+        <<"request_id">> => RequestId,
+        <<"status">> => <<"success">>,
+        <<"provider_id">> => <<"openai:gpt-4o">>,
+        <<"job">> => #{<<"type">> => <<"text.generate">>},
+        <<"latency_ms">> => 850,
+        <<"cost">> => 0.012,
+        <<"trace_id">> => <<"tr-fault-2">>,
+        <<"tenant_id">> => <<"acme">>,
+        <<"timestamp">> => erlang:system_time(millisecond)
+    },
+    ResultJson = jsx:encode(Result),
+    
+    %% Track redelivery metrics
+    RedeliveryMetrics = ets:new(redelivery_metrics, [set, private]),
+    RedeliveryCount = ets:new(redelivery_count, [set, private]),
+    
+    HandlerId = {?MODULE, test_redelivery_growth},
+    telemetry:attach(HandlerId, [router_result_consumer, router_jetstream_redelivery_total],
+        fun(_Event, _Measurements, Metadata, _HandlerConfig) ->
+            Reason = maps:get(reason, Metadata, undefined),
+            Count = case ets:lookup(RedeliveryCount, Reason) of
+                [] -> 1;
+                [{Reason, C}] -> C + 1
+            end,
+            ets:insert(RedeliveryCount, {Reason, Count}),
+            ets:insert(RedeliveryMetrics, {redelivery, Metadata})
+        end, #{}),
+    
+    %% Mock NATS: NAK on first attempt (simulating processing delay/timeout)
+    NAKCallCount = ets:new(nak_call_count, [set, private]),
+    meck:expect(router_nats, nak_message, fun(_M) ->
+        Count = case ets:lookup(NAKCallCount, calls) of
+            [] -> 1;
+            [{calls, C}] -> C + 1
+        end,
+        ets:insert(NAKCallCount, {calls, Count}),
+        ok
+    end),
+    
+    %% Mock ACK (should succeed after delay)
+    meck:expect(router_nats, ack_message, fun(_M) -> ok end),
+    
+    %% Mock publish for usage events
+    meck:expect(router_nats, publish, fun(_Subject, _Payload) -> ok end),
+    
+    Headers = #{
+        <<"Nats-Msg-Id">> => MsgId,
+        <<"trace_id">> => <<"tr-fault-2">>,
+        <<"tenant_id">> => <<"acme">>,
+        <<"version">> => <<"1">>
+    },
+    
+    %% Simulate tenant validation failure (triggers NAK)
+    %% This simulates a processing delay scenario where tenant validation fails initially
+    %% In real scenario, this might be due to temporary unavailability
+    
+    %% First attempt: tenant validation fails (triggers NAK)
+    %% We'll simulate this by directly calling the processing logic with invalid tenant
+    InvalidResult = maps:put(<<"tenant_id">>, <<"invalid_tenant">>, Result),
+    InvalidResultJson = jsx:encode(InvalidResult),
+    
+    router_result_consumer ! {nats_message, <<"caf.exec.result.v1">>, InvalidResultJson, Headers, MsgId},
+    
+    %% Allow processing (bounded wait)
+    test_helpers:wait_for_condition(fun() ->
+        case ets:lookup(NAKCallCount, calls) of
+            [] -> false;
+            [{calls, C}] -> C >= 1
+        end
+    end, 3000),
+    
+    %% Verify NAK was called (redelivery triggered)
+    case ets:lookup(NAKCallCount, calls) of
+        [{calls, Count}] when Count >= 1 ->
+            ok;
+        _ ->
+            ct:fail("NAK was not called for tenant validation failure")
+    end,
+    
+    %% Verify redelivery metric was emitted
+    test_helpers:wait_for_condition(fun() ->
+        case ets:lookup(RedeliveryMetrics, redelivery) of
+            [] -> false;
+            _ -> true
+        end
+    end, 3000),
+    
+    case ets:lookup(RedeliveryMetrics, redelivery) of
+        [] ->
+            ct:fail("Redelivery metric was not emitted");
+        [{redelivery, Metadata}] ->
+            %% Verify metadata contains expected fields
+            AssignmentIdFromMeta = maps:get(assignment_id, Metadata, undefined),
+            RequestIdFromMeta = maps:get(request_id, Metadata, undefined),
+            Reason = maps:get(reason, Metadata, undefined),
+            Source = maps:get(source, Metadata, undefined),
+            true = (AssignmentIdFromMeta =/= undefined),
+            true = (RequestIdFromMeta =/= undefined),
+            true = (Reason =/= undefined),
+            true = (Source =/= undefined),
+            <<"tenant_validation">> = Source,
+            ok
+    end,
+    
+    %% Verify Router process is still alive
+    case whereis(router_result_consumer) of
+        undefined ->
+            ct:fail("router_result_consumer process crashed");
+        Pid3 when is_pid(Pid3) ->
+            true = is_process_alive(Pid3),
+            ok
+    end,
+    
+    telemetry:detach(HandlerId),
+    ets:delete(RedeliveryMetrics),
+    ets:delete(RedeliveryCount),
+    ets:delete(NAKCallCount),
+    ok.
+
+%% Test: MaxDeliver exhaustion for partial messages
+%% Verifies Router correctly handles MaxDeliver exhaustion for some messages while others succeed
+test_maxdeliver_exhaustion_partial_messages(_Config) ->
+    %% Create ETS table for delivery count tracking
+    Table = case ets:whereis(router_delivery_count) of
+        undefined ->
+            ets:new(router_delivery_count, [
+                set,
+                named_table,
+                public,
+                {write_concurrency, true},
+                {read_concurrency, true}
+            ]);
+        T -> T
+    end,
+    
+    %% Message 1: Will exhaust MaxDeliver
+    MsgId1 = <<"msg-fault-3-exhaust">>,
+    AssignmentId1 = <<"assign-fault-3-exhaust">>,
+    RequestId1 = <<"req-fault-3-exhaust">>,
+    
+    %% Message 2: Will succeed
+    MsgId2 = <<"msg-fault-3-success">>,
+    AssignmentId2 = <<"assign-fault-3-success">>,
+    RequestId2 = <<"req-fault-3-success">>,
+    
+    Result1 = #{
+        <<"assignment_id">> => AssignmentId1,
+        <<"request_id">> => RequestId1,
+        <<"status">> => <<"success">>,
+        <<"provider_id">> => <<"openai:gpt-4o">>,
+        <<"job">> => #{<<"type">> => <<"text.generate">>},
+        <<"latency_ms">> => 850,
+        <<"cost">> => 0.012,
+        <<"trace_id">> => <<"tr-fault-3-exhaust">>,
+        <<"tenant_id">> => <<"invalid_tenant">>,  %% Will fail tenant validation
+        <<"timestamp">> => erlang:system_time(millisecond)
+    },
+    Result1Json = jsx:encode(Result1),
+    
+    Result2 = #{
+        <<"assignment_id">> => AssignmentId2,
+        <<"request_id">> => RequestId2,
+        <<"status">> => <<"success">>,
+        <<"provider_id">> => <<"openai:gpt-4o">>,
+        <<"job">> => #{<<"type">> => <<"text.generate">>},
+        <<"latency_ms">> => 850,
+        <<"cost">> => 0.012,
+        <<"trace_id">> => <<"tr-fault-3-success">>,
+        <<"tenant_id">> => <<"acme">>,  %% Valid tenant
+        <<"timestamp">> => erlang:system_time(millisecond)
+    },
+    Result2Json = jsx:encode(Result2),
+    
+    %% Track MaxDeliver exhaustion metrics
+    ExhaustedMetrics = ets:new(exhausted_metrics, [set, private]),
+    
+    HandlerId = {?MODULE, test_maxdeliver_exhaustion},
+    telemetry:attach(HandlerId, [router_result_consumer, router_jetstream_maxdeliver_exhausted_total],
+        fun(_Event, _Measurements, Metadata, _HandlerConfig) ->
+            ets:insert(ExhaustedMetrics, {exhausted, Metadata})
+        end, #{}),
+    
+    %% Mock NATS
+    meck:expect(router_nats, nak_message, fun(_M) -> ok end),
+    meck:expect(router_nats, ack_message, fun(_M) -> ok end),
+    meck:expect(router_nats, publish, fun(_Subject, _Payload) -> ok end),
+    
+    _Headers1 = #{
+        <<"Nats-Msg-Id">> => MsgId1,
+        <<"trace_id">> => <<"tr-fault-3-exhaust">>,
+        <<"tenant_id">> => <<"invalid_tenant">>,
+        <<"version">> => <<"1">>
+    },
+    
+    Headers2 = #{
+        <<"Nats-Msg-Id">> => MsgId2,
+        <<"trace_id">> => <<"tr-fault-3-success">>,
+        <<"tenant_id">> => <<"acme">>,
+        <<"version">> => <<"1">>
+    },
+    
+    %% Process Message 1: Track deliveries up to MaxDeliver (3)
+    ok = router_result_consumer:track_delivery_count(MsgId1),
+    ok = router_result_consumer:track_delivery_count(MsgId1),
+    ok = router_result_consumer:track_delivery_count(MsgId1),
+    
+    %% Verify count is 3 (MaxDeliver)
+    [{MsgId1, 3}] = ets:lookup(Table, MsgId1),
+    
+    %% Process Message 1: Should trigger MaxDeliver exhaustion
+    ErrorContext = #{
+        reason => <<"tenant_validation_failed">>,
+        source => <<"tenant_validation">>
+    },
+    ok = router_result_consumer:check_maxdeliver_exhaustion(MsgId1, AssignmentId1, RequestId1, ErrorContext),
+    
+    %% Allow telemetry to process
+    test_helpers:wait_for_condition(fun() ->
+        case ets:lookup(ExhaustedMetrics, exhausted) of
+            [] -> false;
+            _ -> true
+        end
+    end, 3000),
+    
+    %% Verify MaxDeliver exhaustion metric was emitted
+    case ets:lookup(ExhaustedMetrics, exhausted) of
+        [] ->
+            ct:fail("MaxDeliver exhaustion metric was not emitted");
+        [{exhausted, Metadata}] ->
+            AssignmentIdFromMeta = maps:get(assignment_id, Metadata, undefined),
+            RequestIdFromMeta = maps:get(request_id, Metadata, undefined),
+            MsgIdFromMeta = maps:get(msg_id, Metadata, undefined),
+            DeliveryCount = maps:get(delivery_count, Metadata, undefined),
+            MaxDeliver = maps:get(max_deliver, Metadata, undefined),
+            true = (AssignmentIdFromMeta =/= undefined),
+            true = (RequestIdFromMeta =/= undefined),
+            true = (MsgIdFromMeta =/= undefined),
+            AssignmentId1 = AssignmentIdFromMeta,
+            RequestId1 = RequestIdFromMeta,
+            MsgId1 = MsgIdFromMeta,
+            3 = DeliveryCount,
+            3 = MaxDeliver,
+            ok
+    end,
+    
+    %% Process Message 2: Should succeed (valid tenant, not exhausted)
+    router_result_consumer ! {nats_message, <<"caf.exec.result.v1">>, Result2Json, Headers2, MsgId2},
+    
+    %% Allow processing
+    test_helpers:wait_for_condition(fun() ->
+        case ets:lookup(Table, MsgId2) of
+            [] -> false;
+            [{MsgId2, _}] -> true
+        end
+    end, 3000),
+    
+    %% Verify Message 2 was processed (delivery count tracked)
+    case ets:lookup(Table, MsgId2) of
+        [] ->
+            ct:fail("Message 2 delivery count was not tracked");
+        [{MsgId2, Count}] when Count >= 1 ->
+            ok
+    end,
+    
+    %% Verify Message 1 entry was removed after exhaustion
+    [] = ets:lookup(Table, MsgId1),
+    
+    %% Verify Router process is still alive
+    case whereis(router_result_consumer) of
+        undefined ->
+            ct:fail("router_result_consumer process crashed");
+        Pid4 when is_pid(Pid4) ->
+            true = is_process_alive(Pid4),
+            ok
+    end,
+    
+    %% Verify idempotency is preserved (Message 2 should be idempotent)
+    %% Process Message 2 again - should be idempotent (duplicate)
+    router_result_consumer ! {nats_message, <<"caf.exec.result.v1">>, Result2Json, Headers2, MsgId2},
+    
+    %% Allow processing (idempotency check happens, then ACK)
+    test_helpers:wait_for_condition(fun() ->
+        case ets:lookup(Table, MsgId2) of
+            [] -> false;
+            [{MsgId2, C}] -> C >= 2
+        end
+    end, 3000),
+    
+    %% Verify Message 2 delivery count incremented (idempotency check happened)
+    [{MsgId2, Count2}] = ets:lookup(Table, MsgId2),
+    true = (Count2 >= 2),
+    
+    telemetry:detach(HandlerId),
+    ets:delete(ExhaustedMetrics),
+    ets:delete_all_objects(Table),
+    ok.
+

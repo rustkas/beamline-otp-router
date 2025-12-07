@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://beamline.dev/schemas/plugin.schema.json",
+  "title": "Plugin Manifest Schema",
+  "description": "Schema for plugin manifests in plugins.d/*.json",
+  "type": "object",
+  "required": ["id", "type", "mode"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URI (optional, for IDE support)"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+$",
+      "description": "Unique plugin identifier (e.g., 'echo.default')"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["port_client", "port_server", "converter"],
+      "description": "Plugin type: port_client (outbound), port_server (inbound), converter (transformation)"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["endpoint", "entrypoint"],
+      "description": "Mode: endpoint (external service), entrypoint (internal handler)"
+    },
+    "endpoint": {
+      "type": "string",
+      "format": "uri",
+      "description": "Endpoint URI (required for type=port_client, mode=endpoint). Format: grpc://host:port, http://host:port, etc."
+    },
+    "resources": {
+      "type": "object",
+      "description": "Resource requirements and limits",
+      "properties": {
+        "cpu": {
+          "type": "string",
+          "description": "CPU requirement (e.g., '100m', '1')"
+        },
+        "memory": {
+          "type": "string",
+          "description": "Memory requirement (e.g., '128Mi', '1Gi')"
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "description": "Telemetry configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional labels for metrics"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata (version, description, etc.)",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {"const": "port_client"},
+          "mode": {"const": "endpoint"}
+      },
+      "then": {
+        "required": ["endpoint"]
+      }
+    }
+  ]
+}
+

@@ -1,0 +1,585 @@
+# ============================================================================
+# Router Alert Rules for Prometheus/Alertmanager
+# ============================================================================
+#
+# Alert Routing Labels:
+#   - service: router (all alerts)
+#   - component: jetstream | nats (component-specific)
+#   - team: platform (all alerts)
+#   - severity: warning | critical
+#
+# External Labels (added by Prometheus external_labels):
+#   - env: staging | production (from Prometheus config)
+#   - cluster: cluster-name (from Prometheus config)
+#
+# These labels are used by Alertmanager for routing to Slack/email/PagerDuty
+#
+# Thresholds:
+#   - Adjusted for production stability (reduced false positives)
+#   - Rate calculations use 5m window
+#   - Warning alerts: 10-15m for duration
+#   - Critical alerts: 1-5m for duration
+#
+# ============================================================================
+
+groups:
+  # ============================================================================
+  # JetStream Alerts
+  # ============================================================================
+  - name: router-jetstream.rules
+    interval: 30s
+    rules:
+      # ------------------------------------------------------------------------
+      # Alert: High Redelivery Rate
+      # ------------------------------------------------------------------------
+      # Scenario ID: JS-001 (High Redelivery Rate)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#js-001-high-redelivery-rate
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#42-redelivery-panel-group
+      # Срабатывает, если доля повторных доставок превышает порог
+      # Использует rate() для расчета частоты redelivery за интервал
+      # Группируется по assignment_id и source для диагностики проблемных путей
+      - alert: RouterJetStreamHighRedeliveryRate
+        expr: |
+          (
+            rate(router_jetstream_redelivery_total[5m])
+            /
+            (rate(router_jetstream_ack_total[5m]) + rate(router_jetstream_redelivery_total[5m]) + 1)
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: router
+          component: jetstream
+          team: platform
+        annotations:
+          summary: "High JetStream redelivery rate detected"
+          description: |
+            Redelivery rate is {{ $value | humanizePercentage }} (threshold: 10%).
+            Assignment ID: {{ $labels.assignment_id | default "unknown" }}
+            Source: {{ $labels.source | default "unknown" }}
+            Reason: {{ $labels.reason | default "unknown" }}
+            This indicates messages are being redelivered frequently, which may indicate processing issues.
+            Check logs for processing errors, timeouts, or backpressure conditions.
+            Metrics: router_jetstream_redelivery_total, router_jetstream_ack_total
+            Related Scenarios: S2 (Processing Delays → Redelivery Growth), JS-001 (High Redelivery Rate)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#s2-processing-delays--redelivery-growth
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#dlq-growth
+
+      # ------------------------------------------------------------------------
+      # Alert: High Redelivery Rate from Specific Source
+      # ------------------------------------------------------------------------
+      # Scenario ID: JS-005 (High Redelivery from Specific Source)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#js-005-high-redelivery-from-specific-source
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#42-redelivery-panel-group
+      # Срабатывает, если redelivery от конкретного источника превышает порог
+      # Полезно для выявления проблемных источников (tenant_validation, ack_failure и т.д.)
+      - alert: RouterJetStreamHighRedeliveryFromSource
+        expr: |
+          rate(router_jetstream_redelivery_total{source!=""}[5m]) > 3
+        for: 10m
+        labels:
+          severity: warning
+          service: router
+          component: jetstream
+          team: platform
+        annotations:
+          summary: "High redelivery rate from source {{ $labels.source }}"
+          description: |
+            Redelivery rate from source '{{ $labels.source }}' is {{ $value | humanize }} redeliveries/sec.
+            Reason: {{ $labels.reason | default "unknown" }}
+            Assignment ID: {{ $labels.assignment_id | default "unknown" }}
+            This may indicate issues with specific processing path or tenant.
+            Check logs for errors related to this source.
+            Related Scenarios: S2 (Processing Delays → Redelivery Growth), JS-005 (High Redelivery from Specific Source)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#js-005-high-redelivery-from-specific-source
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#common-symptoms
+
+      # ------------------------------------------------------------------------
+      # Alert: MaxDeliver Exhausted
+      # ------------------------------------------------------------------------
+      # Scenario ID: JS-002 (MaxDeliver Exhaustion)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#js-002-maxdeliver-exhaustion
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#43-dlq-and-maxdeliver
+      # Срабатывает, если сообщения достигают max_deliver и больше не будут ретраиться
+      # Это критическое событие - сообщения теряются или попадают в DLQ
+      - alert: RouterJetStreamMaxDeliverExhausted
+        expr: |
+          increase(router_jetstream_maxdeliver_exhausted_total[2m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          service: router
+          component: jetstream
+          team: platform
+        annotations:
+          summary: "Messages exhausting MaxDeliver limit"
+          description: |
+            {{ $value | humanize }} messages/sec are exhausting MaxDeliver limit (max_deliver={{ $labels.max_deliver | default "unknown" }}).
+            Assignment ID: {{ $labels.assignment_id | default "unknown" }}
+            Request ID: {{ $labels.request_id | default "unknown" }}
+            Message ID: {{ $labels.msg_id | default "unknown" }}
+            Delivery count: {{ $labels.delivery_count | default "unknown" }}
+            This indicates messages are failing repeatedly and cannot be processed successfully.
+            Messages will not be redelivered and may be sent to DLQ.
+            Check DLQ for message patterns and investigate root cause of processing failures.
+            Metric: router_jetstream_maxdeliver_exhausted_total
+            Related Scenarios: S3 (MaxDeliver Exhaustion), JS-002 (MaxDeliver Exhaustion)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#s3-maxdeliver-exhaustion-partial-messages
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#dlq-growth
+
+      # ------------------------------------------------------------------------
+      # Alert: Growing Redelivery Queue
+      # ------------------------------------------------------------------------
+      # Scenario ID: JS-004 (Redelivery Queue Growth)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#js-004-redelivery-queue-growth
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#42-redelivery-panel-group
+      # Срабатывает, если размер очереди redelivery растет и не возвращается к норме
+      # Использует router_nats_pending_operations_count для NATS операций
+      # И проверяет тренд роста через rate метрик
+      - alert: RouterJetStreamGrowingRedeliveryQueue
+        expr: |
+          (
+            # NATS pending operations превышает порог (всегда доступно)
+            (router_nats_pending_operations_count > 200)
+            OR
+            # Redelivery rate превышает ACK rate (сообщения накапливаются)
+            (rate(router_jetstream_redelivery_total[5m]) > rate(router_jetstream_ack_total[5m]))
+          )
+          AND
+          # Проверка монотонного роста: redelivery rate увеличивается
+          (rate(router_jetstream_redelivery_total[10m]) > rate(router_jetstream_redelivery_total[5m]))
+        for: 15m
+        labels:
+          severity: warning
+          service: router
+          component: jetstream
+          team: platform
+        annotations:
+          summary: "Redelivery queue is growing and not recovering"
+          description: |
+            Redelivery queue is growing and not stabilizing.
+            NATS pending operations: {{ $value | humanize }}
+            Redelivery rate is increasing over time, indicating messages are accumulating faster than they can be processed.
+            Check for processing bottlenecks, resource constraints, or downstream service issues.
+            Metrics: router_nats_pending_operations_count, router_jetstream_redelivery_total, router_jetstream_ack_total
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#backpressure-active
+
+      # ------------------------------------------------------------------------
+      # Alert: High Redelivery Queue Size
+      # ------------------------------------------------------------------------
+      # Scenario ID: JS-004 (Redelivery Queue Growth)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#js-004-redelivery-queue-growth
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#42-redelivery-panel-group
+      # Срабатывает, если абсолютный размер очереди превышает порог
+      # Использует router_nats_pending_operations_count как gauge метрику
+      - alert: RouterJetStreamHighRedeliveryQueueSize
+        expr: |
+          router_nats_pending_operations_count > 500
+        for: 10m
+        labels:
+          severity: warning
+          service: router
+          component: jetstream
+          team: platform
+        annotations:
+          summary: "High redelivery queue size detected"
+          description: |
+            Redelivery queue size is {{ $value | humanize }} messages (threshold: 500).
+            This indicates a backlog of messages waiting to be processed or redelivered.
+            Check processing throughput, resource constraints, and downstream service health.
+            Metric: router_nats_pending_operations_count
+            Related Scenarios: S2 (Processing Delays → Redelivery Growth), JS-004 (Redelivery Queue Growth), NATS-007 (NATS Pending Operations Queue)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#js-004-redelivery-queue-growth
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#backpressure-active
+
+      # ------------------------------------------------------------------------
+      # Alert: DLQ High Rate (DLQ Inflow Spike)
+      # ------------------------------------------------------------------------
+      # Scenario ID: JS-003 (DLQ Growth)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#js-003-dlq-growth
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#43-dlq-and-maxdeliver
+      # Срабатывает, если скорость поступления сообщений в DLQ превышает порог
+      # Это критическое событие - сообщения накапливаются в DLQ и требуют ручной обработки
+      - alert: RouterDLQHighRate
+        expr: |
+          sum(rate(router_dlq_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: router
+          component: jetstream
+          team: platform
+        annotations:
+          summary: "DLQ inflow rate exceeds threshold"
+          description: |
+            DLQ inflow rate is {{ $value | humanize }} messages/sec (threshold: 0.1 msg/sec for warning, 1.0 msg/sec for critical).
+            This indicates messages are failing to process and accumulating in DLQ.
+            Check DLQ by reason (when labels added), MaxDeliver exhaustion rate, and logs for specific msg_id or request_id.
+            Metrics: router_dlq_total, router_jetstream_maxdeliver_exhausted_total
+            Related Scenarios: S3 (MaxDeliver Exhaustion), JS-003 (DLQ Growth)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#js-003-dlq-growth
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#dlq-growth
+
+      # ------------------------------------------------------------------------
+      # Alert: DLQ High Rate (Critical)
+      # ------------------------------------------------------------------------
+      # Scenario ID: JS-003 (DLQ Growth)
+      # Critical threshold: > 1 messages/sec for > 1 minute
+      - alert: RouterDLQHighRateCritical
+        expr: |
+          sum(rate(router_dlq_total[5m])) > 1.0
+        for: 1m
+        labels:
+          severity: critical
+          service: router
+          component: jetstream
+          team: platform
+        annotations:
+          summary: "DLQ inflow rate critical - immediate action required"
+          description: |
+            DLQ inflow rate is {{ $value | humanize }} messages/sec (critical threshold: 1.0 msg/sec).
+            This is a critical condition - messages are failing rapidly and accumulating in DLQ.
+            Immediate investigation required: check MaxDeliver exhaustion, processing errors, and downstream service health.
+            Metrics: router_dlq_total, router_jetstream_maxdeliver_exhausted_total
+            Related Scenarios: S3 (MaxDeliver Exhaustion), JS-003 (DLQ Growth)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#js-003-dlq-growth
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#dlq-growth
+
+  # ============================================================================
+  # NATS Connection Alerts
+  # ============================================================================
+  - name: router-nats-connection.rules
+    interval: 30s
+    rules:
+      # ------------------------------------------------------------------------
+      # Alert: Frequent NATS Reconnects
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-001 (NATS Connection Failures)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-001-nats-connection-failures
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors
+      # Срабатывает, если происходят частые реконнекты к NATS
+      - alert: RouterNatsFrequentReconnects
+        expr: |
+          rate(router_nats_reconnect_attempts_total[5m]) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "Frequent NATS reconnection attempts detected"
+          description: |
+            NATS is reconnecting {{ $value | humanize }} times/sec.
+            This indicates unstable connection to NATS server.
+            Check NATS server health, network connectivity, and connection configuration.
+            Metrics: router_nats_reconnect_attempts_total, router_nats_connection_lost_total
+            Related Scenarios: NATS-001 (NATS Connection Failures), NATS-002 (NATS Reconnection Failures)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#nats-001-nats-connection-failures
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+
+      # ------------------------------------------------------------------------
+      # Alert: NATS Connection Down
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-002 (NATS Connection Down)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-002-nats-connection-down
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors
+      # Срабатывает, если соединение полностью отсутствует дольше N минут
+      # Проверяет gauge метрику connection_status (0 = disconnected)
+      - alert: RouterNatsConnectionDown
+        expr: |
+          router_nats_connection_status{state="disconnected"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "NATS connection is down"
+          description: |
+            Router has been disconnected from NATS for {{ $for }}.
+            Connection status: disconnected (router_nats_connection_status = 0).
+            This indicates Router cannot connect to NATS server.
+            Check NATS server availability, network connectivity, and authentication.
+            Metric: router_nats_connection_status
+            Related Scenarios: NATS-001 (NATS Connection Failures)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#nats-001-nats-connection-failures
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+
+      # ------------------------------------------------------------------------
+      # Alert: NATS Connection Failures
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-001 (NATS Connection Failures)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-001-nats-connection-failures
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors
+      # Срабатывает, если есть высокий rate ошибок подключения/разрыва соединения
+      # Проверяет rate ошибок соединения за короткое время (всплеск фейлов)
+      - alert: RouterNatsConnectionFailures
+        expr: |
+          (
+            # Высокий rate ошибок соединения (всплеск фейлов)
+            rate(router_nats_connection_failures_total[5m]) > 0.1
+            OR
+            # Высокий rate потерь соединения
+            rate(router_nats_connection_lost_total[5m]) > 0.1
+          )
+        for: 5m
+        labels:
+          severity: warning
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "High NATS connection failure rate detected"
+          description: |
+            NATS connection failures rate: {{ $value | humanize }}/sec (threshold: 0.1/sec).
+            This indicates frequent connection issues with NATS server.
+            Check NATS server health, network stability, and connection configuration.
+            Metrics: router_nats_connection_failures_total, router_nats_connection_lost_total
+            Related Scenarios: NATS-001 (NATS Connection Failures)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#nats-001-nats-connection-failures
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+
+      # ------------------------------------------------------------------------
+      # Alert: NATS Reconnection Exhausted
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-003 (NATS Reconnection Exhausted)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-003-nats-reconnection-exhausted
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors (⚠️ GAP: panel not explicitly documented)
+      # Срабатывает, если исчерпаны попытки реконнекта (fail-open mode)
+      - alert: RouterNatsReconnectionExhausted
+        expr: |
+          increase(router_nats_reconnection_exhausted_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "NATS reconnection attempts exhausted, fail-open mode activated"
+          description: |
+            NATS reconnection attempts have been exhausted.
+            Router is now operating in fail-open mode.
+            This is a critical condition - check NATS server immediately.
+            Metric: router_nats_reconnection_exhausted_total
+            Related Scenarios: NATS-001 (NATS Connection Failures), NATS-002 (NATS Reconnection Failures)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#nats-002-nats-reconnection-failures
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+
+      # ------------------------------------------------------------------------
+      # Alert: High NATS Reconnect Failure Rate
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-001 (NATS Connection Failures)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-001-nats-connection-failures
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors
+      # Срабатывает, если много неудачных попыток реконнекта
+      - alert: RouterNatsHighReconnectFailureRate
+        expr: |
+          (
+            rate(router_nats_reconnect_failures_total[5m])
+            /
+            (rate(router_nats_reconnect_attempts_total[5m]) + 1)
+          ) > 0.3
+        for: 10m
+        labels:
+          severity: warning
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "High NATS reconnect failure rate"
+          description: |
+            {{ $value | humanizePercentage }} of reconnect attempts are failing.
+            This indicates persistent connectivity issues with NATS server.
+            Check NATS server logs, network stability, and firewall rules.
+            Metrics: router_nats_reconnect_failures_total, router_nats_reconnect_attempts_total
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+
+  # ============================================================================
+  # NATS Operation Alerts
+  # ============================================================================
+  - name: router-nats-operations.rules
+    interval: 30s
+    rules:
+      # ------------------------------------------------------------------------
+      # Alert: High Publish Failure Rate
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-004 (High Publish Failure Rate)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-004-high-publish-failure-rate
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors
+      # Срабатывает, если много неуспешных publish операций
+      - alert: RouterNatsHighPublishFailureRate
+        expr: |
+          (
+            rate(router_nats_publish_failures_total[5m])
+            /
+            (rate(router_nats_publish_total[5m]) + rate(router_nats_publish_failures_total[5m]) + 1)
+          ) > 0.02
+        for: 10m
+        labels:
+          severity: warning
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "High NATS publish failure rate"
+          description: |
+            {{ $value | humanizePercentage }} of publish operations are failing.
+            This may indicate connection issues, NATS server problems, or subject/permission errors.
+            Check NATS server logs and connection status.
+            Metrics: router_nats_publish_failures_total, router_nats_publish_total
+            Related Scenarios: NATS-003 (NATS Publish Failures)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#nats-003-nats-publish-failures
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+
+      # ------------------------------------------------------------------------
+      # Alert: High PublishWithAck Failure Rate
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-004 (High Publish Failure Rate)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-004-high-publish-failure-rate
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors
+      # Срабатывает, если много неуспешных publish_with_ack операций
+      # Это более критично, так как publish_with_ack требует подтверждения
+      - alert: RouterNatsHighPublishWithAckFailureRate
+        expr: |
+          (
+            rate(router_nats_publish_with_ack_failures_total[5m])
+            /
+            (rate(router_nats_publish_with_ack_total[5m]) + rate(router_nats_publish_with_ack_failures_total[5m]) + 1)
+          ) > 0.02
+        for: 10m
+        labels:
+          severity: warning
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "High NATS publish_with_ack failure rate"
+          description: |
+            {{ $value | humanizePercentage }} of publish_with_ack operations are failing.
+            This indicates issues with acknowledged publishes (no ack received, timeout, or server error).
+            Check NATS server health, network latency, and JetStream configuration.
+            Metrics: router_nats_publish_with_ack_failures_total, router_nats_publish_with_ack_total
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+
+      # ------------------------------------------------------------------------
+      # Alert: High ACK Failure Rate
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-005 (High ACK Failure Rate)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-005-high-ack-failure-rate
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors
+      # Срабатывает, если много неуспешных ACK операций
+      # Это критично для JetStream - без ACK сообщения будут ределивериться
+      - alert: RouterNatsHighAckFailureRate
+        expr: |
+          (
+            rate(router_nats_ack_failures_total[5m])
+            /
+            (rate(router_nats_ack_total[5m]) + rate(router_nats_ack_failures_total[5m]) + 1)
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "High NATS ACK failure rate"
+          description: |
+            {{ $value | humanizePercentage }} of ACK operations are failing.
+            This is critical - failed ACKs will cause message redeliveries and potential duplicates.
+            Check NATS connection status, message ID validity, and JetStream consumer configuration.
+            Metrics: router_nats_ack_failures_total, router_nats_ack_total
+            Related Scenarios: S1 (Intermittent ACK/NAK Errors), NATS-004 (NATS ACK Failures)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#nats-004-nats-ack-failures
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+
+      # ------------------------------------------------------------------------
+      # Alert: High NAK Failure Rate
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-006 (High NAK Failure Rate)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-006-high-nak-failure-rate
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors (⚠️ GAP: panel not explicitly documented)
+      # Срабатывает, если много неуспешных NAK операций
+      - alert: RouterNatsHighNakFailureRate
+        expr: |
+          (
+            rate(router_nats_nak_failures_total[5m])
+            /
+            (rate(router_nats_nak_total[5m]) + rate(router_nats_nak_failures_total[5m]) + 1)
+          ) > 0.02
+        for: 10m
+        labels:
+          severity: warning
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "High NATS NAK failure rate"
+          description: |
+            {{ $value | humanizePercentage }} of NAK operations are failing.
+            Failed NAKs may prevent proper redelivery scheduling.
+            Check NATS connection status and message ID validity.
+            Metrics: router_nats_nak_failures_total, router_nats_nak_total
+            Related Scenarios: S2 (Processing Delays → Redelivery Growth), NATS-006 (NATS NAK Failures)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#nats-006-nats-nak-failures
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+
+      # ------------------------------------------------------------------------
+      # Alert: High Subscribe Failure Rate
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-007 (High Subscribe Failure Rate)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-007-high-subscribe-failure-rate
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors (⚠️ GAP: panel not explicitly documented)
+      # Срабатывает, если много неуспешных подписок на JetStream
+      - alert: RouterNatsHighSubscribeFailureRate
+        expr: |
+          (
+            rate(router_nats_subscribe_failures_total[5m])
+            /
+            (rate(router_nats_subscribe_total[5m]) + rate(router_nats_subscribe_failures_total[5m]) + 1)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "High NATS subscribe failure rate"
+          description: |
+            {{ $value | humanizePercentage }} of JetStream subscription attempts are failing.
+            This prevents the router from receiving messages.
+            Check NATS server health, JetStream configuration, and subject/permission settings.
+            Metrics: router_nats_subscribe_failures_total, router_nats_subscribe_total
+            Related Scenarios: NATS-005 (NATS Subscribe Failures)
+            Coverage Matrix: apps/otp/router/docs/dev/JETSTREAM_OBS_COVERAGE_MATRIX.md#nats-005-nats-subscribe-failures
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+
+      # ------------------------------------------------------------------------
+      # Alert: Pending Operations Queue Full
+      # ------------------------------------------------------------------------
+      # Scenario ID: NATS-008 (Pending Operations Queue Full)
+      # Coverage Analysis: apps/otp/router/docs/dev/OBS_COVERAGE_ANALYSIS.md#nats-008-pending-operations-queue-full
+      # Dashboard: docs/OBSERVABILITY_ROUTER_DASHBOARD.md#44-nats-infrastructure-errors (⚠️ GAP: panel not explicitly documented)
+      # Срабатывает, если очередь ожидающих операций переполнена
+      - alert: RouterNatsPendingOperationsQueueFull
+        expr: |
+          router_nats_pending_operations_count > 1000
+        for: 10m
+        labels:
+          severity: warning
+          service: router
+          component: nats
+          team: platform
+        annotations:
+          summary: "NATS pending operations queue is full"
+          description: |
+            {{ $value | humanize }} operations are queued waiting for NATS reconnection.
+            Operations are being dropped when queue exceeds limit.
+            Check NATS connection status and reconnect progress.
+            Metric: router_nats_pending_operations_count
+            Runbook: ../../docs/OPS_RUNBOOK_ROUTER_INTAKE.md#nats-connection-failures
+

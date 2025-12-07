@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "providers": [
+    {"name": "openai", "weight": 100}
+  ],
+  "pre": [
+    {
+      "id": "normalize_text",
+      "mode": "required"
+    }
+  ],
+  "validators": [
+    {
+      "id": "pii_guard",
+      "on_fail": "block"
+    }
+  ],
+  "post": [
+    {
+      "id": "mask_pii",
+      "mode": "optional"
+    }
+  ],
+  "metadata": {
+    "strategy": "extensions_minimal",
+    "description": "Minimal extensions configuration without config objects"
+  }
+}
+

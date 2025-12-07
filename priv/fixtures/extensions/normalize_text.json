@@ -1,0 +1,14 @@
+{
+  "id": "normalize_text",
+  "type": "pre",
+  "subject": "beamline.ext.pre.normalize_text.v1",
+  "timeout_ms": 100,
+  "retry": 0,
+  "enabled": true,
+  "config": {},
+  "metadata": {
+    "description": "Text normalization pre-processor",
+    "version": "v1"
+  }
+}
+

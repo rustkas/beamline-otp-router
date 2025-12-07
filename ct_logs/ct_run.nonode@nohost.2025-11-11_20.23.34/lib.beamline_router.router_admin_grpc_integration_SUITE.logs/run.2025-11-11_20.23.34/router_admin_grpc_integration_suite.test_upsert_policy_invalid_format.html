@@ -1,0 +1,81 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<title>Test router_admin_grpc_integration_SUITE:test_upsert_policy_invalid_format result</title>
+<meta http-equiv="cache-control" content="no-cache"></meta>
+<meta http-equiv="content-type" content="text/html; charset=utf-8"></meta>
+<link rel="stylesheet" href="../../ct_default.css" type="text/css"></link>
+<script type="text/javascript" src="../../jquery-latest.js"></script>
+<script type="text/javascript" src="../../jquery.tablesorter.min.js"></script>
+</head>
+<body>
+
+<a name="top"></a><pre>
+=== Test case: <a href="router_admin_grpc_integration_suite.src.html#test_upsert_policy_invalid_format-1">router_admin_grpc_integration_SUITE:test_upsert_policy_invalid_format/1</a> (click for source code)
+
+=== Config value:
+
+    [{grpc_port,9000},
+     {admin_api_key,&lt;&lt;"test-admin-key"&gt;&gt;},
+     {watchdog,&lt;0.441.0&gt;},
+     {tc_logfile,"/home/rustkas/aigroup/apps/otp/router/ct_logs/ct_run.nonode@nohost.2025-11-11_20.23.34/lib.beamline_router.router_admin_grpc_integration_SUITE.logs/run.2025-11-11_20.23.34/router_admin_grpc_integration_suite.test_upsert_policy_invalid_format.html"},
+     {tc_group_properties,[]},
+     {tc_group_path,[]},
+     {data_dir,"/home/rustkas/aigroup/apps/otp/router/_build/test/lib/beamline_router/test/router_admin_grpc_integration_SUITE_data/"},
+     {priv_dir,"/home/rustkas/aigroup/apps/otp/router/ct_logs/ct_run.nonode@nohost.2025-11-11_20.23.34/lib.beamline_router.router_admin_grpc_integration_SUITE.logs/run.2025-11-11_20.23.34/log_private/"}]
+
+=== Current directory is "/home/rustkas/aigroup/apps/otp/router/ct_logs/ct_run.nonode@nohost.2025-11-11_20.23.34"
+
+=== Started at 2025-11-11 20:23:36
+
+<br />
+
+</pre>
+<div class="default"><pre><b>*** User 2025-11-11 20:23:36.112 ***</b><a id=e-1 class="link-to-entry" href="#e-1">&#x1f517;</a>
+empty x-api-key: Received UNAUTHENTICATED (correct) with message: <<"missing or invalid API key">>
+</pre></div>
+<pre>
+
+</pre>
+<div class="default"><pre><b>*** User 2025-11-11 20:23:36.112 ***</b><a id=e-2 class="link-to-entry" href="#e-2">&#x1f517;</a>
+empty Bearer token: Received UNAUTHENTICATED (correct) with message: <<"missing or invalid API key">>
+</pre></div>
+<pre>
+
+</pre>
+<div class="default"><pre><b>*** User 2025-11-11 20:23:36.112 ***</b><a id=e-3 class="link-to-entry" href="#e-3">&#x1f517;</a>
+Bearer with whitespace: Received UNAUTHENTICATED (correct) with message: <<"missing or invalid API key">>
+</pre></div>
+<pre>
+
+</pre>
+<div class="default"><pre><b>*** User 2025-11-11 20:23:36.112 ***</b><a id=e-4 class="link-to-entry" href="#e-4">&#x1f517;</a>
+Bearer with tab: Received UNAUTHENTICATED (correct) with message: <<"missing or invalid API key">>
+</pre></div>
+<pre>
+
+</pre>
+<div class="default"><pre><b>*** User 2025-11-11 20:23:36.112 ***</b><a id=e-5 class="link-to-entry" href="#e-5">&#x1f517;</a>
+Bearer without space: Received UNAUTHENTICATED (correct) with message: <<"missing or invalid API key">>
+</pre></div>
+<pre>
+<a name="end"></a>
+
+
+=== Ended at 2025-11-11 20:23:36
+=== successfully completed test case
+=== === Returned value: ok
+</pre>
+<center>
+<br /><hr /><p>
+<a href="../../../all_runs.html">Test run history
+</a>  |  <a href="../../../index.html">Top level test index
+</a>  |  <a href="../../../suite.log.latest.html">Latest test result</a>
+</p>
+<div class="copyright">Copyright &copy; 2025 <a href="http://www.erlang.org">Open Telecom Platform</a><br />
+Updated: <!--date-->Tue Nov 11 2025 20:23:36<!--/date--><br />
+</div>
+</center>
+</body>
+</html>

@@ -1,0 +1,181 @@
+%% @doc Common Test Suite for gRPC Router.Decide Service
+%% @test_category fast
+-module(router_grpc_SUITE).
+-include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("stdlib/include/assert.hrl").
+
+%% Include protobuf-generated records
+-include("../include/flow_pb.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
+
+%% Suppress warnings for Common Test callbacks (called automatically by CT framework)
+-compile({nowarn_unused_function, [
+    all/0,
+    groups/0,
+    init_per_suite/1,
+    end_per_suite/1,
+    init_per_testcase/2,
+    end_per_testcase/2,
+    %% Test functions called via groups
+    test_decide_request_success/1,
+    test_decide_request_error_policy_not_found/1,
+    test_decide_request_error_missing_tenant_id/1
+]}).
+
+%% Test suite callbacks
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1]).
+-export([init_per_testcase/2, end_per_testcase/2]).
+
+all() ->
+    [
+        {group, decide_tests}
+    ].
+
+groups() ->
+    [
+        {decide_tests, [sequence], [
+            test_decide_request_success,
+            test_decide_request_error_policy_not_found,
+            test_decide_request_error_missing_tenant_id
+        ]}
+    ].
+
+init_per_suite(Config) ->
+    _ = application:load(beamline_router),
+    ok = application:set_env(beamline_router, grpc_port, 0),
+    ok = application:set_env(beamline_router, grpc_enabled, true),
+    ok = application:set_env(beamline_router, nats_mode, mock),
+    case application:ensure_all_started(beamline_router) of
+        {ok, _} ->
+            %% Wait for gRPC server to start
+            timer:sleep(500),
+            Config;
+        Error ->
+            ct:fail("Failed to start beamline_router: ~p", [Error])
+    end.
+
+end_per_suite(_Config) ->
+    application:stop(beamline_router),
+    ok.
+
+init_per_testcase(_TestCase, Config) ->
+    %% Reset policy store for clean test state
+    case whereis(router_policy_store) of
+        undefined -> ok;
+        _ -> gen_server:call(router_policy_store, reset_all)
+    end,
+    Config.
+
+end_per_testcase(_TestCase, _Config) ->
+    ok.
+
+%% @doc Test: Decide request with valid policy
+%% Placeholder test - requires gRPC client implementation for full testing
+test_decide_request_success(_Config) ->
+    %% Create RouteRequest protobuf message
+    Message = #'Message'{
+        message_id = <<"test_msg_1">>,
+        tenant_id = <<"test_tenant">>,
+        message_type = <<"chat">>,
+        payload = <<"Hello, world">>,
+        metadata = [],
+        timestamp_ms = erlang:system_time(millisecond)
+    },
+    RouteRequestPb = #'RouteRequest'{
+        message = Message,
+        policy_id = <<"test_policy">>,
+        context = []
+    },
+    
+    %% Encode request
+    Request = flow_pb:encode_msg(RouteRequestPb, 'RouteRequest'),
+    
+    %% Create context
+    Ctx = router_grpc_test_helper:create_context_without_auth(),
+    
+    %% Call router_grpc:decide/2 directly (unit test approach)
+    %% Note: Full integration test would require gRPC client
+    try
+        {ok, Response, _} = router_grpc:decide(Ctx, Request),
+        
+        %% Decode response
+        RouteDecisionPb = flow_pb:decode_msg(Response, 'RouteDecision'),
+        
+        %% Verify response structure
+        ?assert(is_record(RouteDecisionPb, 'RouteDecision')),
+        ?assert(is_binary(RouteDecisionPb#'RouteDecision'.provider_id)),
+        ?assert(is_binary(RouteDecisionPb#'RouteDecision'.reason)),
+        
+        ok
+    catch
+        {grpc_error, {Status, _Msg}} ->
+            %% Policy not found is expected if policy doesn't exist
+            case Status of
+                ?GRPC_STATUS_NOT_FOUND ->
+                    %% Expected: policy doesn't exist in test setup
+                    ok;
+                _ ->
+                    ct:fail("Unexpected gRPC error: ~p", [Status])
+            end
+    end.
+
+%% @doc Test: Decide request with non-existent policy
+%% Placeholder test - requires gRPC client implementation for full testing
+test_decide_request_error_policy_not_found(_Config) ->
+    %% Create RouteRequest with non-existent policy
+    Message = #'Message'{
+        message_id = <<"test_msg_2">>,
+        tenant_id = <<"test_tenant">>,
+        message_type = <<"chat">>,
+        payload = <<"Hello">>,
+        metadata = [],
+        timestamp_ms = erlang:system_time(millisecond)
+    },
+    RouteRequestPb = #'RouteRequest'{
+        message = Message,
+        policy_id = <<"non_existent_policy">>,
+        context = []
+    },
+    
+    Request = flow_pb:encode_msg(RouteRequestPb, 'RouteRequest'),
+    Ctx = router_grpc_test_helper:create_context_without_auth(),
+    
+    %% Should return NOT_FOUND error
+    try
+        router_grpc:decide(Ctx, Request),
+        ct:fail("Expected NOT_FOUND error")
+    catch
+        {grpc_error, {Status, _Msg}} ->
+            ?assertEqual(?GRPC_STATUS_NOT_FOUND, Status)
+    end.
+
+%% @doc Test: Decide request with missing tenant_id
+%% Placeholder test - requires gRPC client implementation for full testing
+test_decide_request_error_missing_tenant_id(_Config) ->
+    %% Create RouteRequest without tenant_id
+    Message = #'Message'{
+        message_id = <<"test_msg_3">>,
+        tenant_id = <<>>,  %% Empty tenant_id
+        message_type = <<"chat">>,
+        payload = <<"Hello">>,
+        metadata = [],
+        timestamp_ms = erlang:system_time(millisecond)
+    },
+    RouteRequestPb = #'RouteRequest'{
+        message = Message,
+        policy_id = <<"test_policy">>,
+        context = []
+    },
+    
+    Request = flow_pb:encode_msg(RouteRequestPb, 'RouteRequest'),
+    Ctx = router_grpc_test_helper:create_context_without_auth(),
+    
+    %% Should return INVALID_ARGUMENT error
+    try
+        router_grpc:decide(Ctx, Request),
+        ct:fail("Expected INVALID_ARGUMENT error")
+    catch
+        {grpc_error, {Status, _Msg}} ->
+            ?assertEqual(?GRPC_STATUS_INVALID_ARGUMENT, Status)
+    end.

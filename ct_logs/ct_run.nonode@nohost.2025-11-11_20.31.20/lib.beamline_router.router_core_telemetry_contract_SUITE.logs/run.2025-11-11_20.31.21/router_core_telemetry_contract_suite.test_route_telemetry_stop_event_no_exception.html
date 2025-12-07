@@ -1,0 +1,77 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<title>Test router_core_telemetry_contract_SUITE:test_route_telemetry_stop_event_no_exception result</title>
+<meta http-equiv="cache-control" content="no-cache"></meta>
+<meta http-equiv="content-type" content="text/html; charset=utf-8"></meta>
+<link rel="stylesheet" href="../../ct_default.css" type="text/css"></link>
+<script type="text/javascript" src="../../jquery-latest.js"></script>
+<script type="text/javascript" src="../../jquery.tablesorter.min.js"></script>
+</head>
+<body>
+
+<a name="top"></a><pre>
+=== Test case: <a href="router_core_telemetry_contract_suite.src.html#test_route_telemetry_stop_event_no_exception-1">router_core_telemetry_contract_SUITE:test_route_telemetry_stop_event_no_exception/1</a> (click for source code)
+
+=== Config value:
+
+    [{watchdog,&lt;0.449.0&gt;},
+     {tc_logfile,"/home/rustkas/aigroup/apps/otp/router/ct_logs/ct_run.nonode@nohost.2025-11-11_20.31.20/lib.beamline_router.router_core_telemetry_contract_SUITE.logs/run.2025-11-11_20.31.21/router_core_telemetry_contract_suite.test_route_telemetry_stop_event_no_exception.html"},
+     {tc_group_properties,[]},
+     {tc_group_path,[]},
+     {data_dir,"/home/rustkas/aigroup/apps/otp/router/_build/test/lib/beamline_router/test/router_core_telemetry_contract_SUITE_data/"},
+     {priv_dir,"/home/rustkas/aigroup/apps/otp/router/ct_logs/ct_run.nonode@nohost.2025-11-11_20.31.20/lib.beamline_router.router_core_telemetry_contract_SUITE.logs/run.2025-11-11_20.31.21/log_private/"}]
+
+=== Current directory is "/home/rustkas/aigroup/apps/otp/router/ct_logs/ct_run.nonode@nohost.2025-11-11_20.31.20"
+
+=== Started at 2025-11-11 20:31:22
+
+<br />
+
+</pre>
+<div class="ct_error_notify"><pre><b>*** CT Error Notification 2025-11-11 20:31:22.187 ***</b><a id=e-2 class="link-to-entry" href="#e-2">&#x1f517;</a>
+router_core_telemetry_contract_SUITE:test_route_telemetry_stop_event_no_exception failed on line 151
+Reason: {test_case_failed,Exception thrown: error:{badmap,undefined}
+[{router_decider,decide,3,[]},
+ {router_core,'-route/2-fun-0-',5,
+     [{file,"/home/rustkas/aigroup/apps/otp/router/src/router_core.erl"},
+      {line,71}]},
+ {telemetry,span,3,
+     [{file,
+          "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/telemetry/src/telemetry.erl"},
+      {line,324}]},
+ {router_core_telemetry_contract_SUITE,
+     test_route_telemetry_stop_event_no_exception,1,
+     [{file,
+          "/home/rustkas/aigroup/apps/otp/router/test/router_core_telemetry_contract_SUITE.erl"},
+      {line,125}]},
+ {test_server,ts_tc,3,[{file,"test_server.erl"},{line,1794}]},
+ {test_server,run_test_case_eval1,6,[{file,"test_server.erl"},{line,1303}]},
+ {test_server,run_test_case_eval,9,[{file,"test_server.erl"},{line,1235}]}]}
+
+<a href="#end">Full error description and stacktrace</a>
+</pre></div>
+<pre>
+<a name="end"></a>
+
+
+=== Ended at 2025-11-11 20:31:22
+=== Location: [{router_core_telemetry_contract_SUITE,test_route_telemetry_stop_event_no_exception,<a href="router_core_telemetry_contract_suite.src.html#151">151</a>},
+              {test_server,ts_tc,1794},
+              {test_server,run_test_case_eval1,1303},
+              {test_server,run_test_case_eval,1235}]
+=== === Reason: {test_case_failed,"Exception thrown: error:{badmap,undefined}\n[{router_decider,decide,3,[]},\n {router_core,'-route/2-fun-0-',5,\n     [{file,\"/home/rustkas/aigroup/apps/otp/router/src/router_core.erl\"},\n      {line,71}]},\n {telemetry,span,3,\n     [{file,\n          \"/home/rustkas/aigroup/apps/otp/router/_build/default/lib/telemetry/src/telemetry.erl\"},\n      {line,324}]},\n {router_core_telemetry_contract_SUITE,\n     test_route_telemetry_stop_event_no_exception,1,\n     [{file,\n          \"/home/rustkas/aigroup/apps/otp/router/test/router_core_telemetry_contract_SUITE.erl\"},\n      {line,125}]},\n {test_server,ts_tc,3,[{file,\"test_server.erl\"},{line,1794}]},\n {test_server,run_test_case_eval1,6,[{file,\"test_server.erl\"},{line,1303}]},\n {test_server,run_test_case_eval,9,[{file,\"test_server.erl\"},{line,1235}]}]"}
+</pre>
+<center>
+<br /><hr /><p>
+<a href="../../../all_runs.html">Test run history
+</a>  |  <a href="../../../index.html">Top level test index
+</a>  |  <a href="../../../suite.log.latest.html">Latest test result</a>
+</p>
+<div class="copyright">Copyright &copy; 2025 <a href="http://www.erlang.org">Open Telecom Platform</a><br />
+Updated: <!--date-->Tue Nov 11 2025 20:31:22<!--/date--><br />
+</div>
+</center>
+</body>
+</html>

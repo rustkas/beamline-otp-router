@@ -1,0 +1,21 @@
+
+Common Test starting (cwd is /home/rustkas/aigroup/apps/otp/router)
+
+
+
+CWD set to: "/home/rustkas/aigroup/apps/otp/router/ct_logs/ct_run.nonode@nohost.2025-11-12_12.08.16"
+
+TEST INFO: 1 test(s), 1 case(s) in 1 suite(s)
+
+Testing lib.beamline_router.router_policy_store_prop_SUITE.prop_index_deduplication: Starting test, 1 test cases
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+test_server:ts_tc failed on line 1794
+Reason: {test_case_failed,Property failed}
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Testing lib.beamline_router.router_policy_store_prop_SUITE.prop_index_deduplication: *** FAILED test case 1 of 1 ***
+Testing lib.beamline_router.router_policy_store_prop_SUITE.prop_index_deduplication: TEST COMPLETE, 0 ok, 1 failed of 1 test cases
+
+Updating /home/rustkas/aigroup/apps/otp/router/ct_logs/index.html ... done
+Updating /home/rustkas/aigroup/apps/otp/router/ct_logs/all_runs.html ... done

@@ -1,0 +1,14 @@
+{
+  "id": "test_provider",
+  "type": "provider",
+  "subject": "beamline.provider.test_provider.v1",
+  "timeout_ms": 5000,
+  "retry": 1,
+  "enabled": true,
+  "config": {},
+  "metadata": {
+    "description": "Test custom provider extension",
+    "version": "v1"
+  }
+}
+

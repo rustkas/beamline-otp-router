@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Router Structured Logging Format",
+  "description": "JSON schema for Router structured logging (JSONL format)",
+  "type": "object",
+  "required": ["timestamp", "level", "component", "message"],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp in UTC (format: YYYY-MM-DDTHH:MM:SS.ssssssZ)",
+      "examples": ["2025-01-27T12:00:00.123456Z"]
+    },
+    "level": {
+      "type": "string",
+      "enum": ["ERROR", "WARN", "INFO", "DEBUG"],
+      "description": "Log level"
+    },
+    "component": {
+      "type": "string",
+      "const": "router",
+      "description": "Component identifier"
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable log message"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run identifier for workflow runs"
+    },
+    "flow_id": {
+      "type": "string",
+      "description": "Flow identifier for multi-step flows"
+    },
+    "step_id": {
+      "type": "string",
+      "description": "Step identifier within a flow"
+    },
+    "trace_id": {
+      "type": "string",
+      "description": "Trace identifier for distributed tracing"
+    },
+    "error_code": {
+      "type": "string",
+      "description": "Error code (e.g., ROUTER_ERROR_001, NATS_CONNECTION_FAILED)"
+    },
+    "latency_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Request latency in milliseconds"
+    },
+    "context": {
+      "type": "object",
+      "description": "Additional structured context",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "timestamp": "2025-01-27T12:00:00.123456Z",
+      "level": "INFO",
+      "component": "router",
+      "message": "Request processed successfully",
+      "tenant_id": "tenant_123",
+      "run_id": "run_789",
+      "flow_id": "flow_456",
+      "step_id": "step_123",
+      "trace_id": "abc123def456",
+      "context": {
+        "subject": "beamline.router.v1.decide",
+        "policy_id": "policy_456"
+      }
+    },
+    {
+      "timestamp": "2025-01-27T12:00:00.456789Z",
+      "level": "ERROR",
+      "component": "router",
+      "message": "NATS connection failed",
+      "tenant_id": "tenant_123",
+      "run_id": "run_abc123",
+      "flow_id": "flow_xyz789",
+      "trace_id": "trace_def4567890abcdef1234567890abcdef",
+      "error_code": "NATS_CONNECTION_FAILED",
+      "latency_ms": 5000,
+      "context": {
+        "subject": "beamline.router.v1.decide"
+      }
+    }
+  ]
+}
+

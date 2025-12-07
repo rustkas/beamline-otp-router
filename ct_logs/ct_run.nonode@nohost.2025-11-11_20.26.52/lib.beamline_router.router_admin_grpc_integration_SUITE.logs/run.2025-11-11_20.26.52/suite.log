@@ -1,0 +1,157 @@
+=== Suite started at 2025-11-11 20:26:52
+=== Starting test, 13 test cases
+=cases         13
+=user          rustkas
+=host          nohost
+=hosts         nohost 
+=emulator_vsn  15.2.7.1
+=emulator      beam
+=otp_release   27
+=started       2025-11-11 20:26:52
+=case          router_admin_grpc_integration_SUITE:init_per_suite
+=logfile       router_admin_grpc_integration_suite.init_per_suite.html
+=started       2025-11-11 20:26:52
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       1.167337s
+=case          router_admin_grpc_integration_SUITE:test_upsert_policy_success
+=logfile       router_admin_grpc_integration_suite.test_upsert_policy_success.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.004336s
+=case          router_admin_grpc_integration_SUITE:test_upsert_policy_invalid_weights
+=logfile       router_admin_grpc_integration_suite.test_upsert_policy_invalid_weights.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.000062s
+=case          router_admin_grpc_integration_SUITE:test_upsert_policy_unauthorized
+=logfile       router_admin_grpc_integration_suite.test_upsert_policy_unauthorized.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.000020s
+=case          router_admin_grpc_integration_SUITE:test_upsert_policy_invalid_key
+=logfile       router_admin_grpc_integration_suite.test_upsert_policy_invalid_key.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.000023s
+=case          router_admin_grpc_integration_SUITE:test_upsert_policy_invalid_format
+=logfile       router_admin_grpc_integration_suite.test_upsert_policy_invalid_format.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.000077s
+=case          router_admin_grpc_integration_SUITE:test_delete_policy_success
+=logfile       router_admin_grpc_integration_suite.test_delete_policy_success.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.000072s
+=case          router_admin_grpc_integration_SUITE:test_delete_policy_not_found
+=logfile       router_admin_grpc_integration_suite.test_delete_policy_not_found.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.000038s
+=case          router_admin_grpc_integration_SUITE:test_get_policy_success
+=logfile       router_admin_grpc_integration_suite.test_get_policy_success.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.000103s
+=case          router_admin_grpc_integration_SUITE:test_get_policy_not_found
+=logfile       router_admin_grpc_integration_suite.test_get_policy_not_found.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.000043s
+=case          router_admin_grpc_integration_SUITE:test_list_policies_success
+=logfile       router_admin_grpc_integration_suite.test_list_policies_success.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.000113s
+=case          router_admin_grpc_integration_SUITE:test_upsert_and_decide_integration
+=logfile       router_admin_grpc_integration_suite.test_upsert_and_decide_integration.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        failed: {thrown,
+                           {{grpc_error,
+                                {<<"13">>,
+                                 <<"{error,\n    {badmap,undefined},\n    [{router_decider,decide,3,[]},\n     {router_core,'-route/2-fun-0-',5,\n         [{file,\"/home/rustkas/aigroup/apps/otp/router/src/router_core.erl\"},\n          {line,71}]},\n     {telemetry,span,3,\n         [{file,\n              \"/home/rustkas/aigroup/apps/otp/router/_build/default/lib/telemetry/src/telemetry.erl\"},\n          {line,324}]},\n     {router_grpc,decide,2,\n         [{file,\"/home/rustkas/aigroup/apps/otp/router/src/router_grpc.erl\"},\n          {line,48}]},\n     {router_admin_grpc_integration_SUITE,test_upsert_and_decide_integration,\n         1,\n         [{file,\n              \"/home/rustkas/aigroup/apps/otp/router/test/router_admin_grpc_integration_SUITE.erl\"},\n          {line,490}]},\n     {test_server,ts_tc,3,[{file,\"test_server.erl\"},{line,1794}]},\n     {test_server,run_test_case_eval1,6,\n         [{file,\"test_server.erl\"},{line,1303}]},\n     {test_server,run_test_case_eval,9,\n         [{file,\"test_server.erl\"},{line,1235}]}]}">>}},
+                            [{router_grpc,throw_internal_error,1,
+                                 [{file,
+                                      "/home/rustkas/aigroup/apps/otp/router/src/router_grpc.erl"},
+                                  {line,92}]},
+                             {router_admin_grpc_integration_SUITE,
+                                 test_upsert_and_decide_integration,1,
+                                 [{file,
+                                      "/home/rustkas/aigroup/apps/otp/router/test/router_admin_grpc_integration_SUITE.erl"},
+                                  {line,490}]},
+                             {test_server,ts_tc,3,
+                                 [{file,"test_server.erl"},{line,1794}]},
+                             {test_server,run_test_case_eval1,6,
+                                 [{file,"test_server.erl"},{line,1303}]},
+                             {test_server,run_test_case_eval,9,
+                                 [{file,"test_server.erl"},{line,1235}]}]}}, [{router_admin_grpc_integration_SUITE,
+                                                                               test_upsert_and_decide_integration}]
+=elapsed       0.031356s
+=== *** FAILED test case 11 of 13 ***
+=case          router_admin_grpc_integration_SUITE:test_delete_and_decide_integration
+=logfile       router_admin_grpc_integration_suite.test_delete_and_decide_integration.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        failed: {{assertEqual,
+                            [{module,router_admin_grpc_integration_SUITE},
+                             {line,559},
+                             {expression,"Status"},
+                             {expected,<<"5">>},
+                             {value,<<"13">>}]},
+                        [{router_admin_grpc_integration_SUITE,
+                             test_delete_and_decide_integration,1,
+                             [{file,
+                                  "/home/rustkas/aigroup/apps/otp/router/test/router_admin_grpc_integration_SUITE.erl"},
+                              {line,559}]},
+                         {test_server,ts_tc,3,
+                             [{file,"test_server.erl"},{line,1794}]},
+                         {test_server,run_test_case_eval1,6,
+                             [{file,"test_server.erl"},{line,1303}]},
+                         {test_server,run_test_case_eval,9,
+                             [{file,"test_server.erl"},{line,1235}]}]}, [{router_admin_grpc_integration_SUITE,
+                                                                          test_delete_and_decide_integration,
+                                                                          559},
+                                                                         {test_server,
+                                                                          ts_tc,
+                                                                          1794},
+                                                                         {test_server,
+                                                                          run_test_case_eval1,
+                                                                          1303},
+                                                                         {test_server,
+                                                                          run_test_case_eval,
+                                                                          1235}]
+=elapsed       0.000481s
+=== *** FAILED test case 12 of 13 ***
+=case          router_admin_grpc_integration_SUITE:test_admin_telemetry_correlation_id
+=logfile       router_admin_grpc_integration_suite.test_admin_telemetry_correlation_id.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.000147s
+=case          router_admin_grpc_integration_SUITE:end_per_suite
+=logfile       router_admin_grpc_integration_suite.end_per_suite.html
+=started       2025-11-11 20:26:54
+=ended         2025-11-11 20:26:54
+=result        ok
+=elapsed       0.016794s
+=group_time    1.930s
+=== TEST COMPLETE, 11 ok, 2 failed of 13 test cases
+
+=finished      2025-11-11 20:26:54
+=failed        2
+=successful    11
+=user_skipped  0
+=auto_skipped  0
+=elapsed_time  2057670

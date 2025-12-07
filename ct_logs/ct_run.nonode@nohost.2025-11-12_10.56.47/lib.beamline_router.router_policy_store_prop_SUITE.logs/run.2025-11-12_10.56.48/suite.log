@@ -1,0 +1,55 @@
+=== Suite started at 2025-11-12 10:56:48
+=== Starting test, 4 test cases
+=cases         4
+=user          rustkas
+=host          nohost
+=hosts         nohost 
+=emulator_vsn  15.2.7.1
+=emulator      beam
+=otp_release   27
+=started       2025-11-12 10:56:48
+=case          router_policy_store_prop_SUITE:init_per_suite
+=logfile       router_policy_store_prop_suite.init_per_suite.html
+=started       2025-11-12 10:56:48
+=ended         2025-11-12 10:56:48
+=result        ok
+=elapsed       0.105517s
+=case          router_policy_store_prop_SUITE:prop_concurrent_operations
+=logfile       router_policy_store_prop_suite.prop_concurrent_operations.html
+=started       2025-11-12 10:56:48
+=ended         2025-11-12 10:56:48
+=result        ok
+=elapsed       0.201229s
+=case          router_policy_store_prop_SUITE:prop_upsert_delete_consistency
+=logfile       router_policy_store_prop_suite.prop_upsert_delete_consistency.html
+=started       2025-11-12 10:56:48
+=ended         2025-11-12 10:56:48
+=result        ok
+=elapsed       0.250325s
+=case          router_policy_store_prop_SUITE:prop_list_policies_ordering
+=logfile       router_policy_store_prop_suite.prop_list_policies_ordering.html
+=started       2025-11-12 10:56:48
+=ended         2025-11-12 10:56:48
+=result        ok
+=elapsed       0.143320s
+=case          router_policy_store_prop_SUITE:prop_index_consistency
+=logfile       router_policy_store_prop_suite.prop_index_consistency.html
+=started       2025-11-12 10:56:48
+=ended         2025-11-12 10:56:49
+=result        ok
+=elapsed       0.236355s
+=case          router_policy_store_prop_SUITE:end_per_suite
+=logfile       router_policy_store_prop_suite.end_per_suite.html
+=started       2025-11-12 10:56:49
+=ended         2025-11-12 10:56:49
+=result        ok
+=elapsed       0.003120s
+=group_time    1.098s
+=== TEST COMPLETE, 4 ok, 0 failed of 4 test cases
+
+=finished      2025-11-12 10:56:49
+=failed        0
+=successful    4
+=user_skipped  0
+=auto_skipped  0
+=elapsed_time  1195996

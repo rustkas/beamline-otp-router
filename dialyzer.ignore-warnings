@@ -1,0 +1,45 @@
+# Dialyzer ignore warnings for external dependencies
+# Format: {file.erl, {line, column}, warning_type, warning_message}
+
+# Ignore warnings from grpcbox and its dependencies
+{".*/grpcbox/.*", {_, _}, _, _}.
+{".*/chatterbox/.*", {_, _}, _, _}.
+{".*/acceptor_pool/.*", {_, _}, _, _}.
+{".*/gproc/.*", {_, _}, _, _}.
+{".*/ctx/.*", {_, _}, _, _}.
+{".*/hpack/.*", {_, _}, _, _}.
+
+# Ignore warnings from jsx (external dependency)
+{".*/jsx/.*", {_, _}, _, _}.
+
+# Ignore warnings from old unused modules (CP1 cleanup pending)
+{".*router_db.erl", {_, _}, _, _}.
+{".*router_mnesia.erl", {_, _}, _, _}.
+{".*router_policy.erl", {_, _}, _, _}.
+{".*router_nats.erl", {_, _}, _, _}.
+
+# Ignore warnings about jsx:encode/decode (types not fully specified)
+{".*router_logger.erl", {84, _}, _, "Unknown function jsx:encode/1"}.
+{".*router_nats_adapter.erl", {34, _}, _, "Unknown function jsx:encode/1"}.
+{".*router_nats_subscriber.erl", {65, _}, _, "Unknown function jsx:encode/1"}.
+{".*router_policy_store.erl", {127, _}, _, "Unknown function jsx:decode/2"}.
+{".*router_policy.erl", {133, _}, _, "Unknown function jsx:decode/2"}.
+
+# Ignore warnings about mnesia (old unused modules)
+{".*router_policy.erl", {102, _}, _, "Unknown function mnesia:write/1"}.
+{".*router_policy.erl", {104, _}, _, "Unknown function mnesia:transaction/1"}.
+{".*router_policy.erl", {110, _}, _, "Unknown function mnesia:read/2"}.
+{".*router_policy.erl", {117, _}, _, "Unknown function mnesia:delete/3"}.
+{".*router_policy.erl", {124, _}, _, "Unknown function mnesia:transaction/1"}.
+{".*router_policy_cache.erl", {48, _}, _, "Unknown function mnesia:foldl/3"}.
+{".*router_policy_cache.erl", {52, _}, _, "Unknown function mnesia:delete/3"}.
+{".*router_policy_cache.erl", {62, _}, _, "Unknown function mnesia:transaction/1"}.
+{".*router_policy_cache.erl", {63, _}, _, "Unknown function lager:info/2"}.
+
+# Ignore warnings about unused functions (CP1 cleanup pending)
+{".*router_tracing.erl", {131, _}, _, "Function export_span/1 will never be called"}.
+
+# Ignore warnings about grpcbox_stream:send (API will be fixed with proto generation)
+{".*router_grpc.erl", {19, _}, _, _}.
+{".*router_grpc.erl", {24, _}, _, _}.
+

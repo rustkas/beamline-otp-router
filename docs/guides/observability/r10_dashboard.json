@@ -1,0 +1,263 @@
+{
+  "id": null,
+  "uid": "r10-cb-dashboard",
+  "title": "R10 – Circuit Breaker Overview",
+  "tags": ["r10", "circuit-breaker", "router"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "Prometheus"
+        },
+        "label": "Datasource"
+      },
+      {
+        "name": "tenant_id",
+        "label": "Tenant",
+        "type": "query",
+        "datasource": "$datasource",
+        "definition": "label_values(router_circuit_breaker_state, tenant_id)",
+        "query": "label_values(router_circuit_breaker_state, tenant_id)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "provider_id",
+        "label": "Provider",
+        "type": "query",
+        "datasource": "$datasource",
+        "definition": "label_values(router_circuit_breaker_state{tenant_id=~\"$tenant_id\"}, provider_id)",
+        "query": "label_values(router_circuit_breaker_state{tenant_id=~\"$tenant_id\"}, provider_id)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Open Circuits (current)",
+      "id": 1,
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "expr": "sum by (tenant_id, provider_id) (router_circuit_breaker_state{tenant_id=~\"$tenant_id\", provider_id=~\"$provider_id\"} == 1)",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"]
+        },
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Circuit State (0=closed, 0.5=half_open, 1=open)",
+      "id": 2,
+      "gridPos": { "x": 6, "y": 0, "w": 18, "h": 8 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "expr": "router_circuit_breaker_state{tenant_id=~\"$tenant_id\", provider_id=~\"$provider_id\"}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "orange", "value": 0.5 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Sliding Error Rate",
+      "id": 3,
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "expr": "router_circuit_breaker_error_rate{tenant_id=~\"$tenant_id\", provider_id=~\"$provider_id\"}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "mappings": [],
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 0.3 },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Trigger Reasons (last 30m)",
+      "id": 4,
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "expr": "sum by (reason) (increase(router_circuit_breaker_trigger_reason{tenant_id=~\"$tenant_id\", provider_id=~\"$provider_id\"}[30m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "State Transitions (rate)",
+      "id": 5,
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "expr": "rate(router_circuit_breaker_state_transitions_total{tenant_id=~\"$tenant_id\", provider_id=~\"$provider_id\"}[5m])",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Timeout Remaining (open circuits)",
+      "id": 6,
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "expr": "router_circuit_breaker_timeout_remaining_ms{tenant_id=~\"$tenant_id\", provider_id=~\"$provider_id\"}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 5000 },
+              { "color": "green", "value": 20000 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      }
+    }
+  ]
+}
+

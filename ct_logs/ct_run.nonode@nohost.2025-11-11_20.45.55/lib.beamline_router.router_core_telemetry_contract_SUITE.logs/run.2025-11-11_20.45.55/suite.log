@@ -1,0 +1,55 @@
+=== Suite started at 2025-11-11 20:45:55
+=== Starting test, 4 test cases
+=cases         4
+=user          rustkas
+=host          nohost
+=hosts         nohost 
+=emulator_vsn  15.2.7.1
+=emulator      beam
+=otp_release   27
+=started       2025-11-11 20:45:55
+=case          router_core_telemetry_contract_SUITE:init_per_suite
+=logfile       router_core_telemetry_contract_suite.init_per_suite.html
+=started       2025-11-11 20:45:55
+=ended         2025-11-11 20:45:56
+=result        ok
+=elapsed       0.493206s
+=case          router_core_telemetry_contract_SUITE:test_route_returns_tuple_with_metadata
+=logfile       router_core_telemetry_contract_suite.test_route_returns_tuple_with_metadata.html
+=started       2025-11-11 20:45:56
+=ended         2025-11-11 20:45:56
+=result        ok
+=elapsed       0.012053s
+=case          router_core_telemetry_contract_SUITE:test_route_telemetry_stop_event_no_exception
+=logfile       router_core_telemetry_contract_suite.test_route_telemetry_stop_event_no_exception.html
+=started       2025-11-11 20:45:56
+=ended         2025-11-11 20:45:56
+=result        ok
+=elapsed       0.201548s
+=case          router_core_telemetry_contract_SUITE:test_route_error_returns_correct_format
+=logfile       router_core_telemetry_contract_suite.test_route_error_returns_correct_format.html
+=started       2025-11-11 20:45:56
+=ended         2025-11-11 20:45:56
+=result        ok
+=elapsed       0.000019s
+=case          router_core_telemetry_contract_SUITE:test_route_success_returns_correct_format
+=logfile       router_core_telemetry_contract_suite.test_route_success_returns_correct_format.html
+=started       2025-11-11 20:45:56
+=ended         2025-11-11 20:45:56
+=result        ok
+=elapsed       0.000058s
+=case          router_core_telemetry_contract_SUITE:end_per_suite
+=logfile       router_core_telemetry_contract_suite.end_per_suite.html
+=started       2025-11-11 20:45:56
+=ended         2025-11-11 20:45:56
+=result        ok
+=elapsed       0.002854s
+=group_time    0.850s
+=== TEST COMPLETE, 4 ok, 0 failed of 4 test cases
+
+=finished      2025-11-11 20:45:56
+=failed        0
+=successful    4
+=user_skipped  0
+=auto_skipped  0
+=elapsed_time  961131

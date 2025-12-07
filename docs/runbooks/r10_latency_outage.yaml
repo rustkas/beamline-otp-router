@@ -1,0 +1,61 @@
+id: r10_latency_outage
+title: "R10: Provider X latency outage"
+severity: high
+tenant_id: "tenantX"
+provider_id: "providerX"
+
+trigger:
+  type: latency
+  alert_name: "R10LatencyTriggerDominating"
+  description: "Latency-based circuit breaker trigger for provider X. Circuit opens when provider latency consistently exceeds configured threshold (default: 5000ms)."
+
+impact:
+  description: "Increased latency and fail-fast for provider X, partial unavailability. Requests to provider X fail immediately when circuit is open."
+  blast_radius: "tenantX, providerX, R10 circuit breaker"
+  business_impact: "Degraded response times, partial request failures, potential user-facing errors"
+
+detection:
+  alerts:
+    - "R10LatencyTriggerDominating firing in Prometheus"
+    - "Alert annotation includes runbook_url"
+  dashboards:
+    - "Grafana → R10 Circuit Breakers → Panel: Circuit State (shows OPEN for tenantX/providerX)"
+    - "Grafana → R10 Circuit Breakers → Panel: Trigger Reasons (shows latency_threshold_exceeded)"
+    - "Grafana → R10 Circuit Breakers → Panel: Timeout Remaining (shows countdown for open circuit)"
+  cli:
+    - "./router_ctl r10 status tenantX providerX"
+
+diagnosis:
+  steps:
+    - "Confirm circuit state is 'open' with latency trigger_reason"
+    - "Check CLI output: State should be OPEN ✗, trigger_reason should be latency_threshold_exceeded"
+    - "Verify error_rate is low (confirms latency issue, not error issue)"
+    - "Check upstream provider X latency and error logs"
+    - "Verify no concurrent deploys or config changes for provider X"
+    - "Review router logs for 'event=circuit_breaker_state_changed' with 'reason=latency_threshold_exceeded'"
+
+mitigation:
+  steps:
+    - "If provider X is unhealthy, disable it in router config or reduce traffic"
+    - "Shift traffic to backup provider if available"
+    - "If provider X is healthy but slow, verify no network issues"
+    - "Consider traffic offload or load balancing"
+    - "Increase latency_threshold_ms for tenantX/providerX only if provider SLA allows"
+    - "Monitor circuit recovery: open → half_open → closed"
+
+verification:
+  checks:
+    - "Circuit breaker transitions from open → half_open → closed"
+    - "Latency returns to baseline in Grafana"
+    - "Alerts clear automatically within 10–15 minutes"
+    - "CLI shows State: CLOSED ✓ after recovery"
+    - "No recurrence within 1 hour"
+
+postmortem:
+  tasks:
+    - "File incident in incident tracker with full timeline"
+    - "Review R10 thresholds and provider X SLA"
+    - "Update runbook with lessons learned"
+    - "Document any configuration changes made"
+    - "Review provider X performance metrics for root cause"
+

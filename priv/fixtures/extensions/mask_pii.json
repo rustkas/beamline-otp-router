@@ -1,0 +1,14 @@
+{
+  "id": "mask_pii",
+  "type": "post",
+  "subject": "beamline.ext.post.mask_pii.v1",
+  "timeout_ms": 150,
+  "retry": 0,
+  "enabled": true,
+  "config": {},
+  "metadata": {
+    "description": "PII masking post-processor",
+    "version": "v1"
+  }
+}
+

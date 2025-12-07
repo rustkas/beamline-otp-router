@@ -1,0 +1,454 @@
+===> Verifying dependencies...
+===> Analyzing applications...
+===> Compiling beamline_router
+    ┌─ test/router_tenant_allowlist_SUITE.erl:
+    │
+ 49 │  test_allowlist_binary_tenants(_Config) ->
+    │  ╰── Warning: function test_allowlist_binary_tenants/1 is unused
+
+    ┌─ test/router_tenant_allowlist_SUITE.erl:
+    │
+ 68 │  test_allowlist_string_tenants(_Config) ->
+    │  ╰── Warning: function test_allowlist_string_tenants/1 is unused
+
+    ┌─ test/router_tenant_allowlist_SUITE.erl:
+    │
+ 87 │  test_allowlist_mixed_types(_Config) ->
+    │  ╰── Warning: function test_allowlist_mixed_types/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 103 │  test_tenant_id_binary_matches_string_allowlist(_Config) ->
+     │  ╰── Warning: function test_tenant_id_binary_matches_string_allowlist/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 115 │  test_tenant_id_string_matches_binary_allowlist(_Config) ->
+     │  ╰── Warning: function test_tenant_id_string_matches_binary_allowlist/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 128 │  test_allowlist_map_binary_keys(_Config) ->
+     │  ╰── Warning: function test_allowlist_map_binary_keys/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 147 │  test_allowlist_map_string_keys(_Config) ->
+     │  ╰── Warning: function test_allowlist_map_string_keys/1 is unused
+
+     ┌─ test/router_tenant_allowlist_SUITE.erl:
+     │
+ 161 │  test_undefined_tenant_id_with_allowlist(_Config) ->
+     │  ╰── Warning: function test_undefined_tenant_id_with_allowlist/1 is unused
+
+
+    ┌─ test/router_sticky_store_SUITE.erl:
+    │
+ 49 │  test_set_get_provider(_Config) ->
+    │  ╰── Warning: function test_set_get_provider/1 is unused
+
+    ┌─ test/router_sticky_store_SUITE.erl:
+    │
+ 64 │  test_get_provider_not_found(_Config) ->
+    │  ╰── Warning: function test_get_provider_not_found/1 is unused
+
+    ┌─ test/router_sticky_store_SUITE.erl:
+    │
+ 74 │  test_expiration(_Config) ->
+    │  ╰── Warning: function test_expiration/1 is unused
+
+     ┌─ test/router_sticky_store_SUITE.erl:
+     │
+ 100 │  test_clear_session(_Config) ->
+     │  ╰── Warning: function test_clear_session/1 is unused
+
+     ┌─ test/router_sticky_store_SUITE.erl:
+     │
+ 120 │  test_clear_expired(_Config) ->
+     │  ╰── Warning: function test_clear_expired/1 is unused
+
+     ┌─ test/router_sticky_store_SUITE.erl:
+     │
+ 141 │  test_ttl_behavior(_Config) ->
+     │  ╰── Warning: function test_ttl_behavior/1 is unused
+
+     ┌─ test/router_sticky_store_SUITE.erl:
+     │
+ 159 │  test_multiple_tenants(_Config) ->
+     │  ╰── Warning: function test_multiple_tenants/1 is unused
+
+
+    ┌─ test/router_core_SUITE.erl:
+    │
+ 62 │  test_policy_parsing(_Config) ->
+    │  ╰── Warning: function test_policy_parsing/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 123 │  test_basic_decision(_Config) ->
+     │  ╰── Warning: function test_basic_decision/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 144 │  test_missing_tenant_id(_Config) ->
+     │  ╰── Warning: function test_missing_tenant_id/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 163 │  test_policy_not_found(_Config) ->
+     │  ╰── Warning: function test_policy_not_found/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 185 │  test_weighted_routing(_Config) ->
+     │  ╰── Warning: function test_weighted_routing/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 235 │  test_fallback(_Config) ->
+     │  ╰── Warning: function test_fallback/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 257 │  test_telemetry_events(_Config) ->
+     │  ╰── Warning: function test_telemetry_events/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 348 │  test_empty_tenant_id(_Config) ->
+     │  ╰── Warning: function test_empty_tenant_id/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 368 │  test_context_undefined(_Config) ->
+     │  ╰── Warning: function test_context_undefined/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 386 │  test_context_non_map(_Config) ->
+     │  ╰── Warning: function test_context_non_map/1 is unused
+
+     ┌─ test/router_core_SUITE.erl:
+     │
+ 404 │  test_context_with_correlation_id(_Config) ->
+     │  ╰── Warning: function test_context_with_correlation_id/1 is unused
+
+
+    ┌─ test/router_policy_validator_SUITE.erl:
+    │
+ 40 │  test_empty_weights(_Config) ->
+    │  ╰── Warning: function test_empty_weights/1 is unused
+
+    ┌─ test/router_policy_validator_SUITE.erl:
+    │
+ 53 │  test_zero_weights(_Config) ->
+    │  ╰── Warning: function test_zero_weights/1 is unused
+
+    ┌─ test/router_policy_validator_SUITE.erl:
+    │
+ 74 │  test_negative_weights(_Config) ->
+    │  ╰── Warning: function test_negative_weights/1 is unused
+
+    ┌─ test/router_policy_validator_SUITE.erl:
+    │
+ 90 │  test_weights_out_of_range(_Config) ->
+    │  ╰── Warning: function test_weights_out_of_range/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 106 │  test_duplicate_providers(_Config) ->
+     │  ╰── Warning: function test_duplicate_providers/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 126 │  test_invalid_weight_type(_Config) ->
+     │  ╰── Warning: function test_invalid_weight_type/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 142 │  test_empty_policy_id(_Config) ->
+     │  ╰── Warning: function test_empty_policy_id/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 157 │  test_invalid_sticky_config(_Config) ->
+     │  ╰── Warning: function test_invalid_sticky_config/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 175 │  test_invalid_fallback_config(_Config) ->
+     │  ╰── Warning: function test_invalid_fallback_config/1 is unused
+
+     ┌─ test/router_policy_validator_SUITE.erl:
+     │
+ 193 │  test_valid_policy(_Config) ->
+     │  ╰── Warning: function test_valid_policy/1 is unused
+
+
+    ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+    │
+ 59 │  test_normalize_boolean(_Config) ->
+    │  ╰── Warning: function test_normalize_boolean/1 is unused
+
+    ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+    │
+ 79 │  test_decide_request_success(_Config) ->
+    │  ╰── Warning: function test_decide_request_success/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 103 │  test_decide_request_with_push_assignment(_Config) ->
+     │  ╰── Warning: function test_decide_request_with_push_assignment/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 129 │  test_decide_request_error_policy_not_found(_Config) ->
+     │  ╰── Warning: function test_decide_request_error_policy_not_found/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 149 │  test_decide_request_error_missing_tenant_id(_Config) ->
+     │  ╰── Warning: function test_decide_request_error_missing_tenant_id/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 168 │  test_decide_request_unsupported_version(_Config) ->
+     │  ╰── Warning: function test_decide_request_unsupported_version/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 187 │  test_decide_request_custom_assignment_subject(_Config) ->
+     │  ╰── Warning: function test_decide_request_custom_assignment_subject/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 209 │  test_push_assignment_false_no_publication(_Config) ->
+     │  ╰── Warning: function test_push_assignment_false_no_publication/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 232 │  test_push_assignment_error_no_publication(_Config) ->
+     │  ╰── Warning: function test_push_assignment_error_no_publication/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 255 │  test_telemetry_metrics_incremented(_Config) ->
+     │  ╰── Warning: function test_telemetry_metrics_incremented/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 372 │  test_async_publication_monitoring(_Config) ->
+     │  ╰── Warning: function test_async_publication_monitoring/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 401 │  test_async_retry_metrics(_Config) ->
+     │  ╰── Warning: function test_async_retry_metrics/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 481 │  test_payload_size_limit(_Config) ->
+     │  ╰── Warning: function test_payload_size_limit/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 511 │  test_version_validation_missing(_Config) ->
+     │  ╰── Warning: function test_version_validation_missing/1 is unused
+
+     ┌─ test/router_nats_subscriber_caf_SUITE.erl:
+     │
+ 530 │  test_version_validation_unsupported(_Config) ->
+     │  ╰── Warning: function test_version_validation_unsupported/1 is unused
+
+
+     ┌─ test/router_fault_injection_helpers.erl:
+     │
+ 175 │              case (FinalStatus =:= 0.0 orelse FinalStatus =:= 0.5) of
+     │                                    ╰── Warning: matching on the float 0.0 will no longer also match -0.0 in OTP 27.
+If you specifically intend to match 0.0 alone, write +0.0 instead.
+
+     ┌─ test/router_fault_injection_helpers.erl:
+     │
+ 258 │      InitialToFinal = calculate_metric_deltas(InitialMetrics, FinalMetrics),
+     │      ╰── Warning: variable 'InitialToFinal' is unused
+
+     ┌─ test/router_fault_injection_helpers.erl:
+     │
+ 313 │  verify_no_duplicate_publications(InitialMetrics, FaultMetrics, FinalMetrics, ExpectedAttempts) ->
+     │                                                   ╰── Warning: variable 'FaultMetrics' is unused
+
+
+    ┌─ test/router_concurrent_faults_SUITE.erl:
+    │
+ 93 │  get_metrics_snapshot() ->
+    │  ╰── Warning: function get_metrics_snapshot/0 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 114 │  get_metric(MetricName) ->
+     │  ╰── Warning: function get_metric/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 120 │  send_test_message(TenantId, RequestId, ExtraFields) ->
+     │  ╰── Warning: function send_test_message/3 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 147 │  send_message_batch(TenantId, Count, Prefix) ->
+     │  ╰── Warning: function send_message_batch/3 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 159 │  run_fault_injection_lifecycle(Faults, Action, RecoveryWaitMs) ->
+     │  ╰── Warning: function run_fault_injection_lifecycle/3 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 193 │  verify_test_scenario(ExpectedRestarts, InitialMetrics, FinalMetrics, Recovered) ->
+     │  ╰── Warning: function verify_test_scenario/4 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 229 │  test_connect_and_publish_faults(_Config) ->
+     │  ╰── Warning: function test_connect_and_publish_faults/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 279 │  test_publish_and_ack_nak_faults(_Config) ->
+     │  ╰── Warning: function test_publish_and_ack_nak_faults/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 336 │  test_connect_and_ack_nak_faults(_Config) ->
+     │  ╰── Warning: function test_connect_and_ack_nak_faults/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 366 │      true = (FinalStatus =:= 1.0 orelse FinalStatus =:= 0.0 orelse FinalConnectionRestored > InitialConnectionRestored),
+     │                                                         ╰── Warning: matching on the float 0.0 will no longer also match -0.0 in OTP 27.
+If you specifically intend to match 0.0 alone, write +0.0 instead.
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 384 │  test_validation_and_publish_faults(_Config) ->
+     │  ╰── Warning: function test_validation_and_publish_faults/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 428 │  test_policy_change_and_connect_publish_faults(_Config) ->
+     │  ╰── Warning: function test_policy_change_and_connect_publish_faults/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 485 │  test_scenario_a_connect_and_publish_detailed(_Config) ->
+     │  ╰── Warning: function test_scenario_a_connect_and_publish_detailed/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 582 │  test_scenario_b_connect_and_publish_with_ack_detailed(_Config) ->
+     │  ╰── Warning: function test_scenario_b_connect_and_publish_with_ack_detailed/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 669 │  test_scenario_c_ack_nak_and_tenant_validation_fail(_Config) ->
+     │  ╰── Warning: function test_scenario_c_ack_nak_and_tenant_validation_fail/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 769 │  test_scenario_d_jetstream_outage_and_publish_subscribe(_Config) ->
+     │  ╰── Warning: function test_scenario_d_jetstream_outage_and_publish_subscribe/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 851 │  test_scenario_e_nats_flapping_connection(_Config) ->
+     │  ╰── Warning: function test_scenario_e_nats_flapping_connection/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 955 │  test_scenario_f_restart_storm_near_max_restarts(_Config) ->
+     │  ╰── Warning: function test_scenario_f_restart_storm_near_max_restarts/1 is unused
+
+     ┌─ test/router_concurrent_faults_SUITE.erl:
+     │
+ 968 │      Faults = [
+     │      ╰── Warning: variable 'Faults' is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1039 │  test_scenario_g_poison_message_maxdeliver(_Config) ->
+      │  ╰── Warning: function test_scenario_g_poison_message_maxdeliver/1 is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1125 │  test_scenario_h_partial_success_publish_with_ack(_Config) ->
+      │  ╰── Warning: function test_scenario_h_partial_success_publish_with_ack/1 is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1133 │      Faults = [
+      │      ╰── Warning: variable 'Faults' is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1205 │  test_scenario_i_connection_status_inconsistency(_Config) ->
+      │  ╰── Warning: function test_scenario_i_connection_status_inconsistency/1 is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1295 │  test_scenario_j_graceful_shutdown_during_faults(_Config) ->
+      │  ╰── Warning: function test_scenario_j_graceful_shutdown_during_faults/1 is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1299 │      InitialMetrics = get_metrics_snapshot(),
+      │      ╰── Warning: variable 'InitialMetrics' is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1325 │      ShutdownMetrics = get_metrics_snapshot(),
+      │      ╰── Warning: variable 'ShutdownMetrics' is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1336 │      FinalMetrics = get_metrics_snapshot(),
+      │      ╰── Warning: variable 'FinalMetrics' is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1369 │  test_scenario_k_delayed_mass_redelivery_after_outage(_Config) ->
+      │  ╰── Warning: function test_scenario_k_delayed_mass_redelivery_after_outage/1 is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1458 │  test_scenario_l_tenant_state_inconsistency(_Config) ->
+      │  ╰── Warning: function test_scenario_l_tenant_state_inconsistency/1 is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1483 │      StatusChangeMetrics = get_metrics_snapshot(),
+      │      ╰── Warning: variable 'StatusChangeMetrics' is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1532 │  test_backoff_exponential_timing(_Config) ->
+      │  ╰── Warning: function test_backoff_exponential_timing/1 is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1585 │  test_backoff_linear_timing(_Config) ->
+      │  ╰── Warning: function test_backoff_linear_timing/1 is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1635 │  test_backoff_jitter_bounds(_Config) ->
+      │  ╰── Warning: function test_backoff_jitter_bounds/1 is unused
+
+      ┌─ test/router_concurrent_faults_SUITE.erl:
+      │
+ 1685 │  test_backoff_applied_during_retry(_Config) ->
+      │  ╰── Warning: function test_backoff_applied_during_retry/1 is unused
+
+
+===> Running Common Test suites...
+All 0 tests passed.

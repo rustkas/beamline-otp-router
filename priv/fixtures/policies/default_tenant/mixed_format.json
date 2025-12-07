@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "providers": [
+    {"name": "openai", "weight": 60},
+    {"name": "anthropic", "weight": 40}
+  ],
+  "fallbacks": [
+    {
+      "when": {"status": ["timeout"]},
+      "retry": 2,
+      "to": "anthropic"
+    }
+  ],
+  "fallback": {
+    "provider": "local_llm",
+    "conditions": ["all_providers_failed"]
+  },
+  "sticky": {
+    "enabled": true,
+    "session_key": "user_id",
+    "ttl": "10m",
+    "ttl_seconds": 600
+  },
+  "pre": [
+    {
+      "id": "normalize_text",
+      "mode": "required",
+      "config": {
+        "lowercase": true
+      }
+    }
+  ],
+  "metadata": {
+    "strategy": "mixed_format",
+    "description": "Mixed format: new JSON-DSL (providers, fallbacks) + legacy (fallback object, ttl_seconds)"
+  }
+}
+

@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "providers": [
+    {"name": "openai", "weight": 70},
+    {"name": "anthropic", "weight": 30}
+  ],
+  "circuit_breaker": {
+    "enabled": true,
+    "failure_threshold": 5,
+    "success_threshold": 2,
+    "timeout_ms": 60000,
+    "half_open_max_calls": 3
+  },
+  "fallbacks": [
+    {
+      "when": {"status": ["circuit_breaker_open", "timeout", "5xx"]},
+      "to": "anthropic"
+    }
+  ]
+}
+

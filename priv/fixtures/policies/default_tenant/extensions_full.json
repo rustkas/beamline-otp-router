@@ -1,0 +1,67 @@
+{
+  "version": "1.0",
+  "providers": [
+    {"name": "openai", "weight": 70},
+    {"name": "anthropic", "weight": 30}
+  ],
+  "pre": [
+    {
+      "id": "normalize_text",
+      "mode": "required",
+      "config": {
+        "lowercase": true,
+        "trim_whitespace": true
+      }
+    },
+    {
+      "id": "add_context",
+      "mode": "optional",
+      "config": {
+        "include_timestamp": true
+      }
+    }
+  ],
+  "validators": [
+    {
+      "id": "pii_guard",
+      "on_fail": "block"
+    },
+    {
+      "id": "content_filter",
+      "on_fail": "warn"
+    },
+    {
+      "id": "rate_limit_check",
+      "on_fail": "ignore"
+    }
+  ],
+  "post": [
+    {
+      "id": "mask_pii",
+      "mode": "required",
+      "config": {
+        "mask_email": true,
+        "mask_phone": true
+      }
+    },
+    {
+      "id": "format_response",
+      "mode": "optional",
+      "config": {
+        "pretty_print": false
+      }
+    }
+  ],
+  "fallbacks": [
+    {
+      "when": {"status": ["timeout"]},
+      "retry": 2,
+      "to": "anthropic"
+    }
+  ],
+  "metadata": {
+    "strategy": "extensions_full",
+    "description": "Full extensions configuration: pre, validators, post"
+  }
+}
+
