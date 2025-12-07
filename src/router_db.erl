@@ -1,7 +1,7 @@
 %% @doc PostgreSQL Database Integration
 %% Manages database connection pool and queries
 -module(router_db).
--export([load_policy/2]).
+-export([load_policy/2, query/2]).
 
 -ifdef(EPGSQL_AVAILABLE).
 -define(HAVE_DB, true).
@@ -43,5 +43,6 @@ load_policy(_TenantId, _PolicyId) ->
 -endif.
 
 %% @doc Execute generic query
+-spec query(binary() | string(), list()) -> {error, database_not_available}.
 query(_Query, _Params) ->
     {error, database_not_available}.

@@ -14,6 +14,20 @@
 
 %% Common Test callbacks
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+-export([
+    test_triple_fault_scenario_a_connect_publish_ack/1,
+    test_triple_fault_scenario_b_connect_publish_nak/1,
+    test_triple_fault_scenario_c_flapping_connect_publish_ack/1,
+    test_triple_fault_connect_publish_ack_simultaneous/1,
+    test_triple_fault_connect_publish_nak_simultaneous/1,
+    test_mixed_intermittent_connect_persistent_publish/1,
+    test_mixed_persistent_connect_intermittent_ack/1,
+    test_mixed_intermittent_publish_persistent_ack/1,
+    test_mixed_pattern_flapping_with_persistent_errors/1,
+    test_cascading_connect_publish_ack_chain/1,
+    test_cascading_reconnect_storm_publish_backlog_ack_loss/1,
+    test_cascading_multiple_recovery_cycles/1
+]).
 
 all() ->
     [

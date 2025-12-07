@@ -459,7 +459,7 @@ assert_throughput_ok(Baseline, Current) ->
     end,
     
     MinAcceptable = Baseline * MinRatio,
-    ct:comment("Throughput check: Baseline=~.2f, Current=~.2f, MinRatio=~.2f, MinAcceptable=~.2f", 
+    ct:pal("Throughput check: Baseline=~.2f, Current=~.2f, MinRatio=~.2f, MinAcceptable=~.2f", 
                [Baseline, Current, MinRatio, MinAcceptable]),
     
     ?assert(Current >= MinAcceptable, 

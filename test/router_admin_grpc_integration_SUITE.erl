@@ -61,6 +61,7 @@ init_per_suite(Config) ->
     ok = application:set_env(beamline_router, admin_grpc_enabled, true),
     ok = application:set_env(beamline_router, cp2_plus_allowed, true),
     ok = application:set_env(beamline_router, nats_mode, mock),
+    ok = application:set_env(beamline_router, rbac_test_mode, true),
     AdminKey = <<"test-admin-key">>,
     ok = application:set_env(beamline_router, admin_api_key, AdminKey),
     case application:ensure_all_started(beamline_router) of
@@ -93,6 +94,14 @@ init_per_testcase(_Case, Config) ->
         _ -> 
             %% RBAC already running, ensure default roles are initialized
             timer:sleep(100)
+    end,
+    %% Reset RBAC tables to avoid stale permissions between tests
+    case catch router_rbac:reset() of
+        ok -> ok;
+        {error, ResetError} ->
+            ct:log("Warning: Failed to reset RBAC state: ~p", [ResetError]);
+        {'EXIT', ResetExit} ->
+            ct:log("Warning: RBAC reset exited: ~p", [ResetExit])
     end,
     %% Verify default roles are initialized by checking if admin role exists
     case ensure_default_roles_initialized() of
@@ -238,7 +247,8 @@ clear_permission_cache(UserId, TenantId) ->
 create_context_with_user(AdminKey, UserId) ->
     Metadata = [
         {<<"x-api-key">>, AdminKey},
-        {<<"x-user-id">>, UserId}
+        {<<"x-user-id">>, UserId},
+        {<<"x-tenant-id">>, <<"test_tenant">>}
     ],
     #{metadata => Metadata}.
 

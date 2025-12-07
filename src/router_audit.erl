@@ -8,6 +8,7 @@
 -export([get_audit_entries/3, get_client_ip/0]).
 -export([get_audit_retention_days/0, clear_all_audit_entries/0]).
 -export([get_table_size/0, get_table_memory/0, check_size_limit/0]).
+-export([enforce_size_limit_if_needed/0, evict_oldest_entries/1, evict_expired_entries/1, cleanup/0, start_cleanup_timer/0]).
 
 -include("beamline_router.hrl").
 
@@ -462,7 +463,8 @@ enforce_size_limit_if_needed() ->
         _ -> ok
     end.
 
-%% Internal: Evict oldest audit entries (by timestamp, oldest first)
+%% @doc Evict oldest audit entries (by timestamp, oldest first)
+-spec evict_oldest_entries(integer()) -> integer().
 evict_oldest_entries(Count) when Count =< 0 -> 0;
 evict_oldest_entries(Count) ->
     %% Get all entries sorted by timestamp (oldest first)
@@ -478,7 +480,8 @@ evict_oldest_entries(Count) ->
     end, EntriesToEvict),
     length(EntriesToEvict).
 
-%% Internal: Evict expired entries (older than retention days)
+%% @doc Evict expired entries (older than retention days)
+-spec evict_expired_entries(integer()) -> integer().
 evict_expired_entries(RetentionDays) ->
     RetentionMs = RetentionDays * 24 * 60 * 60 * 1000,
     Now = erlang:system_time(millisecond),

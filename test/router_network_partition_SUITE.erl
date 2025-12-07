@@ -10,6 +10,57 @@
 
 -include_lib("stdlib/include/assert.hrl").
 
+%% Export Common Test callbacks
+-export([
+    all/0,
+    groups/0,
+    init_per_suite/1,
+    end_per_suite/1,
+    init_per_testcase/2,
+    end_per_testcase/2
+]).
+
+%% Export test functions
+-export([
+    test_single_instance_partial_partition/1,
+    test_single_instance_full_partition/1,
+    test_single_instance_partition_healing/1,
+    test_single_instance_jetstream_partition_short/1,
+    test_single_instance_jetstream_partition_long/1,
+    test_single_instance_jetstream_partition_recovery/1,
+    test_single_instance_external_service_partition_short/1,
+    test_single_instance_external_service_partition_long/1,
+    test_single_instance_external_service_partition_recovery/1,
+    test_single_instance_latency_degradation/1,
+    test_single_instance_partial_packet_loss/1,
+    test_single_instance_intermittent_connectivity/1,
+    test_single_instance_slow_network/1,
+    test_multi_instance_split_brain/1,
+    test_multi_instance_partial_partition/1,
+    test_multi_instance_leader_election_after_healing/1,
+    test_multi_instance_split_brain_leader_election/1,
+    test_multi_instance_split_brain_no_duplicate_processing/1,
+    test_multi_instance_split_brain_recovery/1,
+    test_multi_instance_jetstream_partition_instance_a_isolated/1,
+    test_multi_instance_jetstream_partition_jetstream_cluster_split/1,
+    test_multi_instance_jetstream_partition_recovery/1,
+    test_multi_instance_distributed_locks_partition/1,
+    test_multi_instance_distributed_locks_recovery/1,
+    test_service_broker_partition/1,
+    test_service_broker_partition_retry_behavior/1,
+    test_service_broker_partition_recovery/1,
+    test_flapping_network_stability/1,
+    test_flapping_network_no_resource_leaks/1,
+    test_flapping_network_recovery/1,
+    test_flapping_network_with_latency/1,
+    test_flapping_network_with_packet_loss/1,
+    test_partial_network_partition_with_recovery/1,
+    test_intermittent_connectivity_with_backpressure/1,
+    test_network_partition_with_message_redelivery/1,
+    test_split_brain_with_leader_election/1,
+    test_network_partition_with_circuit_breaker/1
+]).
+
 all() ->
     [
         {group, single_instance_tests},
@@ -1904,7 +1955,7 @@ test_single_instance_intermittent_connectivity(_Config) ->
     InitialMetrics = get_metrics_snapshot(),
     
     %% Simulate intermittent connectivity: 2s on, 1s off, repeat
-    IntermittentPid = spawn(fun() ->
+    {IntermittentPid, IntermittentRef} = spawn_monitor(fun() ->
         IntermittentLoop = fun F(Count) when Count < 20 ->  % 20 cycles = ~60 seconds
             %% Connection available
             router_nats_fault_injection:disable_fault(connect),
@@ -1938,6 +1989,18 @@ test_single_instance_intermittent_connectivity(_Config) ->
     
     %% Stop intermittent connectivity
     exit(IntermittentPid, normal),
+    
+    %% Wait for process to terminate
+    receive
+        {'DOWN', IntermittentRef, process, IntermittentPid, normal} ->
+            ok;
+        {'DOWN', IntermittentRef, process, IntermittentPid, Reason} ->
+            ct:fail("Intermittent process exited with reason: ~p", [Reason])
+    after
+        5000 ->
+            ct:fail("Timeout waiting for intermittent process to terminate")
+    end,
+    
     router_nats_fault_injection:disable_fault(connect),
     
     %% Wait for stable operation
@@ -2064,6 +2127,18 @@ test_flapping_network_with_latency(_Config) ->
     
     %% Stop flapping
     exit(FlappingPid, normal),
+    
+    %% Wait for process to terminate
+    receive
+        {'DOWN', FlappingRef, process, FlappingPid, normal} ->
+            ok;
+        {'DOWN', FlappingRef, process, FlappingPid, Reason} ->
+            ct:fail("Flapping process exited with reason: ~p", [Reason])
+    after
+        5000 ->
+            ct:fail("Timeout waiting for flapping process to terminate")
+    end,
+    
     router_nats_fault_injection:disable_fault(connect),
     router_nats_fault_injection:disable_fault(publish),
     router_nats_fault_injection:disable_fault(ack),
@@ -2103,7 +2178,7 @@ test_flapping_network_with_packet_loss(_Config) ->
     InitialProcessCount = length(erlang:processes()),
     
     %% Simulate flapping with packet loss: disconnect for 1s, connect with 20% packet loss for 2s
-    FlappingPid = spawn(fun() ->
+    {FlappingPid, FlappingRef} = spawn_monitor(fun() ->
         FlappingLoop = fun F(Count) when Count < 30 ->  % 30 cycles = ~90 seconds
             %% Disconnect
             router_nats_fault_injection:enable_fault(connect, {error, connection_refused}),
@@ -2147,6 +2222,18 @@ test_flapping_network_with_packet_loss(_Config) ->
     
     %% Stop flapping
     exit(FlappingPid, normal),
+    
+    %% Wait for process to terminate
+    receive
+        {'DOWN', FlappingRef, process, FlappingPid, normal} ->
+            ok;
+        {'DOWN', FlappingRef, process, FlappingPid, Reason} ->
+            ct:fail("Flapping process exited with reason: ~p", [Reason])
+    after
+        5000 ->
+            ct:fail("Timeout waiting for flapping process to terminate")
+    end,
+    
     router_nats_fault_injection:disable_fault(connect),
     router_nats_fault_injection:disable_fault(publish),
     router_nats_fault_injection:disable_fault(ack),
@@ -2548,8 +2635,8 @@ test_split_brain_with_leader_election(_Config) ->
             ?assert(FinalLeader =:= instance_a orelse FinalLeader =:= instance_b);
         not_found ->
             ct:fail("Leader not found after healing");
-        {error, Reason} ->
-            ct:fail("Failed to get leader after healing: ~p", [Reason])
+        {error, ErrorReason} ->
+            ct:fail("Failed to get leader after healing: ~p", [ErrorReason])
     end,
     
     %% Cleanup

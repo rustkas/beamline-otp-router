@@ -27,6 +27,16 @@
 
 %% Common Test callbacks
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+-export([
+    test_retry_success_on_second_attempt/1,
+    test_retry_exhausted/1,
+    test_tenant_blocked/1,
+    test_global_disable/1,
+    test_deadline_min_cap/1,
+    test_deadline_max_cap/1,
+    test_deadline_calculation/1,
+    test_telemetry_span_attributes/1
+]).
 
 all() ->
     [

@@ -1,6 +1,36 @@
+### Build artifacts (Erlang / rebar3)
 _build/
+_build*/
+ebin/
+deps/
+.rebar3/
+.rebar/
+
+### Cursor / Windsurf / вспомогательные
 .cursor/
-.windsurf
 .windsurf/
+*.beam.dump
+
+### Erlang runtime dumps
+erl_crash.dump
 *.dump
 *.beam
+
+### Logs / tmp
+logs/
+log/
+tmp/
+*.log
+
+### OS / редакторы
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+
+# IDE
+.vscode/
+#.idea/ct_logs/
+ct_logs/
+
