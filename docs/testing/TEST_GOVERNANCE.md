@@ -20,11 +20,12 @@
 
 ### 1.1.1 Full Tier Quality Gates
 
-| Gate | Condition | Description |
-|------|-----------|-------------|
-| Gate 1 | `suite_linter == ok` | All test suites pass structural linting |
-| Gate 2 | `failed_tests == 0` | Zero test failures allowed in full tier |
-| Gate 3 | `unexpected_skips == 0` | No undocumented skips |
+| Gate | Condition | Description | Enforcement |
+|------|-----------|-------------|-------------|
+| Gate 1 | `suite_linter == ok` | All test suites pass structural linting | **HARD** |
+| Gate 2 | `failed_tests == 0` | Zero test failures allowed in full tier | **HARD** |
+| Gate 3 | `unexpected_skips == 0` | No undocumented skips | **HARD** |
+| Gate 4 | `targeted_coverage >= 12%` | Coverage above threshold | **SOFT** (warning) |
 
 See [QUALITY_GATES.md](./QUALITY_GATES.md) for detailed documentation.
 

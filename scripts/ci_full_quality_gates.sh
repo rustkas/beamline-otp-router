@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # ci_full_quality_gates.sh - Quality Gates for Full Tier
 #
-# Implements three mandatory quality gates for full tier CI:
-#   1. failed_tests == 0        - No test failures allowed
-#   2. unexpected_skips == 0    - No unexpected skips (only documented ones)
-#   3. suite_linter == ok       - All suites pass linter checks
+# Implements quality gates for full tier CI:
+#   1. suite_linter == ok       - All suites pass linter checks (HARD GATE)
+#   2. failed_tests == 0        - No test failures allowed (HARD GATE)
+#   3. unexpected_skips == 0    - No unexpected skips (HARD GATE)
+#   4. targeted_coverage >= N%  - Coverage above threshold (SOFT GATE - warning only)
 #
 # Usage:
 #   ./scripts/ci_full_quality_gates.sh                    # Run all gates
@@ -12,14 +13,15 @@
 #   ./scripts/ci_full_quality_gates.sh --linter-only      # Run only suite linter
 #
 # Exit codes:
-#   0 - All quality gates passed
-#   1 - One or more quality gates failed
+#   0 - All HARD quality gates passed (soft gates may warn)
+#   1 - One or more HARD quality gates failed
 #   2 - Script usage error
 #
 # Environment variables:
 #   ROUTER_QG_STRICT              - Fail on any warning (default: false)
 #   ROUTER_ALLOWED_SKIPS          - Comma-separated list of allowed skip patterns
 #   ROUTER_SUITE_LINTER_STRICT    - Enable strict mode for suite linter
+#   ROUTER_COVERAGE_THRESHOLD     - Coverage threshold % for soft gate (default: 12)
 #
 set -euo pipefail
 
@@ -276,6 +278,71 @@ check_unexpected_skips() {
 }
 
 # ============================================================================
+# GATE 4: Coverage Check (SOFT GATE - warning only)
+# ============================================================================
+COVERAGE_THRESHOLD="${ROUTER_COVERAGE_THRESHOLD:-12}"
+COVERAGE_RESULT="unknown"
+COVERAGE_PCT="0.00"
+
+check_coverage() {
+    echo ""
+    echo -e "${BLUE}[Gate 4/4] Targeted Coverage Check (SOFT - warning only)${NC}"
+    echo "────────────────────────────────────────────────────────────────"
+    
+    local COVER_INDEX="$PROJECT_DIR/_build/test/cover/index.html"
+    
+    # Check if coverage data exists
+    if [[ ! -f "$COVER_INDEX" ]]; then
+        echo -e "  ${YELLOW}⚠ No coverage data found${NC}"
+        echo "    Run tests with coverage: rebar3 ct --cover"
+        echo "    Or: make test-coverage"
+        COVERAGE_RESULT="no_data"
+        return 0  # Soft gate - never fails
+    fi
+    
+    # Parse targeted coverage from existing report if available
+    local TARGETED_REPORT="$PROJECT_DIR/reports/coverage_targeted.json"
+    if [[ -f "$TARGETED_REPORT" ]]; then
+        COVERAGE_PCT=$(grep -oP '"targeted":\s*\K[0-9.]+' "$TARGETED_REPORT" 2>/dev/null | head -1 || echo "0")
+    else
+        # Fallback: parse aggregate coverage from cover index
+        local total_line
+        total_line=$(grep -E "<strong>Total</strong>" "$COVER_INDEX" 2>/dev/null | head -1 || true)
+        if [[ -n "$total_line" ]]; then
+            COVERAGE_PCT=$(echo "$total_line" | grep -oE '[0-9]+%' | head -1 | tr -d '%' || echo "0")
+        fi
+    fi
+    
+    # Ensure we have a valid number
+    COVERAGE_PCT=${COVERAGE_PCT:-0}
+    if ! [[ "$COVERAGE_PCT" =~ ^[0-9.]+$ ]]; then
+        COVERAGE_PCT="0"
+    fi
+    
+    echo "  Threshold: >= ${COVERAGE_THRESHOLD}% (soft gate)"
+    echo "  Current:   ${COVERAGE_PCT}%"
+    
+    # Compare with threshold using awk for float comparison
+    local ABOVE_THRESHOLD
+    ABOVE_THRESHOLD=$(awk -v cov="$COVERAGE_PCT" -v thresh="$COVERAGE_THRESHOLD" 'BEGIN {print (cov >= thresh) ? 1 : 0}')
+    
+    if [[ "$ABOVE_THRESHOLD" -eq 1 ]]; then
+        echo -e "  ${GREEN}✓ Coverage meets threshold${NC}"
+        COVERAGE_RESULT="pass"
+    else
+        echo -e "  ${YELLOW}⚠ Coverage below threshold (warning only)${NC}"
+        echo ""
+        echo -e "  ${YELLOW}To improve coverage:${NC}"
+        echo "    1. Run: make test-coverage"
+        echo "    2. Add tests for uncovered modules"
+        echo "    3. Review: reports/coverage_targeted.json"
+        COVERAGE_RESULT="warning"
+    fi
+    
+    return 0  # Soft gate - never fails CI
+}
+
+# ==========================================================================
 # Main Execution
 # ============================================================================
 
@@ -301,6 +368,9 @@ if [[ "$LINTER_ONLY" == false ]]; then
         GATE3_RESULT=1
         EXIT_CODE=1
     fi
+    
+    # Run Gate 4: Coverage (soft gate - always passes, just warns)
+    check_coverage
 fi
 
 # ============================================================================
@@ -320,17 +390,43 @@ gate_status() {
     fi
 }
 
+soft_gate_status() {
+    case "$1" in
+        "pass")
+            echo -e "${GREEN}✓ PASS${NC}"
+            ;;
+        "warning")
+            echo -e "${YELLOW}⚠ WARN${NC}"
+            ;;
+        "no_data")
+            echo -e "${YELLOW}⚠ N/A${NC}"
+            ;;
+        *)
+            echo -e "${YELLOW}⚠ N/A${NC}"
+            ;;
+    esac
+}
+
+echo -e "  ${BOLD}Hard Gates (blocking):${NC}"
 echo -e "  Gate 1: suite_linter == ok       $(gate_status $GATE1_RESULT)"
 if [[ "$LINTER_ONLY" == false ]]; then
     echo -e "  Gate 2: failed_tests == 0        $(gate_status $GATE2_RESULT)"
     echo -e "  Gate 3: unexpected_skips == 0    $(gate_status $GATE3_RESULT)"
+    echo ""
+    echo -e "  ${BOLD}Soft Gates (non-blocking):${NC}"
+    echo -e "  Gate 4: coverage >= ${COVERAGE_THRESHOLD}%         $(soft_gate_status $COVERAGE_RESULT)  (${COVERAGE_PCT}%)"
 fi
 
 echo ""
 if [[ $EXIT_CODE -eq 0 ]]; then
     echo -e "${BOLD}${GREEN}══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${BOLD}${GREEN}       ✓ ALL QUALITY GATES PASSED${NC}"
+    echo -e "${BOLD}${GREEN}       ✓ ALL HARD QUALITY GATES PASSED${NC}"
     echo -e "${BOLD}${GREEN}══════════════════════════════════════════════════════════════${NC}"
+    if [[ "$COVERAGE_RESULT" == "warning" ]]; then
+        echo ""
+        echo -e "${YELLOW}Note: Soft gate warning - coverage below threshold.${NC}"
+        echo -e "${YELLOW}This is informational only and does not fail CI.${NC}"
+    fi
 else
     echo -e "${BOLD}${RED}══════════════════════════════════════════════════════════════${NC}"
     echo -e "${BOLD}${RED}       ✗ QUALITY GATES FAILED${NC}"

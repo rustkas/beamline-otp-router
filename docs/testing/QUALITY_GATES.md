@@ -1,13 +1,13 @@
 # Quality Gates for Full Tier
 
 > Router Project Quality Gates Documentation
-> Version: 1.0 | Last Updated: 2025-12-13
+> Version: 1.1 | Last Updated: 2025-12-13
 
 ---
 
 ## Overview
 
-Quality Gates are mandatory checks that enforce code quality standards for the Full Tier test suite. These gates **block CI pipeline** if any check fails.
+Quality Gates are checks that enforce code quality standards for the Full Tier test suite. **Hard gates** block CI pipeline if any check fails. **Soft gates** display warnings but don't fail CI.
 
 ## Quality Gates Definition
 
@@ -16,6 +16,7 @@ Quality Gates are mandatory checks that enforce code quality standards for the F
 | **Gate 1** | `suite_linter == ok` | All test suites pass structural linting | **HARD BLOCK** |
 | **Gate 2** | `failed_tests == 0` | No test failures in full tier | **HARD BLOCK** |
 | **Gate 3** | `unexpected_skips == 0` | No undocumented skips | **HARD BLOCK** |
+| **Gate 4** | `targeted_coverage >= N%` | Coverage above threshold | **SOFT (warning)** |
 
 ---
 
@@ -101,6 +102,51 @@ To allow a new skip pattern:
 
 ---
 
+## Gate 4: Targeted Coverage (Soft Gate)
+
+This is a **non-blocking** gate that tracks code coverage. It displays warnings when coverage is below threshold but **does not fail CI**.
+
+### Default Threshold
+- **12%** targeted coverage (configurable)
+
+### Why Soft Gate?
+Coverage is tracked for visibility and improvement tracking, but not enforced strictly because:
+1. Legacy code may have low coverage
+2. Some modules are hard to test in isolation
+3. Focus is on preventing regressions, not blocking work
+
+### Configuring Threshold
+```bash
+# Set custom threshold (environment variable)
+ROUTER_COVERAGE_THRESHOLD=20 ./scripts/ci_full_quality_gates.sh
+
+# Or in CI
+export ROUTER_COVERAGE_THRESHOLD=15
+make test-full
+```
+
+### Generating Coverage Data
+```bash
+# Run tests with coverage
+rebar3 ct --cover
+
+# Or use make target
+make test-coverage
+
+# Generate targeted coverage report
+./scripts/generate_targeted_coverage.sh
+```
+
+### Coverage Reports
+- **Aggregate**: Coverage of ALL modules (including protobuf, templates)
+- **Targeted**: Coverage of business logic modules only (excludes `*_pb`, templates)
+
+Reports are saved to:
+- `reports/coverage_targeted.json`
+- `_build/test/cover/index.html`
+
+---
+
 ## Running Quality Gates
 
 ### Full Tier with Quality Gates
@@ -156,8 +202,8 @@ jobs:
 ### Exit Codes
 | Code | Meaning |
 |------|---------|
-| 0 | All quality gates passed |
-| 1 | One or more gates failed |
+| 0 | All **hard** quality gates passed (soft gates may have warnings) |
+| 1 | One or more **hard** gates failed |
 | 2 | Script usage error |
 
 ---
