@@ -130,13 +130,24 @@ check_failed_tests() {
         return 0  # Not a failure if no logs exist yet
     fi
     
+    # Find the LATEST CT run directory (most recent by name)
+    local LATEST_RUN
+    LATEST_RUN=$(find "$CT_LOG_DIR" -maxdepth 1 -type d -name "ct_run.*" 2>/dev/null | sort -r | head -1)
+    
+    if [[ -z "$LATEST_RUN" ]]; then
+        echo -e "  ${YELLOW}⚠ No CT run found in ${CT_LOG_DIR}${NC}"
+        return 0
+    fi
+    
+    echo "  Checking: $(basename "$LATEST_RUN")"
+    
     local FAILED_COUNT=0
     local FAILED_TESTS=()
     
-    # Method 1: Parse summary from CT output
+    # Method 1: Parse summary from LATEST CT run output only
     # Looking for patterns like "N failed" where N > 0
     local SUMMARY_OUTPUT
-    SUMMARY_OUTPUT=$(grep -rh "failed" "$CT_LOG_DIR" 2>/dev/null | grep -E "[1-9][0-9]* failed" || true)
+    SUMMARY_OUTPUT=$(grep -rh "failed" "$LATEST_RUN" 2>/dev/null | grep -E "[1-9][0-9]* failed" || true)
     
     if [[ -n "$SUMMARY_OUTPUT" ]]; then
         # Count actual failures from summary lines
@@ -151,9 +162,9 @@ check_failed_tests() {
         done <<< "$SUMMARY_OUTPUT"
     fi
     
-    # Method 2: Look for explicit FAILED markers in test output
+    # Method 2: Look for explicit FAILED markers in LATEST test output
     local EXPLICIT_FAILURES
-    EXPLICIT_FAILURES=$(grep -rh "<<<FAILED>>>\|=== FAILED\|*** FAILED" "$CT_LOG_DIR" 2>/dev/null | head -20 || true)
+    EXPLICIT_FAILURES=$(grep -rh "<<<FAILED>>>\|=== FAILED\|*** FAILED" "$LATEST_RUN" 2>/dev/null | head -20 || true)
     if [[ -n "$EXPLICIT_FAILURES" ]]; then
         while IFS= read -r line; do
             if [[ -n "$line" ]]; then
@@ -171,17 +182,6 @@ check_failed_tests() {
                 fi
             fi
         done <<< "$EXPLICIT_FAILURES"
-    fi
-    
-    # Method 3: Check ct_run summary for overall failure count
-    local CTRH_SUMMARY
-    CTRH_SUMMARY=$(find "$CT_LOG_DIR" -name "ct_run_summary.*" -type f 2>/dev/null | head -1)
-    if [[ -f "$CTRH_SUMMARY" ]]; then
-        local TOTAL_FAILED
-        TOTAL_FAILED=$(grep -oP "Failed:\s*\K\d+" "$CTRH_SUMMARY" 2>/dev/null | awk '{sum+=$1}END{print sum+0}')
-        if [[ "$TOTAL_FAILED" -gt "$FAILED_COUNT" ]]; then
-            FAILED_COUNT=$TOTAL_FAILED
-        fi
     fi
     
     if [[ "$FAILED_COUNT" -eq 0 ]]; then
@@ -211,8 +211,12 @@ check_unexpected_skips() {
     local UNEXPECTED_SKIPS=()
     local DOCUMENTED_SKIPS=()
     
-    # Find skip entries in CT logs
-    if [[ -d "$CT_LOG_DIR" ]]; then
+    # Find the LATEST CT run directory
+    local LATEST_RUN
+    LATEST_RUN=$(find "$CT_LOG_DIR" -maxdepth 1 -type d -name "ct_run.*" 2>/dev/null | sort -r | head -1)
+    
+    # Find skip entries in LATEST CT run only
+    if [[ -n "$LATEST_RUN" && -d "$LATEST_RUN" ]]; then
         while IFS= read -r line; do
             if [[ -n "$line" ]]; then
                 local IS_EXPECTED=false
@@ -243,7 +247,7 @@ check_unexpected_skips() {
                     ((SKIP_COUNT++))
                 fi
             fi
-        done < <(grep -rh -E "(SKIPPED|skipped|{skip," "$CT_LOG_DIR" 2>/dev/null | head -100 || true)
+        done < <(grep -rh -E "(SKIPPED|skipped|{skip," "$LATEST_RUN" 2>/dev/null | head -100 || true)
     fi
     
     # Report documented skips

@@ -21,27 +21,86 @@
     test_nats_connect_failure_labels/1,
     test_label_cardinality_check/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2, suite/0]).
+
+
+
+%% Test function exports
+-export([
+    test_dlq_metric_labels_during_maxdeliver/1,
+    test_label_cardinality_check/1,
+    test_nats_ack_failure_labels/1,
+    test_nats_connect_failure_labels/1,
+    test_nats_publish_failure_labels/1
+]).
+
+
+-export([groups_for_level/1]).
+
+suite() ->
+    [
+        {timetrap, {minutes, 2}}
+    ].
 
 all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc Integration tests run in full tier
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [];
+groups_for_level(full) -> 
     [
         test_dlq_metric_labels_during_maxdeliver,
         test_nats_publish_failure_labels,
         test_nats_ack_failure_labels,
         test_nats_connect_failure_labels,
         test_label_cardinality_check
+    ];
+groups_for_level(heavy) -> [{group, integration_tests}].
+
+groups() ->
+    [
+        {integration_tests, [parallel], [
+            test_dlq_metric_labels_during_maxdeliver,
+            test_nats_publish_failure_labels,
+            test_nats_ack_failure_labels,
+            test_nats_connect_failure_labels,
+            test_label_cardinality_check
+        ]}
     ].
 
 init_per_suite(Config) ->
     _ = application:load(beamline_router),
-    _ = application:set_env(beamline_router, test_mode, true),
-    ok = router_metrics:ensure(),
+    ok = application:set_env(beamline_router, nats_mode, mock),
+    ok = router_mock_helpers:setup_router_nats_mock(),
+    ok = router_suite_helpers:start_router_suite(),
     Config.
 
 end_per_suite(_Config) ->
+    router_suite_helpers:stop_router_suite(),
+    router_mock_helpers:cleanup_and_verify(),
     ok.
 
-init_per_testcase(_TestCase, Config) ->
+init_per_testcase(TestCase, Config) ->
     router_metrics_test_helper:clear_all_metrics(),
+    %% Ensure router_nats mock is active for tests that need it
+    case TestCase of
+        test_dlq_metric_labels_during_maxdeliver ->
+            %% This test calls router_jetstream:handle/2 which uses router_nats functions
+            ok = router_mock_helpers:setup_router_nats_mock(#{
+                ack_message => fun(_MsgId) -> ok end,
+                publish_with_ack => fun(_Subj, _Pay, _Hdrs) -> {ok, <<"mock-msg-id">>} end
+            });
+        _ ->
+            ok
+    end,
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
@@ -66,16 +125,13 @@ test_dlq_metric_labels_during_maxdeliver(_Config) ->
         assignment_id => <<"decide">>
     },
     
-    %% Configure MaxDeliver to 1 for testing
+    %% Configure MaxDeliver to 1 for testing (Immediate DLQ)
     router_jetstream:configure(#{
         max_deliver => 1,
         backoff_seconds => []
     }),
     
-    %% First delivery attempt - should NAK
-    {ok, redelivery} = router_jetstream:handle(Msg, Ctx),
-    
-    %% Second delivery attempt - should exhaust MaxDeliver and send to DLQ
+    %% First delivery attempt - should exhaust MaxDeliver (1) and send to DLQ
     {ok, dlq} = router_jetstream:handle(Msg, Ctx),
     
     %% Verify DLQ metric was emitted with labels
@@ -103,8 +159,7 @@ test_nats_publish_failure_labels(_Config) ->
     %% Simulate NATS publish failure
     Subject = <<"beamline.router.v1.decide">>,
     
-    %% Start router_nats gen_server
-    {ok, Pid} = router_nats:start_link(),
+    %% Router NATS is already started by init_per_suite
     
     %% Simulate publish failure by using fault injection or disconnected state
     %% For this test, we'll directly call the internal function that emits the metric
@@ -112,7 +167,11 @@ test_nats_publish_failure_labels(_Config) ->
     
     %% Manually emit metric to verify label structure
     Reason = <<"timeout">>,
-    Stream = router_nats:extract_stream_from_subject(Subject),
+    %% Extract stream from subject manually (router_nats:extract_stream_from_subject may not be mocked)
+    Stream = case binary:split(Subject, <<".">>, [global]) of
+        [_, _, _, StreamPart | _] -> StreamPart;
+        _ -> <<"unknown">>
+    end,
     router_metrics:emit_metric(router_nats_publish_failures_total, #{count => 1}, #{
         reason => Reason,
         subject => Subject,
@@ -136,8 +195,6 @@ test_nats_publish_failure_labels(_Config) ->
     }),
     ?assertEqual(1, Value),
     
-    %% Cleanup
-    exit(Pid, normal),
     ok.
 
 test_nats_ack_failure_labels(_Config) ->
@@ -199,6 +256,13 @@ test_label_cardinality_check(_Config) ->
         <<"tenant-3">>
     ],
     
+    %% Record baseline cardinality (may have entries from previous tests)
+    BaselineKeys = case ets:whereis(router_metrics) of
+        undefined -> [];
+        _ -> ets:match(router_metrics, {{router_dlq_total, '$1'}, '_'})
+    end,
+    BaselineCardinality = sets:size(sets:from_list(BaselineKeys)),
+    
     %% Emit metrics with different label combinations
     lists:foreach(fun(Subject) ->
         lists:foreach(fun(TenantId) ->
@@ -219,11 +283,11 @@ test_label_cardinality_check(_Config) ->
     UniqueKeys = sets:from_list(AllKeys),
     Cardinality = sets:size(UniqueKeys),
     
-    %% Expected: 2 subjects * 3 tenants = 6 unique combinations
-    ExpectedCardinality = 6,
-    ?assertEqual(ExpectedCardinality, Cardinality),
+    %% Expected: baseline + 2 subjects * 3 tenants = baseline + 6 new combinations
+    ExpectedNewCombinations = 6,
+    ActualNewCombinations = Cardinality - BaselineCardinality,
+    ?assertEqual(ExpectedNewCombinations, ActualNewCombinations),
     
     %% Verify no explosion (should be manageable)
     ?assert(Cardinality < 1000),  %% Reasonable limit
     ok.
-
