@@ -8,7 +8,6 @@
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
          init_per_testcase/2, end_per_testcase/2]).
 
-%% Test function exports
 -export([
     test_get_table_size/1,
     test_get_table_memory/1,
@@ -25,7 +24,14 @@
     test_policy_scope/1,
     test_burst_exhaustion_recovery/1,
     test_multiple_tenants_isolated/1,
-    test_rate_limit_high_burst/1
+    test_rate_limit_high_burst/1,
+    test_handle_cast/1,
+    test_handle_info_unknown/1,
+    test_handle_call_unknown/1,
+    test_cleanup_expired_trigger/1,
+    test_unknown_scope/1,
+    test_extract_tenant_id_tuple/1,
+    test_extract_tenant_id_unknown/1
 ]).
 
 all() ->
@@ -49,7 +55,14 @@ groups() ->
             test_policy_scope,
             test_burst_exhaustion_recovery,
             test_multiple_tenants_isolated,
-            test_rate_limit_high_burst
+            test_rate_limit_high_burst,
+            test_handle_cast,
+            test_handle_info_unknown,
+            test_handle_call_unknown,
+            test_cleanup_expired_trigger,
+            test_unknown_scope,
+            test_extract_tenant_id_tuple,
+            test_extract_tenant_id_unknown
         ]}
     ].
 
@@ -347,3 +360,87 @@ test_rate_limit_high_burst(_Config) ->
     ?assertMatch({error, {rate_limit_exceeded, _}}, Result),
     ok.
 
+%% ============================================================================
+%% Tests for gen_server callbacks (handle_cast, handle_info, etc.)
+%% ============================================================================
+
+test_handle_cast(_Config) ->
+    %% Send a cast to the gen_server - should be ignored
+    Pid = whereis(router_rate_limit_store),
+    ?assertNotEqual(undefined, Pid),
+    gen_server:cast(router_rate_limit_store, some_unknown_message),
+    timer:sleep(50),
+    %% Server should still be alive
+    ?assertEqual(true, is_process_alive(Pid)),
+    ok.
+
+test_handle_info_unknown(_Config) ->
+    %% Send an info message to the gen_server - should be ignored
+    Pid = whereis(router_rate_limit_store),
+    ?assertNotEqual(undefined, Pid),
+    Pid ! some_unknown_info_message,
+    timer:sleep(50),
+    %% Server should still be alive
+    ?assertEqual(true, is_process_alive(Pid)),
+    ok.
+
+test_handle_call_unknown(_Config) ->
+    %% Send an unknown call to the gen_server
+    Result = gen_server:call(router_rate_limit_store, unknown_request),
+    ?assertEqual(ok, Result),
+    ok.
+
+test_cleanup_expired_trigger(_Config) ->
+    %% Trigger cleanup_expired by sending the message directly
+    Pid = whereis(router_rate_limit_store),
+    ?assertNotEqual(undefined, Pid),
+    
+    %% First add some entries
+    Config = #{<<"enabled">> => true, <<"requests_per_second">> => 100, <<"burst">> => 50},
+    router_rate_limit_store:check_rate_limit(tenant, <<"cleanup_test">>, Config),
+    
+    %% Trigger cleanup
+    Pid ! cleanup_expired,
+    timer:sleep(100),
+    
+    %% Server should still be alive
+    ?assertEqual(true, is_process_alive(Pid)),
+    ok.
+
+%% ============================================================================
+%% Tests for different scope keys (build_key branches)
+%% ============================================================================
+
+test_unknown_scope(_Config) ->
+    %% Test with unknown scope
+    Identifier = <<"unknown_identifier">>,
+    Config = #{<<"enabled">> => true, <<"requests_per_second">> => 10, <<"burst">> => 5},
+    
+    %% Use an unknown scope - should still work (fallback path)
+    Result = router_rate_limit_store:check_rate_limit(unknown_scope, Identifier, Config),
+    ?assertEqual({ok, allow}, Result),
+    ok.
+
+%% ============================================================================
+%% Tests for extract_tenant_id branches
+%% ============================================================================
+
+test_extract_tenant_id_tuple(_Config) ->
+    %% Test with policy scope which uses tuple identifier
+    Identifier = {<<"test_tenant">>, <<"test_policy">>},
+    Config = #{<<"enabled">> => true, <<"requests_per_second">> => 10, <<"burst">> => 5},
+    
+    %% Should extract tenant_id from tuple
+    Result = router_rate_limit_store:check_rate_limit(policy, Identifier, Config),
+    ?assertEqual({ok, allow}, Result),
+    ok.
+
+test_extract_tenant_id_unknown(_Config) ->
+    %% Test with non-binary, non-tuple identifier
+    Identifier = 12345,
+    Config = #{<<"enabled">> => true, <<"requests_per_second">> => 10, <<"burst">> => 5},
+    
+    %% Should handle unknown identifier type
+    Result = router_rate_limit_store:check_rate_limit(tenant, Identifier, Config),
+    ?assertEqual({ok, allow}, Result),
+    ok.
