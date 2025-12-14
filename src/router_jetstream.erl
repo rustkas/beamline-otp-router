@@ -454,8 +454,9 @@ should_nak(DeliveryCount, BackoffSeconds) ->
 -spec calculate_redelivery_backoff(integer(), [integer()]) -> integer().
 calculate_redelivery_backoff(DeliveryCount, BackoffSeconds) when is_list(BackoffSeconds), length(BackoffSeconds) > 0 ->
   %% Get backoff value for this delivery count (use index or exponential)
-  BackoffIndex = min(DeliveryCount - 1, length(BackoffSeconds)),
-  BaseBackoffSeconds = lists:nth(BackoffIndex + 1, BackoffSeconds),
+  %% Clamp index to list length (use last value for higher delivery counts)
+  Index = min(max(1, DeliveryCount), length(BackoffSeconds)),
+  BaseBackoffSeconds = lists:nth(Index, BackoffSeconds),
   BaseBackoffMs = BaseBackoffSeconds * 1000,
   
   %% Add jitter (random 0-20% of base delay) to prevent thundering herd

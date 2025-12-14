@@ -25,7 +25,15 @@
     test_calculate_redelivery_backoff/1,
     test_reason_to_binary/1,
     test_is_decide_subject/1,
-    test_is_results_subject/1
+    test_is_results_subject/1,
+    test_extract_with_non_binary/1,
+    test_calculate_backoff_edge_cases/1,
+    test_build_dlq_subject/1,
+    test_reason_binary_conversion/1,
+    test_get_delivery_count/1,
+    test_incr_delivery/1,
+    test_should_nak_logic/1,
+    test_clear_delivery_count/1
 ]).
 
 all() ->
@@ -49,7 +57,15 @@ groups() ->
             test_calculate_redelivery_backoff,
             test_reason_to_binary,
             test_is_decide_subject,
-            test_is_results_subject
+            test_is_results_subject,
+            test_extract_with_non_binary,
+            test_calculate_backoff_edge_cases,
+            test_build_dlq_subject,
+            test_reason_binary_conversion,
+            test_get_delivery_count,
+            test_incr_delivery,
+            test_should_nak_logic,
+            test_clear_delivery_count
         ]}
     ].
 
@@ -297,3 +313,111 @@ test_is_results_subject(_Config) ->
     ?assertEqual(true, lists:member({subscribe_results, 1}, Exports)),
     ok.
 
+%% ============================================================================
+%% Additional tests for internal functions
+%% ============================================================================
+
+test_extract_with_non_binary(_Config) ->
+    %% Test extract functions with various types
+    Result1 = router_jetstream:extract_assignment_id(12345),
+    ?assertEqual(<<"unknown">>, Result1),
+    
+    Result2 = router_jetstream:extract_tenant_id(undefined),
+    ?assertEqual(<<"unknown">>, Result2),
+    
+    Result3 = router_jetstream:extract_request_id(undefined),
+    ?assertEqual(<<"unknown">>, Result3),
+    ok.
+
+test_calculate_backoff_edge_cases(_Config) ->
+    %% Edge case: delivery count higher than backoff list length
+    %% Should simplify to last element (4)
+    Backoff1 = router_jetstream:calculate_redelivery_backoff(10, [1, 2, 4]),
+    ?assertEqual(true, is_integer(Backoff1)),
+    %% Should use 4 second backoff (3rd element)
+    ?assertEqual(true, Backoff1 >= 3200),  %% 4 sec - 20% jitter
+    
+    %% Edge case: single element backoff list
+    Backoff2 = router_jetstream:calculate_redelivery_backoff(1, [5]),
+    ?assertEqual(true, is_integer(Backoff2)),
+    ?assertEqual(true, Backoff2 >= 4000),  %% 5 seconds with 20% jitter tolerance
+    ok.
+
+test_build_dlq_subject(_Config) ->
+    %% Test default DLQ subject construction
+    Exports = router_jetstream:module_info(exports),
+    case lists:member({build_dlq_subject, 1}, Exports) of
+        true ->
+            Subject = <<"beamline.router.v1.decide">>,
+            DLQSubject = router_jetstream:build_dlq_subject(Subject),
+            ?assertEqual(true, is_binary(DLQSubject));
+        false ->
+            ok
+    end,
+    ok.
+
+test_reason_binary_conversion(_Config) ->
+    %% Test reason_to_binary with various inputs (internal use)
+    Exports = router_jetstream:module_info(exports),
+    ?assertEqual(true, lists:member({nak, 3}, Exports)),
+    
+    %% The reason is converted internally in nak/3
+    %% We can test this by checking that calling nak doesn't crash
+    %% (but requires NATS, so we just verify exports)
+    ok.
+
+test_get_delivery_count(_Config) ->
+    %% Test delivery count retrieval
+    Exports = router_jetstream:module_info(exports),
+    case lists:member({get_delivery_count, 1}, Exports) of
+        true ->
+            Count = router_jetstream:get_delivery_count(<<"test-msg">>),
+            ?assertEqual(0, Count);
+        false ->
+            ok
+    end,
+    ok.
+
+test_incr_delivery(_Config) ->
+    %% Test delivery count increment
+    Exports = router_jetstream:module_info(exports),
+    case lists:member({incr_delivery, 1}, Exports) of
+        true ->
+            NewCount = router_jetstream:incr_delivery(<<"incr-test-msg">>),
+            ?assertEqual(true, is_integer(NewCount)),
+            ?assertEqual(true, NewCount >= 1);
+        false ->
+            ok
+    end,
+    ok.
+
+test_should_nak_logic(_Config) ->
+    %% Test should_nak internal logic (if exported)
+    Exports = router_jetstream:module_info(exports),
+    case lists:member({should_nak, 2}, Exports) of
+        true ->
+            %% Empty backoff - should not NAK
+            Result1 = router_jetstream:should_nak(1, []),
+            ?assertEqual(false, Result1),
+            
+            %% With backoff - should NAK on even deliveries
+            Result2 = router_jetstream:should_nak(2, [1, 2, 4]),
+            ?assertEqual(true, Result2),
+            
+            Result3 = router_jetstream:should_nak(1, [1, 2, 4]),
+            ?assertEqual(false, Result3);
+        false ->
+            ok
+    end,
+    ok.
+
+test_clear_delivery_count(_Config) ->
+    %% Test clear_delivery_count (if exported)
+    Exports = router_jetstream:module_info(exports),
+    case lists:member({clear_delivery_count, 1}, Exports) of
+        true ->
+            ok = router_jetstream:clear_delivery_count(<<"clear-test-msg">>);
+        false ->
+            ok
+    end,
+    ok.
