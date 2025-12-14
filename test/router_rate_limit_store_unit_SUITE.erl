@@ -22,7 +22,10 @@
     test_get_rate_limit_status_found/1,
     test_reset_rate_limit/1,
     test_tenant_scope/1,
-    test_policy_scope/1
+    test_policy_scope/1,
+    test_burst_exhaustion_recovery/1,
+    test_multiple_tenants_isolated/1,
+    test_rate_limit_high_burst/1
 ]).
 
 all() ->
@@ -43,7 +46,10 @@ groups() ->
             test_get_rate_limit_status_found,
             test_reset_rate_limit,
             test_tenant_scope,
-            test_policy_scope
+            test_policy_scope,
+            test_burst_exhaustion_recovery,
+            test_multiple_tenants_isolated,
+            test_rate_limit_high_burst
         ]}
     ].
 
@@ -264,3 +270,80 @@ test_policy_scope(_Config) ->
     
     ?assertEqual({ok, allow}, router_rate_limit_store:check_rate_limit(policy, Identifier, Config)),
     ok.
+
+%% ============================================================================
+%% Tests for burst exhaustion and recovery
+%% ============================================================================
+
+test_burst_exhaustion_recovery(_Config) ->
+    TenantId = <<"tenant_burst_recovery">>,
+    Config = #{
+        <<"enabled">> => true,
+        <<"requests_per_second">> => 10,  %% 10 per second
+        <<"burst">> => 3
+    },
+    
+    %% Use all tokens
+    ?assertEqual({ok, allow}, router_rate_limit_store:check_rate_limit(tenant, TenantId, Config)),
+    ?assertEqual({ok, allow}, router_rate_limit_store:check_rate_limit(tenant, TenantId, Config)),
+    ?assertEqual({ok, allow}, router_rate_limit_store:check_rate_limit(tenant, TenantId, Config)),
+    
+    %% Should be blocked
+    Result = router_rate_limit_store:check_rate_limit(tenant, TenantId, Config),
+    ?assertMatch({error, {rate_limit_exceeded, _}}, Result),
+    
+    %% Wait 1 second for tokens to refill (tokens per second)
+    timer:sleep(1100),
+    Result2 = router_rate_limit_store:check_rate_limit(tenant, TenantId, Config),
+    ?assertEqual({ok, allow}, Result2),
+    ok.
+
+%% ============================================================================
+%% Tests for multiple tenants isolation
+%% ============================================================================
+
+test_multiple_tenants_isolated(_Config) ->
+    Tenant1 = <<"tenant_isolated_1">>,
+    Tenant2 = <<"tenant_isolated_2">>,
+    Config = #{
+        <<"enabled">> => true,
+        <<"requests_per_second">> => 10,
+        <<"burst">> => 2
+    },
+    
+    %% Use all tokens for tenant1
+    router_rate_limit_store:check_rate_limit(tenant, Tenant1, Config),
+    router_rate_limit_store:check_rate_limit(tenant, Tenant1, Config),
+    
+    %% Tenant1 should be blocked
+    Result1 = router_rate_limit_store:check_rate_limit(tenant, Tenant1, Config),
+    ?assertMatch({error, {rate_limit_exceeded, _}}, Result1),
+    
+    %% Tenant2 should still have full burst capacity
+    ?assertEqual({ok, allow}, router_rate_limit_store:check_rate_limit(tenant, Tenant2, Config)),
+    ?assertEqual({ok, allow}, router_rate_limit_store:check_rate_limit(tenant, Tenant2, Config)),
+    ok.
+
+%% ============================================================================
+%% Tests for high burst rate limiting
+%% ============================================================================
+
+test_rate_limit_high_burst(_Config) ->
+    TenantId = <<"tenant_high_burst">>,
+    Config = #{
+        <<"enabled">> => true,
+        <<"requests_per_second">> => 1,
+        <<"burst">> => 100
+    },
+    
+    %% Should allow up to 100 requests in burst
+    Results = [router_rate_limit_store:check_rate_limit(tenant, TenantId, Config) 
+               || _ <- lists:seq(1, 100)],
+    AllowedCount = length([R || R <- Results, R =:= {ok, allow}]),
+    ?assertEqual(100, AllowedCount),
+    
+    %% 101st should be blocked
+    Result = router_rate_limit_store:check_rate_limit(tenant, TenantId, Config),
+    ?assertMatch({error, {rate_limit_exceeded, _}}, Result),
+    ok.
+
