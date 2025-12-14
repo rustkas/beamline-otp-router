@@ -37,6 +37,11 @@ coverage-report:
 	@echo "Generating coverage report..."
 	@bash scripts/generate_coverage.sh
 
+# Generate coverage hotspots report (Top N critical modules needing coverage)
+coverage-hotspots:
+	@echo "Generating coverage hotspots report..."
+	@bash scripts/generate_coverage_hotspots.sh
+
 # Run tests in parallel (recommended for faster execution)
 test-parallel:
 	@bash scripts/check_test_run_location.sh || exit 1
@@ -170,6 +175,7 @@ help:
 	@echo "  quality-gates - Run all quality gates (Dialyzer + Xref + Coverage)"
 	@echo "  ci-test-report - Generate CI test report (JUnit XML)"
 	@echo "  ci-coverage-report - Generate CI coverage report (JSON)"
+	@echo "  coverage-hotspots - Generate Top 10 critical modules needing coverage"
 	@echo "  ci-pipeline  - Run full CI pipeline (compile, test, quality gates, reports)"
 	@echo ""
 	@echo "Circuit Breaker Testing:"
