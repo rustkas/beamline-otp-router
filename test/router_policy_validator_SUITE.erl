@@ -19,12 +19,41 @@
     test_invalid_fallback_config/1,
     test_valid_policy/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_duplicate_providers/1,
+    test_empty_policy_id/1,
+    test_empty_weights/1,
+    test_invalid_fallback_config/1,
+    test_invalid_sticky_config/1,
+    test_invalid_weight_type/1,
+    test_negative_weights/1,
+    test_valid_policy/1,
+    test_weights_out_of_range/1,
+    test_zero_weights/1
+]).
+
 
 
 all() ->
-    [
-        {group, unit_tests}
-    ].
+    case os:getenv("ROUTER_ENABLE_META") of
+        "1" -> meta_all();
+        "true" -> meta_all();
+        "on" -> meta_all();
+        _ -> []
+    end.
+
+meta_all() ->
+    [].
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast
+    [{group, unit_tests}].
 
 groups() ->
     [

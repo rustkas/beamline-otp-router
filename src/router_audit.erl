@@ -340,8 +340,7 @@ ensure_audit_table() ->
                     named_table,
                     {keypos, 1},
                     public,
-                    {read_concurrency, true},
-                    {compressed, false}
+                    {read_concurrency, true}
                 ]);
             _ ->
                 ok
@@ -357,8 +356,7 @@ ensure_audit_table() ->
                         named_table,
                         {keypos, 1},
                         public,
-                        {read_concurrency, true},
-                        {compressed, false}
+                        {read_concurrency, true}
                     ]);
                 _ ->
                     ok

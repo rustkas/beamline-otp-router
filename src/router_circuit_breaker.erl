@@ -527,7 +527,85 @@ handle_call({get_status, TenantId, ProviderId}, _From, State) ->
             },
             {reply, {ok, Status}, State}
     end;
+handle_call({force_recovery, TenantId, ProviderId}, _From, State) ->
+    Key = {TenantId, ProviderId},
+    case ets:lookup(?TABLE, Key) of
+        [] ->
+            {reply, {error, not_found}, State};
+        [#circuit_breaker_state{} = ExistingState] ->
+            Now = erlang:system_time(millisecond),
+            NewState = ExistingState#circuit_breaker_state{
+                state = closed,
+                state_changed_at = Now,
+                failure_count = 0,
+                success_count = 0,
+                last_success_time = Now
+            },
+            ets:insert(?TABLE, NewState),
+            {reply, ok, State}
+    end;
 
+handle_call({force_recovery_to_half_open, TenantId, ProviderId}, _From, State) ->
+    Key = {TenantId, ProviderId},
+    case ets:lookup(?TABLE, Key) of
+        [] ->
+            {reply, {error, not_found}, State};
+        [#circuit_breaker_state{} = ExistingState] ->
+            Now = erlang:system_time(millisecond),
+            NewState = ExistingState#circuit_breaker_state{
+                state = half_open,
+                state_changed_at = Now,
+                half_open_calls_count = 0,
+                window_events = [] %% Start fresh for half-open testing
+            },
+            ets:insert(?TABLE, NewState),
+            {reply, ok, State}
+    end;
+
+handle_call({get_recovery_status, TenantId, ProviderId}, _From, State) ->
+    Key = {TenantId, ProviderId},
+    case ets:lookup(?TABLE, Key) of
+        [] ->
+            {reply, {error, not_found}, State};
+        [#circuit_breaker_state{config = Config, state = CurrentState, state_changed_at = ChangedAt}] ->
+            Now = erlang:system_time(millisecond),
+            TimeoutMs = maps:get(<<"timeout_ms">>, Config, ?DEFAULT_TIMEOUT_MS),
+            Elapsed = Now - ChangedAt,
+            RemainingMs = case CurrentState of
+                open -> max(0, TimeoutMs - Elapsed);
+                _ -> 0
+            end,
+            Status = #{
+                state => CurrentState,
+                state_changed_at => ChangedAt,
+                elapsed_ms => Elapsed,
+                timeout_ms => TimeoutMs,
+                remaining_ms => RemainingMs
+            },
+            {reply, {ok, Status}, State}
+    end;
+
+handle_call({reset_recovery_state, TenantId, ProviderId}, _From, State) ->
+    Key = {TenantId, ProviderId},
+    case ets:lookup(?TABLE, Key) of
+        [] ->
+            {reply, {error, not_found}, State};
+        [#circuit_breaker_state{} = ExistingState] ->
+            Now = erlang:system_time(millisecond),
+            NewState = ExistingState#circuit_breaker_state{
+                state = closed,
+                state_changed_at = Now,
+                failure_count = 0,
+                success_count = 0,
+                last_failure_time = undefined,
+                last_success_time = undefined,
+                half_open_calls_count = 0,
+                error_rate = 0.0,
+                window_events = []
+            },
+            ets:insert(?TABLE, NewState),
+            {reply, ok, State}
+    end;
 handle_call(_Request, _From, State) ->
     {reply, {error, unknown_request}, State}.
 
@@ -1031,6 +1109,13 @@ get_recent_latency(_TenantId, _ProviderId, _WindowSeconds, _Now) ->
                 [{router_nats_publish_latency_seconds, LatencySeconds}] when is_float(LatencySeconds) ->
                     LatencyMs = trunc(LatencySeconds * 1000),
                     {ok, LatencyMs};
+                [{router_nats_publish_latency_seconds, LatencySeconds}] when is_integer(LatencySeconds) ->
+                    %% Handle integer latency values (convert from seconds to ms)
+                    LatencyMs = LatencySeconds * 1000,
+                    {ok, LatencyMs};
+                [{router_nats_publish_latency_seconds, LatencyMs}] when is_number(LatencyMs), LatencyMs > 100 ->
+                    %% Handle direct millisecond values (heuristic: values > 100 are likely ms, not seconds)
+                    {ok, trunc(LatencyMs)};
                 _ ->
                     {error, not_available}
             end

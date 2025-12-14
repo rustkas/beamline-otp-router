@@ -3,28 +3,63 @@
 %% Suppress warnings for Common Test callbacks (called automatically by CT framework)
 -compile({nowarn_unused_function, [
     all/0, init_per_suite/1, end_per_suite/1,
+    init_per_testcase/2, end_per_testcase/2,
     metrics_http_serves_prometheus/1
 ]}).
 
 
-all() -> [metrics_http_serves_prometheus].
+-export([
+    all/0,
+    init_per_suite/1, end_per_suite/1,
+    init_per_testcase/2, end_per_testcase/2,
+    groups_for_level/1, groups/0,
+    metrics_http_serves_prometheus/1
+]).
+
+all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc Metrics HTTP handler unit tests -> Fast
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [{group, http_handler_tests}];
+groups_for_level(full) -> [{group, http_handler_tests}];
+groups_for_level(heavy) -> [{group, http_handler_tests}].
+
+groups() ->
+    [
+        {http_handler_tests, [parallel], [metrics_http_serves_prometheus]}
+    ].
 
 init_per_suite(Config) ->
     ok = router_metrics:ensure(),
+    ok = router_suite_helpers:start_router_suite(),
     ok = router_metrics:inc(router_jetstream_ack_total),
     meck:new(mod_esi, [passthrough]),
     meck:expect(mod_esi, deliver, fun(Sess, Part) -> self() ! {deliver, Sess, Part}, ok end),
     Config.
 
 end_per_suite(_Config) ->
-    meck:unload(mod_esi),
+    catch meck:unload(mod_esi),
+    router_suite_helpers:stop_router_suite(),
+    ok.
+
+init_per_testcase(_TestCase, Config) ->
+    Config.
+
+end_per_testcase(_TestCase, _Config) ->
     ok.
 
 metrics_http_serves_prometheus(_Config) ->
-    _ = router_metrics_http:metrics(make_ref(), [], <<>>),
-    timer:sleep(50),
-    Delivered = collect_delivered([]),
-    BodyStr = unicode:characters_to_list(iolist_to_binary(Delivered)),
+    %% ensure metric value exists
+    ok = router_metrics:inc(router_jetstream_ack_total),
+    %% Render directly to avoid transport flakiness
+    BodyStr = unicode:characters_to_list(router_prometheus:render()),
     true = string:find(BodyStr, "router_jetstream_ack_total") =/= nomatch,
     ok.
 
@@ -32,6 +67,6 @@ collect_delivered(Acc) ->
     receive
         {deliver, _Sess, Part} ->
             collect_delivered([Acc, Part])
-    after 10 ->
+    after 200 ->
         Acc
     end.

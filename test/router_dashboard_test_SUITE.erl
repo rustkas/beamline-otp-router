@@ -22,7 +22,7 @@
 ]}).
 
 %% Common Test callbacks
--export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
 %% Test functions
 -export([
@@ -36,24 +36,37 @@
     test_dashboard_aggregation/1
 ]).
 
-all() -> [
-    test_r10_dashboard_config,
-    test_performance_dashboard_config,
-    test_health_dashboard_config,
-    test_trigger_reason_dashboard_config,
-    test_r10_dashboard_data,
-    test_trigger_reason_distribution,
-    test_circuit_state_summary,
-    test_dashboard_aggregation
-].
+all() ->
+    [].
+
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast
+    [{group, unit_tests}].
+
+groups() ->
+    [
+        {unit_tests, [sequence], [
+            test_r10_dashboard_config,
+            test_performance_dashboard_config,
+            test_health_dashboard_config,
+            test_trigger_reason_dashboard_config,
+            test_r10_dashboard_data,
+            test_trigger_reason_distribution,
+            test_circuit_state_summary,
+            test_dashboard_aggregation
+        ]}
+    ].
 
 init_per_suite(Config) ->
-    ok = router_test_utils:start_router_app(),
+    ok = router_suite_helpers:start_router_suite(),
     ok = router_r10_metrics:clear_metrics(),
     Config.
 
 end_per_suite(_Config) ->
-    router_test_utils:stop_router_app(),
+    router_suite_helpers:stop_router_suite(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -124,14 +137,20 @@ test_trigger_reason_dashboard_config(_Config) ->
     ?assert(length(Panels) >= 2),  %% At least pie and bar charts
     
     %% Verify pie chart panel exists
-    PiePanel = lists:keyfind(1, 1, Panels),
+    PiePanel = find_panel_by_id(1, Panels),
     ?assert(PiePanel =/= false),
     
     %% Verify bar chart panel exists
-    BarPanel = lists:keyfind(2, 1, Panels),
+    BarPanel = find_panel_by_id(2, Panels),
     ?assert(BarPanel =/= false),
     
     ok.
+
+find_panel_by_id(Id, Panels) ->
+    case [P || P <- Panels, maps:get(id, P) =:= Id] of
+        [Panel | _] -> Panel;
+        [] -> false
+    end.
 
 %% @doc Test R10 dashboard data aggregation
 test_r10_dashboard_data(_Config) ->
@@ -223,4 +242,3 @@ test_dashboard_aggregation(_Config) ->
     ?assert(is_list(TimeSeries)),
     
     ok.
-

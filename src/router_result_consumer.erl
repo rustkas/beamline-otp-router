@@ -8,6 +8,7 @@
 -export([validate_nats_headers/3]).  %% Exported for testing
 -export([process_validated_result/12]).  %% Exported for testing (CB integration tests)
 -export([check_maxdeliver_exhaustion/4, cleanup_delivery_count/1, track_delivery_count/1]).
+-export([error_code_reason/1]).
 
 -ignore_xref([
     {router_result_consumer, start_link, 0},
@@ -50,14 +51,19 @@ init([]) ->
     UsageSubject = get_config(usage_subject, ?DEFAULT_USAGE_SUBJECT),
     JSDurableGroup = get_config(nats_js_durable_group_results, ?DEFAULT_JS_DURABLE_GROUP),
     
-    %% Create ETS table for delivery count tracking (use named_table for global access)
-    _DeliveryTable = ets:new(?DELIVERY_COUNT_TABLE, [
-        set,
-        named_table,
-        public,
-        {write_concurrency, true},
-        {read_concurrency, true}
-    ]),
+    %% Create ETS table for delivery count tracking (idempotent for test reruns)
+    _DeliveryTable = case ets:whereis(?DELIVERY_COUNT_TABLE) of
+        undefined ->
+            ets:new(?DELIVERY_COUNT_TABLE, [
+                set,
+                named_table,
+                public,
+                {write_concurrency, true},
+                {read_concurrency, true}
+            ]);
+        ExistingTable ->
+            ExistingTable
+    end,
     %% Log ETS initialization
     case erlang:function_exported(router_logger, info, 2) of
         true ->

@@ -21,6 +21,8 @@
 
 -compile({nowarn_unused_function, [all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]}).
 
+-export([all/0, groups/0]).
+
 %% Export test functions for Common Test
 -export([
     benchmark_recovery_time_connect_fault/1,
@@ -34,9 +36,17 @@
 ]).
 
 all() ->
-    [
-        {group, resilience_benchmarks}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, resilience_benchmarks}];
+groups_for_level(_) -> %% fast, full
+    [].
 
 groups() ->
     [

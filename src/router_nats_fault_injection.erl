@@ -12,22 +12,30 @@
 %%   router_nats_fault_injection:enable_fault(publish, {error, timeout}),
 %%   router_nats_fault_injection:disable_fault(publish),
 -module(router_nats_fault_injection).
--export([enable_fault/2, disable_fault/1, clear_all_faults/0, should_fail/2, get_fault/1]).
+-export([enable_fault/2, disable_fault/1, clear_all_faults/0, should_fail/2, get_fault/1, inject_faults/1]).
 
 -ignore_xref([
   {router_nats_fault_injection, enable_fault, 2},
   {router_nats_fault_injection, disable_fault, 1},
   {router_nats_fault_injection, clear_all_faults, 0},
-  {router_nats_fault_injection, get_fault, 1}
+  {router_nats_fault_injection, get_fault, 1},
+  {router_nats_fault_injection, inject_faults, 1}
 ]).
 
 -define(FAULT_TABLE, router_nats_faults).
 
 %% @doc Initialize fault injection table
+%% Handles race condition where another process creates table between check and create
 ensure_table() ->
     case ets:whereis(?FAULT_TABLE) of
         undefined ->
-            ets:new(?FAULT_TABLE, [named_table, public, set, {read_concurrency, true}]);
+            try
+                ets:new(?FAULT_TABLE, [named_table, public, set, {read_concurrency, true}])
+            catch
+                error:badarg ->
+                    %% Table was created by another process between whereis and new
+                    ?FAULT_TABLE
+            end;
         _ ->
             ?FAULT_TABLE
     end.
@@ -89,3 +97,12 @@ get_fault(Operation) when is_atom(Operation) ->
         [] ->
             {error, not_found}
     end.
+
+%% @doc Inject multiple faults at once
+%% @param Faults Map of Operation => Fault
+-spec inject_faults(map()) -> ok.
+inject_faults(Faults) ->
+    maps:fold(fun(Operation, Fault, _) ->
+        enable_fault(Operation, Fault)
+    end, ok, Faults),
+    ok.

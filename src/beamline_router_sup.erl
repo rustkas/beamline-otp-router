@@ -73,8 +73,6 @@ init([]) ->
          {router_extension_registry, start_link, []},
          permanent, 5000, worker, [router_extension_registry]},
 
-        %% Sticky session store disabled (no hot-path cache)
-        
         %% Rate Limit Store (token bucket for per-policy rate limiting)
         {router_rate_limit_store,
          {router_rate_limit_store, start_link, []},
@@ -151,6 +149,17 @@ init([]) ->
             []
     end,
 
+    %% Sticky session store (optional, enabled by env)
+    StickyEnabled = application:get_env(beamline_router, sticky_store_enabled, false),
+    StickyChildren = case StickyEnabled of
+        true ->
+            [{router_sticky_store,
+              {router_sticky_store, start_link, []},
+              permanent, 5000, worker, [router_sticky_store]}];
+        false ->
+            []
+    end,
+
     %% Metrics HTTP endpoint (/metrics) guarded
     %% Start only when telemetry_enabled is true and metrics_export_enabled is true
     %% to avoid port conflicts in tests and unnecessary HTTP server startup.
@@ -165,7 +174,8 @@ init([]) ->
     end,
 
     %% Filter out undefined children (metrics HTTP may be disabled)
-    AllChildren = BaseChildren ++ GrpcChildren ++ AckChildren ++ IdemChildren,
+    %% Filter out undefined children (metrics HTTP may be disabled)
+    AllChildren = BaseChildren ++ GrpcChildren ++ AckChildren ++ IdemChildren ++ StickyChildren,
     Children = case MetricsHttpChild of
         undefined -> AllChildren;
         _ -> AllChildren ++ [MetricsHttpChild]

@@ -12,9 +12,20 @@
 -compile({nowarn_unused_function, [all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]}).
 
 %% Test suite callbacks
--export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
 all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(_) ->
+    [].
+
+groups() ->
     [].
 
 init_per_suite(Config) ->

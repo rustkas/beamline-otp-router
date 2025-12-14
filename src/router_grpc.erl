@@ -17,6 +17,8 @@
 -module(router_grpc).
 
 -export([decide/2]).
+%% Exported for testing
+-export([extract_correlation_id/1]).
 
 -include("beamline_router.hrl").
 -include("flow_pb.hrl").

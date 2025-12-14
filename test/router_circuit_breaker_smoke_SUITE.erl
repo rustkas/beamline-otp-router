@@ -5,13 +5,22 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
 
--export([all/0, init_per_suite/1, end_per_suite/1, smoke_starts_and_is_alive/1]).
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, smoke_starts_and_is_alive/1]).
 -compile({nowarn_unused_function, [
     all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2,
     smoke_starts_and_is_alive/1
 ]}).
 
-all() -> [smoke_starts_and_is_alive].
+all() ->
+    [].
+
+groups_for_level(_) ->
+    [{group, smoke_tests}].
+
+groups() ->
+    [
+        {smoke_tests, [], [smoke_starts_and_is_alive]}
+    ].
 
 init_per_suite(Config) ->
     %% Minimal setup - just start application
@@ -115,4 +124,3 @@ smoke_starts_and_is_alive(_Config) ->
     ct:pal("router_circuit_breaker code path: ~p", [CBCodePath]),
     
     ok.
-

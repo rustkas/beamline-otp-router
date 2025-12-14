@@ -23,9 +23,19 @@
 -export([test_caf_timeout_triggers_retry/1, test_caf_retry_exhaustion_emits_metrics/1, test_caf_error_response_reflected_in_metrics/1]).
 
 all() ->
-    [
-        {group, load_threshold_tests}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, load_threshold_tests}];
+groups_for_level(full) ->
+    [{group, load_threshold_tests}];
+groups_for_level(_) -> %% fast - exclude slow tests
+    [].
 
 groups() ->
     [
@@ -51,6 +61,7 @@ init_per_suite(Config) ->
     ok = application:set_env(beamline_router, grpc_enabled, false),
     ok = application:set_env(beamline_router, nats_mode, mock),
     ok = application:set_env(beamline_router, telemetry_enabled, true),
+    ok = router_mock_helpers:setup_router_nats_mock(),
     case application:ensure_all_started(beamline_router) of
         {ok, _} ->
             test_helpers:wait_for_app_start(router_policy_store, 1000),
@@ -63,6 +74,7 @@ end_per_suite(Config) ->
     ct:pal("### end_per_suite: cleaning up", []),
 
     application:stop(beamline_router),
+    router_mock_helpers:unload(router_nats),
 
     _ = router_caf_adapter_load_store:reset(),
 
@@ -77,23 +89,9 @@ init_per_testcase(_TestCase, Config) ->
             ct:fail("init_per_testcase: failed to reset load store: ~p", [ResetError])
     end,
 
-    %% Setup meck mocks (idempotent)
-    case erlang:whereis(router_nats_meck) of
-        undefined ->
-            case meck:new(router_nats, [passthrough]) of
-                ok ->
-                    ok;
-                {error, MeckError} ->
-                    ct:fail("init_per_testcase: meck:new/2 failed: ~p", [MeckError])
-            end;
-        _Pid ->
-            ok = meck:reset(router_nats)
-    end,
-
     Config.
 
 end_per_testcase(_TestCase, Config) ->
-    catch meck:unload(router_nats),
     Config.
 
 %% Test: CAF timeout triggers retry
@@ -399,4 +397,3 @@ test_caf_error_response_reflected_in_metrics(_Config) ->
     
     telemetry:detach(HandlerId),
     ok.
-

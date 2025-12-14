@@ -18,11 +18,31 @@
     test_ttl_behavior/1,
     test_multiple_tenants/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_clear_expired/1,
+    test_clear_session/1,
+    test_expiration/1,
+    test_get_provider_not_found/1,
+    test_multiple_tenants/1,
+    test_set_get_provider/1,
+    test_ttl_behavior/1
+]).
+
 
 all() ->
-    [
-        {group, unit_tests}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(_) ->
+    [{group, unit_tests}].
 
 groups() ->
     [
@@ -42,15 +62,32 @@ init_per_suite(Config) ->
     _ = application:load(beamline_router),
     ok = application:set_env(beamline_router, grpc_port, 0),
     ok = application:set_env(beamline_router, grpc_enabled, false),
+    
+    %% Start mocked dependencies or full app if needed
+    %% We need router_resource_monitor potentially, so let's start full app for env
     case application:ensure_all_started(beamline_router) of
         {ok, _} ->
-            test_helpers:wait_for_app_start(router_policy_store, 1000),
+            %% Manually start router_sticky_store as it is disabled in main supervisor
+            case router_sticky_store:start_link() of
+                {ok, Pid} -> 
+                    unlink(Pid), %% Detach to keep alive across test cases
+                    ok;
+                {error, {already_started, _}} -> 
+                    ok;
+                Error2 ->
+                    ct:fail("Failed to start router_sticky_store: ~p", [Error2])
+            end,
             Config;
         Error ->
             ct:fail("Failed to start beamline_router: ~p", [Error])
     end.
 
 end_per_suite(Config) ->
+    %% Stop manually started process
+    case whereis(router_sticky_store) of
+        undefined -> ok;
+        Pid -> exit(Pid, normal)
+    end,
     application:stop(beamline_router),
     Config.
 

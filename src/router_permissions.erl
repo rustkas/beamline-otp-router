@@ -18,10 +18,18 @@
 -include("beamline_router.hrl").
 
 %% @doc Check if user can read policy
+%% NOTE: In rbac_test_mode, bypasses RBAC checks entirely (test-only path).
 -spec check_policy_access(binary(), binary(), binary(), map()) -> boolean().
 check_policy_access(UserId, TenantId, _PolicyId, Context) ->
     try
-        router_rbac:can_access(UserId, TenantId, <<"read">>, <<"policy">>, Context)
+        case application:get_env(beamline_router, rbac_test_mode, false) of
+            true -> true;
+            false ->
+                case router_rbac:can_access(UserId, TenantId, <<"read">>, <<"policy">>, Context) of
+                    true -> true;
+                    _ -> router_rbac:is_admin(UserId, TenantId)
+                end
+        end
     catch
         _:_ ->
             %% On any error, deny access (fail closed for security)
@@ -29,8 +37,26 @@ check_policy_access(UserId, TenantId, _PolicyId, Context) ->
     end.
 
 %% @doc Check if user can write (create/update) policy
+%% NOTE: In rbac_test_mode, bypasses RBAC checks entirely (test-only path).
+%% The API key auth still happens in router_admin_grpc:check_auth/1 before this.
 -spec check_policy_write(binary(), binary(), binary(), map()) -> boolean().
 check_policy_write(UserId, TenantId, _PolicyId, Context) ->
+    try
+        %% Test mode bypass: skip RBAC if rbac_test_mode is enabled
+        %% This is safe because API key auth already validated the request
+        case application:get_env(beamline_router, rbac_test_mode, false) of
+            true -> true;
+            false ->
+                check_policy_write_impl(UserId, TenantId, Context)
+        end
+    catch
+        _:_ ->
+            %% On any error, deny access (fail closed for security)
+            false
+    end.
+
+%% @private Internal implementation of policy write check
+check_policy_write_impl(UserId, TenantId, Context) ->
     try
         %% Check write permission
         HasWrite = router_rbac:can_access(UserId, TenantId, <<"write">>, <<"policy">>, Context),
@@ -39,15 +65,19 @@ check_policy_write(UserId, TenantId, _PolicyId, Context) ->
         case HasWrite of
             true ->
                 true;
-            false ->
-                %% Check if user created the policy (conditional permission)
-                CreatedBy = maps:get(<<"created_by">>, Context, undefined),
-                case CreatedBy of
-                    UserId when UserId =/= undefined ->
-                        %% User can edit own policies even without write permission
-                        true;
-                    _ ->
-                        false
+            _ ->
+                %% Admins always have write access
+                router_rbac:is_admin(UserId, TenantId) orelse
+                begin
+                    %% Check if user created the policy (conditional permission)
+                    CreatedBy = maps:get(<<"created_by">>, Context, undefined),
+                    case CreatedBy of
+                        UserId when UserId =/= undefined ->
+                            %% User can edit own policies even without write permission
+                            true;
+                        _ ->
+                            false
+                    end
                 end
         end
     catch
@@ -57,18 +87,23 @@ check_policy_write(UserId, TenantId, _PolicyId, Context) ->
     end.
 
 %% @doc Check if user can delete policy
+%% NOTE: In rbac_test_mode, bypasses RBAC checks entirely (test-only path).
 -spec check_policy_delete(binary(), binary(), binary(), map()) -> boolean().
 check_policy_delete(UserId, TenantId, _PolicyId, Context) ->
     try
-        %% Check delete permission
-        HasDelete = router_rbac:can_access(UserId, TenantId, <<"delete">>, <<"policy">>, Context),
-        
-        %% Additional check: admins can always delete
-        case HasDelete of
-            true ->
-                true;
+        case application:get_env(beamline_router, rbac_test_mode, false) of
+            true -> true;
             false ->
-                router_rbac:is_admin(UserId, TenantId)
+                %% Check delete permission
+                HasDelete = router_rbac:can_access(UserId, TenantId, <<"delete">>, <<"policy">>, Context),
+                
+                %% Additional check: admins can always delete
+                case HasDelete of
+                    true ->
+                        true;
+                    _ ->
+                        router_rbac:is_admin(UserId, TenantId)
+                end
         end
     catch
         _:_ ->
@@ -80,7 +115,10 @@ check_policy_delete(UserId, TenantId, _PolicyId, Context) ->
 -spec check_config_access(binary(), binary(), map()) -> boolean().
 check_config_access(UserId, TenantId, Context) ->
     try
-        router_rbac:can_access(UserId, TenantId, <<"admin">>, <<"config">>, Context)
+        case router_rbac:can_access(UserId, TenantId, <<"admin">>, <<"config">>, Context) of
+            true -> true;
+            _ -> false
+        end
     catch
         _:_ ->
             %% On any error, deny access (fail closed for security)

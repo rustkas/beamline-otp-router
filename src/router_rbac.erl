@@ -80,19 +80,16 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Helper to create or reuse ETS table
-%% Returns TID (integer) for new tables, or table name (atom) for existing named_table
-%% Simple approach: try to create, if exists (badarg), use name
+%% Returns table reference (atom for named_table)
 ensure_ets_table(TableName, Options) ->
-    case catch ets:new(TableName, Options) of
-        {'EXIT', {badarg, _}} ->
-            %% Table already exists, use name
-            %% For named_table, the name can be used directly
-            TableName;
-        {'EXIT', Reason} ->
-            exit({ets_create_failed, TableName, Reason});
-        Tid when is_integer(Tid) ->
-            %% Successfully created, return TID
-            Tid
+    %% First check if table already exists
+    case ets:whereis(TableName) of
+        undefined ->
+            %% Table doesn't exist, create it
+            ets:new(TableName, Options);
+        _Tid ->
+            %% Table already exists, use its name
+            TableName
     end.
 
 %% @doc Initialize RBAC tables
@@ -110,9 +107,8 @@ do_init(_Opts) ->
         set,
         named_table,
         {keypos, 1},
-        protected,
-        {read_concurrency, true},
-        {compressed, false}
+        public,
+        {read_concurrency, true}
     ]),
     
     %% For bag table, use public access in test mode to allow test process access
@@ -126,8 +122,7 @@ do_init(_Opts) ->
             true -> public;
             false -> protected
         end,
-        {read_concurrency, true},
-        {compressed, false}
+        {read_concurrency, true}
     ],
     %% Try to create table, handling name conflicts
     %% Fix ETS cleanup issue: If table name is registered but table doesn't exist,
@@ -139,27 +134,32 @@ do_init(_Opts) ->
                 undefined ->
                     %% Name is registered but table doesn't exist - ETS cleanup issue
                     %% Try to force cleanup by attempting to delete the table name
-                    %% This helps release the name if it's stuck
                     catch ets:delete(?USER_ROLES_TABLE),
-                    timer:sleep(10),  %% Brief wait for name release
+                    timer:sleep(100),  %% Brief wait for name release
+                    
                     %% Try to create again
                     case catch ets:new(?USER_ROLES_TABLE, UserRolesTableOptions) of
-                        {'EXIT', {badarg, _}} ->
-                            %% Still can't create - use name and hope for the best
-                            %% Operations will fail with badarg, which we handle
-                            ?USER_ROLES_TABLE;
+                        {'EXIT', {badarg, Reason2}} ->
+                            %% Still failing, likely name stuck. Fallback to unique name.
+                            UniqueName = list_to_atom("rbac_user_roles_" ++ integer_to_list(erlang:system_time(microsecond))),
+                            router_logger:warn(<<"Name collision for rbac_user_roles, falling back to unique name">>, #{
+                                <<"original">> => ?USER_ROLES_TABLE,
+                                <<"new">> => UniqueName,
+                                <<"reason">> => iolist_to_binary(io_lib:format("~p", [Reason2]))
+                            }),
+                            ets:new(UniqueName, UserRolesTableOptions);
                         {'EXIT', Reason} ->
                             exit({ets_create_failed, ?USER_ROLES_TABLE, Reason});
-                        Tid when is_integer(Tid) ->
+                        Tid ->
                             Tid
                     end;
-                Tid when is_integer(Tid) ->
+                _Tid ->
                     %% Table exists, use it
                     ?USER_ROLES_TABLE
             end;
         {'EXIT', Reason} ->
             exit({ets_create_failed, ?USER_ROLES_TABLE, Reason});
-        Tid when is_integer(Tid) ->
+        Tid ->
             %% Successfully created
             Tid
     end,
@@ -168,9 +168,8 @@ do_init(_Opts) ->
         set,
         named_table,
         {keypos, 1},
-        protected,
-        {read_concurrency, true},
-        {compressed, false}
+        public,
+        {read_concurrency, true}
     ]),
     
     %% Initialize default roles and permissions only if table is empty
@@ -179,24 +178,30 @@ do_init(_Opts) ->
     case catch ets:info(RolesTable) of
         undefined ->
             %% Table not accessible, skip initialization
-            ok;
+            router_logger:warn(<<"RBAC init: roles table not accessible">>, #{
+                <<"event">> => <<"rbac_init_skip">>
+            });
         {'EXIT', _} ->
             %% Info failed, skip initialization
-            ok;
+            router_logger:warn(<<"RBAC init: roles table info failed">>, #{
+                <<"event">> => <<"rbac_init_skip">>
+            });
         _Info when is_list(_Info) ->
             %% Table is accessible, check if empty and initialize
-            try
-                case ets:first(RolesTable) of
-                    '$end_of_table' ->
-                        %% Table is empty, initialize
-                        initialize_default_roles(RolesTable, PermissionsTable);
-                    _ ->
-                        %% Table has data, skip initialization
-                        ok
-                end
-            catch
-                _:_ ->
-                    %% Any error during initialization, skip
+            case ets:first(RolesTable) of
+                '$end_of_table' ->
+                    %% Table is empty, initialize
+                    case initialize_default_roles(RolesTable, PermissionsTable) of
+                        ok ->
+                            ok;
+                        {error, InitReason} ->
+                            router_logger:error(<<"RBAC init: failed to initialize default roles">>, #{
+                                <<"event">> => <<"rbac_init_failed">>,
+                                <<"reason">> => iolist_to_binary(io_lib:format("~p", [InitReason]))
+                            })
+                    end;
+                _ ->
+                    %% Table has data, skip initialization
                     ok
             end
     end,
@@ -214,8 +219,7 @@ do_init(_Opts) ->
                 {keypos, 1},
                 protected,
                 {read_concurrency, true},
-                {write_concurrency, true},
-                {compressed, false}
+                {write_concurrency, true}
             ]);
         false ->
             undefined
@@ -396,6 +400,8 @@ is_viewer(UserId, TenantId) ->
             false
     end.
 
+
+
 %% @doc Reset all RBAC state (for testing)
 %% Safe reset via handle_call(reset_all, ...) - clears ETS tables but keeps process alive
 %% Pattern: Reuse reset/lifecycle pattern from router_circuit_breaker
@@ -426,10 +432,11 @@ reset() ->
 
 handle_call({can_access, UserId, TenantId, Action, Resource, Context}, _From, State) ->
     try
-        %% Validate input
+        %% Validate input - fail-closed on invalid input
         case validate_user_input(UserId, TenantId) of
-            {error, Reason} ->
-                {reply, {error, Reason}, State};
+            {error, _Reason} ->
+                %% Invalid input: deny access (fail-closed for security)
+                {reply, false, State};
             ok ->
                 %% Check if RBAC is enabled
                 case State#state.rbac_enabled of
@@ -450,15 +457,16 @@ handle_call({can_access, UserId, TenantId, Action, Resource, Context}, _From, St
         end
     catch
         Class:Error:Stacktrace ->
-            ErrorResult = handle_rbac_error({Class, Error}),
-            router_logger:error(<<"RBAC error in can_access">>, #{
+            %% CRITICAL: Always return boolean for can_access (fail-closed for security)
+            %% Log the error for debugging, but deny access instead of returning error tuple
+            router_logger:error(<<"RBAC error in can_access, denying access (fail-closed)">>, #{
                 <<"user_id">> => UserId,
                 <<"tenant_id">> => TenantId,
                 <<"error">> => iolist_to_binary(io_lib:format("~p", [Error])),
                 <<"class">> => iolist_to_binary(io_lib:format("~p", [Class])),
                 <<"stacktrace">> => iolist_to_binary(io_lib:format("~p", [Stacktrace]))
             }),
-            {reply, ErrorResult, State}
+            {reply, false, State}
     end;
 
 handle_call({assign_role, UserId, TenantId, RoleId}, _From, State) ->
@@ -603,16 +611,19 @@ handle_call(reset_all, _From, State) ->
         PermissionsTableOk = VerifyTable(State#state.permissions_table, <<"permissions_table">>),
         
         %% Reinitialize default roles and permissions only if tables are accessible
+        %% FIX: Always reinitialize after reset - no check for empty table needed
+        %% The previous check "ets:first(...) =/= '$end_of_table'" was wrong because:
+        %% 1. After delete_all_objects, table IS empty - check was redundant
+        %% 2. The "_ -> ok" branch silently skipped initialization on any race/error
         if RolesTableOk andalso PermissionsTableOk ->
-            try
-                case ets:first(State#state.roles_table) of
-                    '$end_of_table' ->
-                        initialize_default_roles(State#state.roles_table, State#state.permissions_table);
-                    _ ->
-                        ok
-                end
-            catch
-                _:_ -> ok
+            case initialize_default_roles(State#state.roles_table, State#state.permissions_table) of
+                ok ->
+                    ok;
+                InitError ->
+                    router_logger:error(<<"RBAC reset_all: failed to initialize default roles">>, #{
+                        <<"event">> => <<"rbac_reset_all_init_failed">>,
+                        <<"error">> => iolist_to_binary(io_lib:format("~p", [InitError]))
+                    })
             end;
         true ->
             %% Some tables are inaccessible - can't reinitialize
@@ -865,6 +876,8 @@ do_get_user_roles(UserId, TenantId, State) ->
     end.
 
 %% Initialize default roles and permissions
+%% Returns ok on success, {error, Reason} on failure
+-spec initialize_default_roles(ets:tid() | atom(), ets:tid() | atom()) -> ok | {error, term()}.
 initialize_default_roles(RolesTable, _PermissionsTable) ->
     try
         %% Admin role: full access
@@ -875,7 +888,7 @@ initialize_default_roles(RolesTable, _PermissionsTable) ->
             {?ACTION_ADMIN, ?RESOURCE_CONFIG},
             {?ACTION_READ, ?RESOURCE_METRICS}
         ],
-        ets:insert(RolesTable, {?ROLE_ADMIN, AdminPermissions}),
+        true = ets:insert(RolesTable, {?ROLE_ADMIN, AdminPermissions}),
         
         %% Operator role: read/write policies, no admin
         OperatorPermissions = [
@@ -885,7 +898,7 @@ initialize_default_roles(RolesTable, _PermissionsTable) ->
             {?ACTION_READ, ?RESOURCE_EXTENSION_REGISTRY},
             {?ACTION_WRITE, ?RESOURCE_EXTENSION_REGISTRY}
         ],
-        ets:insert(RolesTable, {?ROLE_OPERATOR, OperatorPermissions}),
+        true = ets:insert(RolesTable, {?ROLE_OPERATOR, OperatorPermissions}),
         
         %% Viewer role: read only
         ViewerPermissions = [
@@ -893,20 +906,23 @@ initialize_default_roles(RolesTable, _PermissionsTable) ->
             {?ACTION_READ, ?RESOURCE_METRICS},
             {?ACTION_READ, ?RESOURCE_EXTENSION_REGISTRY}
         ],
-        ets:insert(RolesTable, {?ROLE_VIEWER, ViewerPermissions}),
+        true = ets:insert(RolesTable, {?ROLE_VIEWER, ViewerPermissions}),
         
         ok
     catch
-        error:{badarg, _} ->
-            %% Table not accessible - log but don't fail
-            router_logger:error(<<"Failed to initialize default roles: table not accessible">>, #{}),
-            ok;
-        Class:Reason ->
-            %% Other errors - log but don't fail
-            router_logger:error(<<"Failed to initialize default roles">>, #{
-                <<"error">> => {Class, Reason}
+        error:{badarg, BadargReason} ->
+            %% Table not accessible - return error
+            router_logger:error(<<"Failed to initialize default roles: table not accessible">>, #{
+                <<"reason">> => iolist_to_binary(io_lib:format("~p", [BadargReason]))
             }),
-            ok
+            {error, {table_not_accessible, BadargReason}};
+        Class:Reason ->
+            %% Other errors - return error
+            router_logger:error(<<"Failed to initialize default roles">>, #{
+                <<"class">> => iolist_to_binary(io_lib:format("~p", [Class])),
+                <<"reason">> => iolist_to_binary(io_lib:format("~p", [Reason]))
+            }),
+            {error, {Class, Reason}}
     end.
 
 %% @doc Handle RBAC errors and map to appropriate error codes

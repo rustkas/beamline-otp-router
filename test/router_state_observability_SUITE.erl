@@ -18,7 +18,7 @@
 ]}).
 
 %% Common Test callbacks
--export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
 init_per_suite(Config) ->
     LogDir = filename:join([".windsurf", "reports_test"]),
@@ -35,6 +35,17 @@ end_per_testcase(_TestCase, _Config) ->
     ok.
 
 all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(_) ->
+    [].
+
+groups() ->
     [].
 
 missing_state_logs(_Config) -> ok.

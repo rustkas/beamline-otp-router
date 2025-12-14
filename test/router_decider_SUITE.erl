@@ -28,13 +28,25 @@
 %% ========================================================================
 
 all() ->
-    [
-        {group, decider_tests}
-    ].
+    case os:getenv("ROUTER_ENABLE_META") of
+        "1" -> meta_all();
+        "true" -> meta_all();
+        "on" -> meta_all();
+        _ -> []
+    end.
+
+meta_all() ->
+    [].
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast
+    [{group, unit_tests}].
 
 groups() ->
     [
-        {decider_tests, [sequence], [
+        {unit_tests, [sequence], [
             %% Placeholder: tests will be added when router_decider module is implemented
         ]}
     ].

@@ -144,6 +144,64 @@ get_circuit_breaker_rules() ->
             },
             labels => #{state => open},
             enabled => true
+        },
+        %% === NEW: Latency threshold trigger alerts ===
+        #{
+            id => <<"circuit_breaker_latency_trigger">>,
+            name => <<"Circuit Breaker Opened by Latency">>,
+            description => <<"Circuit breaker opened due to latency threshold exceeded">>,
+            severity => <<"warning">>,
+            metric => router_circuit_breaker_trigger_reason,
+            condition => #{
+                type => threshold,
+                operator => greater_than,
+                threshold => 0
+            },
+            labels => #{reason => <<"latency_threshold_exceeded">>},
+            enabled => true
+        },
+        #{
+            id => <<"circuit_breaker_failure_threshold_trigger">>,
+            name => <<"Circuit Breaker Opened by Failure Threshold">>,
+            description => <<"Circuit breaker opened due to failure threshold exceeded">>,
+            severity => <<"warning">>,
+            metric => router_circuit_breaker_trigger_reason,
+            condition => #{
+                type => threshold,
+                operator => greater_than,
+                threshold => 0
+            },
+            labels => #{reason => <<"failure_threshold_exceeded">>},
+            enabled => true
+        },
+        #{
+            id => <<"circuit_breaker_error_rate_trigger">>,
+            name => <<"Circuit Breaker Opened by Error Rate">>,
+            description => <<"Circuit breaker opened due to error rate threshold exceeded">>,
+            severity => <<"warning">>,
+            metric => router_circuit_breaker_trigger_reason,
+            condition => #{
+                type => threshold,
+                operator => greater_than,
+                threshold => 0
+            },
+            labels => #{reason => <<"error_rate_threshold_exceeded">>},
+            enabled => true
+        },
+        #{
+            id => <<"circuit_breaker_half_open_failure">>,
+            name => <<"Circuit Breaker Half-Open Failure">>,
+            description => <<"Circuit breaker reopened after failure in half-open state">>,
+            severity => <<"critical">>,
+            metric => router_circuit_breaker_trigger_reason,
+            condition => #{
+                type => rate,
+                operator => greater_than,
+                threshold => 5,  %% More than 5 half-open failures per 5 min
+                duration_seconds => 300
+            },
+            labels => #{reason => <<"half_open_failure">>},
+            enabled => true
         }
     ].
 

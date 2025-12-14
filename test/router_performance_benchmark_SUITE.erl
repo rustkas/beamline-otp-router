@@ -19,18 +19,44 @@
 -include("flow_pb.hrl").
 
 -compile([export_all, nowarn_export_all]).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
-all() -> [
-    test_establish_baseline_metrics,
-    test_document_performance_targets,
-    test_baseline_sequential_throughput,
-    test_baseline_concurrent_throughput,
-    test_baseline_memory_usage,
-    test_baseline_ets_table_size
-].
+%% Test function exports
+-export([
+    test_baseline_ets_table_size/1,
+    test_baseline_memory_usage/1,
+    test_document_performance_targets/1
+]).
+
+all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+%% Performance benchmarks only run in heavy tier
+groups_for_level(heavy) ->
+    [{group, performance_tests}];
+groups_for_level(_) -> %% fast, full, sanity
+    [].
+
+groups() ->
+    [
+        {performance_tests, [sequence], [
+            test_establish_baseline_metrics,
+            test_document_performance_targets,
+            test_baseline_sequential_throughput,
+            test_baseline_concurrent_throughput,
+            test_baseline_memory_usage,
+            test_baseline_ets_table_size
+        ]}
+    ].
 
 init_per_suite(Config) ->
-    ok = router_test_utils:start_router_app(),
+    ok = router_suite_helpers:start_router_suite(),
     
     %% Create test policy
     TenantId = <<"test_tenant_benchmark">>,
@@ -57,7 +83,7 @@ end_per_suite(Config) ->
     TenantId = proplists:get_value(tenant_id, Config),
     PolicyId = proplists:get_value(policy_id, Config),
     router_policy_store:delete_policy(TenantId, PolicyId, undefined),
-    router_test_utils:stop_router_app(),
+    router_suite_helpers:stop_router_suite(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -337,4 +363,3 @@ measure_concurrent_throughput(TenantId, PolicyId, RequestCount) ->
     end,
     
     {Throughput, P95}.
-

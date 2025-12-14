@@ -21,28 +21,68 @@
     test_reload/1,
     test_nats_unavailable/1,
     test_invalid_payload/1,
-    test_internal_error/1
+    test_internal_error/1,
+    test_no_persistent_term_leak/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_error_mapping_table/1,
+    test_extended_mapping/1,
+    test_get/1,
+    test_internal_error/1,
+    test_invalid_payload/1,
+    test_nats_unavailable/1,
+    test_reload/1,
+    test_reload_validation/1,
+    test_to_grpc_basic/1,
+    test_to_grpc_unknown/1,
+    test_to_grpc_with_context/1,
+    %% Additional deep coverage tests (Task 4)
+    test_to_grpc_tuple_format/1,
+    test_error_ensure_binary/1,
+    %% Persistent term cleanup regression (Task 10)
+    test_no_persistent_term_leak/1
+]).
+
 
 
 all() ->
-    [
-        {group, unit_tests}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast
+    [{group, unit_tests}].
 
 groups() ->
     [
-        {unit_tests, [parallel], [
+        %% Sequential execution required - tests modify global persistent_term
+        {unit_tests, [sequence], [
             test_error_mapping_table,
             test_to_grpc_basic,
             test_to_grpc_with_context,
             test_to_grpc_unknown,
-            test_reload,
-            test_reload_validation,
+            test_to_grpc_tuple_format,
+            test_error_ensure_binary,
             test_get,
             test_nats_unavailable,
             test_invalid_payload,
-            test_internal_error
+            test_internal_error,
+            %% Reload tests last - they modify global state
+            test_reload_validation,
+            test_reload,
+            %% Persistent term cleanup check (Task 10)
+            test_no_persistent_term_leak
         ]}
     ].
 
@@ -52,6 +92,8 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
+    %% Clean up persistent_term to not leak state to other suites
+    catch persistent_term:erase({router_error, error_mapping}),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -73,34 +115,35 @@ test_error_mapping_table(_Config) ->
     ?assert(maps:is_key(no_provider_available, Mapping)),
     ?assert(maps:is_key(invalid_policy, Mapping)),
     
-    %% Verify status codes are correct
-    {?GRPC_STATUS_INVALID_ARGUMENT, _} = maps:get(missing_tenant_id, Mapping),
-    {?GRPC_STATUS_NOT_FOUND, _} = maps:get(policy_not_found, Mapping),
-    {?GRPC_STATUS_INTERNAL, _} = maps:get(no_provider_available, Mapping),
-    {?GRPC_STATUS_INVALID_ARGUMENT, _} = maps:get(invalid_policy, Mapping),
+    %% Verify status codes are correct (using numeric values)
+    {3, _} = maps:get(missing_tenant_id, Mapping),    % INVALID_ARGUMENT
+    {5, _} = maps:get(policy_not_found, Mapping),     % NOT_FOUND
+    {13, _} = maps:get(no_provider_available, Mapping), % INTERNAL
+    {3, _} = maps:get(invalid_policy, Mapping),       % INVALID_ARGUMENT
     
     ok.
 
 %% @doc Test basic error mapping (data-driven)
 test_to_grpc_basic(_Config) ->
     %% Data-driven test: list of {ErrorReason, ExpectedStatus, ExpectedMessagePattern}
+    %% Note: Using numeric status codes directly to avoid include conflicts
     TestCases = [
-        {missing_tenant_id, ?GRPC_STATUS_INVALID_ARGUMENT, <<"missing tenant_id">>},
-        {policy_not_found, ?GRPC_STATUS_NOT_FOUND, <<"policy not found">>},
-        {no_provider_available, ?GRPC_STATUS_INTERNAL, <<"no provider available">>},
-        {invalid_policy, ?GRPC_STATUS_INVALID_ARGUMENT, <<"invalid policy">>},
-        {invalid_request, ?GRPC_STATUS_INVALID_ARGUMENT, <<"invalid request">>},
-        {missing_message, ?GRPC_STATUS_INVALID_ARGUMENT, <<"missing message">>},
-        {rate_limit_exceeded, ?GRPC_STATUS_RESOURCE_EXHAUSTED, <<"rate limit exceeded">>},
-        {quota_exceeded, ?GRPC_STATUS_RESOURCE_EXHAUSTED, <<"quota exceeded">>},
-        {service_down, ?GRPC_STATUS_UNAVAILABLE, <<"service temporarily unavailable">>},
-        {timeout, ?GRPC_STATUS_UNAVAILABLE, <<"request timeout">>}
+        {missing_tenant_id, 3, <<"missing tenant_id">>},           % INVALID_ARGUMENT
+        {policy_not_found, 5, <<"policy not found">>},              % NOT_FOUND
+        {no_provider_available, 13, <<"no provider available">>},   % INTERNAL
+        {invalid_policy, 3, <<"invalid policy">>},                  % INVALID_ARGUMENT
+        {invalid_request, 3, <<"invalid request">>},                % INVALID_ARGUMENT
+        {missing_message, 3, <<"missing message">>},                % INVALID_ARGUMENT
+        {rate_limit_exceeded, 8, <<"rate limit exceeded">>},        % RESOURCE_EXHAUSTED
+        {quota_exceeded, 8, <<"quota exceeded">>},                  % RESOURCE_EXHAUSTED
+        {service_down, 14, <<"service temporarily unavailable">>},  % UNAVAILABLE
+        {timeout, 14, <<"request timeout">>}                        % UNAVAILABLE
     ],
     
     lists:foreach(fun({ErrorReason, ExpectedStatus, ExpectedMessage}) ->
         {Status, Message} = router_error:to_grpc(ErrorReason),
-        ExpectedStatus = Status,
-        ExpectedMessage = Message,
+        ?assertEqual(ExpectedStatus, Status, io_lib:format("Status mismatch for ~p", [ErrorReason])),
+        ?assertEqual(ExpectedMessage, Message, io_lib:format("Message mismatch for ~p", [ErrorReason])),
         ok
     end, TestCases),
     
@@ -112,13 +155,13 @@ test_to_grpc_with_context(_Config) ->
     {Status, Message} = router_error:to_grpc(missing_tenant_id, #{
         context => <<"Custom error message">>
     }),
-    ?GRPC_STATUS_INVALID_ARGUMENT = Status,
-    <<"Custom error message">> = Message,
+    ?assertEqual(3, Status),  % INVALID_ARGUMENT
+    ?assertEqual(<<"Custom error message">>, Message),
     
     %% Test that default message is used when context is missing
     {Status2, Message2} = router_error:to_grpc(policy_not_found, #{}),
-    ?GRPC_STATUS_NOT_FOUND = Status2,
-    <<"policy not found">> = Message2,
+    ?assertEqual(5, Status2),  % NOT_FOUND
+    ?assertEqual(<<"policy not found">>, Message2),
     
     ok.
 
@@ -126,7 +169,7 @@ test_to_grpc_with_context(_Config) ->
 test_to_grpc_unknown(_Config) ->
     %% Unknown error should map to INTERNAL
     {Status, Message} = router_error:to_grpc(unknown_error_reason),
-    ?GRPC_STATUS_INTERNAL = Status,
+    ?assertEqual(13, Status),  % INTERNAL
     ?assert(is_binary(Message)),
     ?assert(byte_size(Message) > 0),
     
@@ -150,19 +193,19 @@ test_get(_Config) ->
 
 %% @doc Test extended error mapping (new error types)
 test_extended_mapping(_Config) ->
-    %% Test new error types added
+    %% Test new error types added (using numeric status codes)
     TestCases = [
-        {nats_unavailable, ?GRPC_STATUS_UNAVAILABLE, <<"NATS service unavailable">>},
-        {rate_limited, ?GRPC_STATUS_RESOURCE_EXHAUSTED, <<"rate limited">>},
-        {budget_exceeded, ?GRPC_STATUS_RESOURCE_EXHAUSTED, <<"budget exceeded">>},
-        {unauthenticated, ?GRPC_STATUS_UNAUTHENTICATED, <<"unauthenticated">>},
-        {permission_denied, ?GRPC_STATUS_PERMISSION_DENIED, <<"permission denied">>}
+        {nats_unavailable, 14, <<"NATS service unavailable">>},  % UNAVAILABLE
+        {rate_limited, 8, <<"rate limited">>},                    % RESOURCE_EXHAUSTED
+        {budget_exceeded, 8, <<"budget exceeded">>},              % RESOURCE_EXHAUSTED
+        {unauthenticated, 16, <<"unauthenticated">>},             % UNAUTHENTICATED
+        {permission_denied, 7, <<"permission denied">>}           % PERMISSION_DENIED
     ],
     
     lists:foreach(fun({ErrorReason, ExpectedStatus, ExpectedMessage}) ->
         {Status, Message} = router_error:to_grpc(ErrorReason),
-        ExpectedStatus = Status,
-        ExpectedMessage = Message,
+        ?assertEqual(ExpectedStatus, Status, io_lib:format("Status mismatch for ~p", [ErrorReason])),
+        ?assertEqual(ExpectedMessage, Message, io_lib:format("Message mismatch for ~p", [ErrorReason])),
         ok
     end, TestCases),
     
@@ -188,22 +231,22 @@ test_reload(_Config) ->
     ?assert(maps:is_key(missing_tenant_id, Original)),
     
     %% Create new mapping with additional entry
-    NewMapping = maps:put(test_custom_error, {?GRPC_STATUS_INVALID_ARGUMENT, <<"test error">>}, Original),
+    NewMapping = maps:put(test_custom_error, {3, <<"test error">>}, Original),  % INVALID_ARGUMENT
     
     %% Reload mapping
     ok = router_error:reload(NewMapping),
     
     %% Verify new mapping is active
     {Status, Message} = router_error:to_grpc(test_custom_error),
-    ?GRPC_STATUS_INVALID_ARGUMENT = Status,
-    <<"test error">> = Message,
+    ?assertEqual(3, Status),  % INVALID_ARGUMENT
+    ?assertEqual(<<"test error">>, Message),
     
     %% Restore original mapping
     ok = router_error:reload(Original),
     
     %% Verify original mapping restored
     {Status2, _} = router_error:to_grpc(missing_tenant_id),
-    ?GRPC_STATUS_INVALID_ARGUMENT = Status2,
+    ?assertEqual(3, Status2),  % INVALID_ARGUMENT
     
     %% Test invalid mapping (should fail)
     InvalidMapping = #{invalid_key => <<"not a tuple">>},
@@ -219,8 +262,8 @@ test_reload(_Config) ->
 test_nats_unavailable(_Config) ->
     %% NATS unavailable should map to UNAVAILABLE
     {Status, Message} = router_error:to_grpc(nats_unavailable),
-    ?GRPC_STATUS_UNAVAILABLE = Status,
-    <<"NATS service unavailable">> = Message,
+    ?assertEqual(14, Status),  % UNAVAILABLE
+    ?assertEqual(<<"NATS service unavailable">>, Message),
     
     ok.
 
@@ -228,15 +271,15 @@ test_nats_unavailable(_Config) ->
 test_invalid_payload(_Config) ->
     %% Invalid payload should map to INVALID_ARGUMENT
     {Status, Message} = router_error:to_grpc(invalid_request),
-    ?GRPC_STATUS_INVALID_ARGUMENT = Status,
-    <<"invalid request">> = Message,
+    ?assertEqual(3, Status),  % INVALID_ARGUMENT
+    ?assertEqual(<<"invalid request">>, Message),
     
     %% Test with context
     {Status2, Message2} = router_error:to_grpc(invalid_request, #{
         context => <<"Payload size exceeds limit">>
     }),
-    ?GRPC_STATUS_INVALID_ARGUMENT = Status2,
-    <<"Payload size exceeds limit">> = Message2,
+    ?assertEqual(3, Status2),  % INVALID_ARGUMENT
+    ?assertEqual(<<"Payload size exceeds limit">>, Message2),
     
     ok.
 
@@ -244,15 +287,99 @@ test_invalid_payload(_Config) ->
 test_internal_error(_Config) ->
     %% Internal error should map to INTERNAL
     {Status, Message} = router_error:to_grpc(internal_error),
-    ?GRPC_STATUS_INTERNAL = Status,
-    <<"internal server error">> = Message,
-    
+    ?assertEqual(13, Status),  % INTERNAL
+    ?assertEqual(<<"internal server error">>, Message),
+
     %% Test with context
     {Status2, Message2} = router_error:to_grpc(internal_error, #{
         context => <<"Unexpected error in routing logic">>
     }),
-    ?GRPC_STATUS_INTERNAL = Status2,
-    <<"Unexpected error in routing logic">> = Message2,
+    ?assertEqual(13, Status2),  % INTERNAL
+    ?assertEqual(<<"Unexpected error in routing logic">>, Message2),
+
+    ok.
+
+%% @doc Test tuple format: {ErrorReason, ErrorContext}
+test_to_grpc_tuple_format(_Config) ->
+    %% Tuple format should work just like calling to_grpc/2
+    {Status, Message} = router_error:to_grpc({missing_tenant_id, #{
+        context => <<"Tenant header missing">>
+    }}),
+    ?assertEqual(3, Status),  % INVALID_ARGUMENT
+    ?assertEqual(<<"Tenant header missing">>, Message),
+    
+    %% Tuple with empty context uses default message
+    {Status2, Message2} = router_error:to_grpc({policy_not_found, #{}}),
+    ?assertEqual(5, Status2),  % NOT_FOUND
+    ?assertEqual(<<"policy not found">>, Message2),
+    
+    ok.
+
+%% @doc Test ensure_binary converts various types
+test_error_ensure_binary(_Config) ->
+    %% Test with atom context (should be converted to binary)
+    {Status, Message} = router_error:to_grpc(internal_error, #{
+        context => test_atom_error
+    }),
+    ?assertEqual(13, Status),  % INTERNAL
+    ?assert(is_binary(Message)),
+    
+    %% Test with list context (should be converted to binary)
+    {Status2, Message2} = router_error:to_grpc(internal_error, #{
+        context => "string error message"
+    }),
+    ?assertEqual(13, Status2),  % INTERNAL
+    ?assert(is_binary(Message2)),
+    ?assertEqual(<<"string error message">>, Message2),
+    
+    %% Test with nested tuple context (Task 9 - regression)
+    %% Nested structures should be converted to binary representation
+    {Status3, Message3} = router_error:to_grpc(internal_error, #{
+        context => {nested, {error, some_reason}}
+    }),
+    ?assertEqual(13, Status3),  % INTERNAL
+    ?assert(is_binary(Message3)),
+    %% Should contain string representation of the tuple
+    ?assert(byte_size(Message3) > 0),
+    
+    %% Test with integer context (edge case)
+    {Status4, Message4} = router_error:to_grpc(internal_error, #{
+        context => 12345
+    }),
+    ?assertEqual(13, Status4),  % INTERNAL
+    ?assert(is_binary(Message4)),
+    
+    ok.
+
+%% @doc Regression test: no unexpected persistent_term keys after operations (Task 10)
+%% Verifies router_error only uses its designated key and doesn't leak others.
+test_no_persistent_term_leak(_Config) ->
+    %% Snapshot router_error's known key
+    ExpectedKey = {router_error, error_mapping},
+    
+    %% Force the mapping to be initialized
+    _ = router_error:error_mapping_table(),
+    
+    %% Get all persistent_term keys that belong to router
+    AllKeys = persistent_term:get(),
+    RouterErrorKeys = [K || {K, _V} <- AllKeys, 
+                            is_tuple(K) andalso 
+                            tuple_size(K) >= 1 andalso
+                            element(1, K) =:= router_error],
+    
+    %% Should only have the expected key
+    ?assertEqual([ExpectedKey], RouterErrorKeys, 
+                 "router_error should only have error_mapping persistent_term key"),
+    
+    %% Cleanup the key
+    persistent_term:erase(ExpectedKey),
+    
+    %% Verify cleanup
+    RouterErrorKeysAfter = [K || {K, _V} <- persistent_term:get(), 
+                                  is_tuple(K) andalso 
+                                  tuple_size(K) >= 1 andalso
+                                  element(1, K) =:= router_error],
+    ?assertEqual([], RouterErrorKeysAfter, "router_error keys should be cleaned up"),
     
     ok.
 

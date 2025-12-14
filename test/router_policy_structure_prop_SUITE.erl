@@ -42,11 +42,29 @@
     verify_no_fallback_cycles/1,
     verify_fallback_finiteness/2
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_policy_fallback_finiteness/1,
+    test_policy_no_crashes/1,
+    test_policy_weight_normalization/1
+]).
+
 
 all() ->
-    [
-        {group, property_tests}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, property_tests}];
+groups_for_level(_) -> %% fast, full
+    [].
 
 groups() ->
     [

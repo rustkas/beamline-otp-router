@@ -44,8 +44,7 @@ init() ->
         named_table,
         public,
         {write_concurrency, true},
-        {read_concurrency, true},
-        {keypos, #payload_stats.tenant_id}
+        {read_concurrency, true}
     ]),
     
     %% Log initialization

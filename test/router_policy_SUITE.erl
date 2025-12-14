@@ -25,12 +25,42 @@
     test_parse_policy_json_invalid/1,
     test_parse_policy_json_map/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_load_policy_not_found/1,
+    test_load_policy_success/1,
+    test_parse_policy_json_invalid/1,
+    test_parse_policy_json_map/1,
+    test_parse_policy_json_valid/1,
+    %% Negative tests (Task 3)
+    test_validate_missing_required_fields/1,
+    test_validate_empty_weights/1,
+    test_validate_invalid_weight_values/1,
+    test_validate_negative_weight/1,
+    test_validate_weight_over_one/1,
+    test_validate_non_numeric_weight/1
+]).
+
 
 %% Test suite configuration
 all() ->
-    [
-        {group, unit_tests}
-    ].
+    %% CP1 core tests run by default - no env gating (Task 1 fix)
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast
+    [{group, unit_tests}].
 
 groups() ->
     [
@@ -39,7 +69,13 @@ groups() ->
             test_load_policy_not_found,
             test_parse_policy_json_valid,
             test_parse_policy_json_invalid,
-            test_parse_policy_json_map
+            test_parse_policy_json_map,
+            test_validate_missing_required_fields,
+            test_validate_empty_weights,
+            test_validate_invalid_weight_values,
+            test_validate_negative_weight,
+            test_validate_weight_over_one,
+            test_validate_non_numeric_weight
         ]}
     ].
 
@@ -157,4 +193,93 @@ test_parse_policy_json_map(_Config) ->
     {ok, ParsedPolicy} = router_policy:parse_policy_json(PolicyMap),
     ?assertEqual(PolicyMap, ParsedPolicy),
     
+    ok.
+
+%% ============================================================================
+%% NEGATIVE TESTS (Task 3: Policy validation edge cases)
+%% ============================================================================
+
+%% Test: Validate policy with missing required fields
+test_validate_missing_required_fields(_Config) ->
+    %% Missing tenant_id
+    Policy1 = #{
+        <<"policy_id">> => <<"test">>,
+        <<"weights">> => #{<<"openai">> => 1.0}
+    },
+    ?assertMatch({error, {invalid_policy, _}}, router_policy_validator:validate(Policy1)),
+    
+    %% Missing policy_id
+    Policy2 = #{
+        <<"tenant_id">> => <<"test">>,
+        <<"weights">> => #{<<"openai">> => 1.0}
+    },
+    ?assertMatch({error, {invalid_policy, _}}, router_policy_validator:validate(Policy2)),
+    
+    %% Missing weights
+    Policy3 = #{
+        <<"tenant_id">> => <<"test">>,
+        <<"policy_id">> => <<"test">>
+    },
+    ?assertMatch({error, {invalid_policy, _}}, router_policy_validator:validate(Policy3)),
+    
+    ok.
+
+%% Test: Validate policy with empty weights
+test_validate_empty_weights(_Config) ->
+    Policy = #{
+        <<"tenant_id">> => <<"test">>,
+        <<"policy_id">> => <<"test">>,
+        <<"weights">> => #{}
+    },
+    ?assertMatch({error, {invalid_policy, _}}, router_policy_validator:validate(Policy)),
+    ok.
+
+%% Test: Validate policy with invalid weight structure
+test_validate_invalid_weight_values(_Config) ->
+    %% weights must be a map
+    Policy = #{
+        <<"tenant_id">> => <<"test">>,
+        <<"policy_id">> => <<"test">>,
+        <<"weights">> => [0.5, 0.5]  %% List instead of map
+    },
+    ?assertMatch({error, {invalid_policy, _}}, router_policy_validator:validate(Policy)),
+    ok.
+
+%% Test: Validate policy with negative weight
+test_validate_negative_weight(_Config) ->
+    Policy = #{
+        <<"tenant_id">> => <<"test">>,
+        <<"policy_id">> => <<"test">>,
+        <<"weights">> => #{
+            <<"openai">> => -0.5,
+            <<"anthropic">> => 0.5
+        }
+    },
+    ?assertMatch({error, {invalid_policy, _}}, router_policy_validator:validate(Policy)),
+    ok.
+
+%% Test: Validate policy with weight over 1.0
+test_validate_weight_over_one(_Config) ->
+    Policy = #{
+        <<"tenant_id">> => <<"test">>,
+        <<"policy_id">> => <<"test">>,
+        <<"weights">> => #{
+            <<"openai">> => 1.5,
+            <<"anthropic">> => 0.5
+        }
+    },
+    ?assertMatch({error, {invalid_policy, _}}, router_policy_validator:validate(Policy)),
+    ok.
+
+%% Test: Validate policy with non-numeric weight
+test_validate_non_numeric_weight(_Config) ->
+    Policy = #{
+        <<"tenant_id">> => <<"test">>,
+        <<"policy_id">> => <<"test">>,
+        <<"weights">> => #{
+            <<"openai">> => <<"half">>,  %% String instead of number
+            <<"anthropic">> => 0.5
+        }
+    },
+    ?assertMatch({error, {invalid_policy, _}}, router_policy_validator:validate(Policy)),
     ok.

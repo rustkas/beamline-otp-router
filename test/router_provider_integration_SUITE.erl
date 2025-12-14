@@ -11,17 +11,41 @@
 -include_lib("stdlib/include/assert.hrl").
 -include("beamline_router.hrl").
 
+-export([groups/0, suite/0]).
 -compile([export_all, nowarn_export_all]).
 
-all() -> [
-    test_provider_selection,
-    test_provider_fallback,
-    test_provider_sticky_session
-].
+suite() ->
+    [
+        {timetrap, {minutes, 2}}
+    ].
+
+all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(fast) ->
+    [];
+groups_for_level(_) -> %% full, heavy
+    [{group, provider_integration_tests}].
+
+groups() ->
+    [
+        {provider_integration_tests, [], [
+            test_provider_selection,
+            test_provider_fallback,
+            test_provider_sticky_session
+        ]}
+    ].
 
 init_per_suite(Config) ->
     %% Start Router application
-    ok = router_test_utils:start_router_app(),
+    _ = application:load(beamline_router),
+    ok = application:set_env(beamline_router, sticky_store_enabled, true),
+    ok = router_suite_helpers:start_router_suite(),
     
     %% Create test policy
     TenantId = <<"test_tenant_provider">>,
@@ -38,11 +62,13 @@ init_per_suite(Config) ->
         },
         fallback = <<"openai">>,
         sticky = #{
-            <<"session_id">> => <<"session_1">>
+            <<"enabled">> => true,
+            <<"type">> => <<"header">>,
+            <<"params">> => #{<<"key">> => <<"session_id">>}
         },
         metadata = #{}
     },
-    {ok, _} = router_policy_store:upsert_policy(TenantId, PolicyId, Policy, undefined),
+    {ok, _} = router_policy_store:upsert_policy(TenantId, Policy),
     
     [{tenant_id, TenantId}, {policy_id, PolicyId} | Config].
 
@@ -50,8 +76,8 @@ end_per_suite(Config) ->
     %% Cleanup
     TenantId = proplists:get_value(tenant_id, Config),
     PolicyId = proplists:get_value(policy_id, Config),
-    router_policy_store:delete_policy(TenantId, PolicyId, undefined),
-    router_test_utils:stop_router_app(),
+    router_policy_store:delete_policy(TenantId, PolicyId),
+    router_suite_helpers:stop_router_suite(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -150,4 +176,3 @@ test_provider_sticky_session(Config) ->
         Error ->
             ct:fail({routing_failed, Error})
     end.
-

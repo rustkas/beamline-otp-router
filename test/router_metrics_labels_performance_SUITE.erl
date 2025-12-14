@@ -12,12 +12,37 @@
 
 -compile({nowarn_unused_function, [all/0, init_per_suite/1, end_per_suite/1,
                                     init_per_testcase/2, end_per_testcase/2]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_ets_table_size_growth/1,
+    test_label_extraction_performance/1,
+    test_metric_emission_performance/1
+]).
 
 all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+%% Performance tests only run in heavy tier
+groups_for_level(heavy) ->
+    [{group, performance_tests}];
+groups_for_level(_) -> %% fast, full, sanity
+    [].
+
+groups() ->
     [
-        test_label_extraction_performance,
-        test_metric_emission_performance,
-        test_ets_table_size_growth
+        {performance_tests, [sequence], [
+            test_label_extraction_performance,
+            test_metric_emission_performance,
+            test_ets_table_size_growth
+        ]}
     ].
 
 init_per_suite(Config) ->

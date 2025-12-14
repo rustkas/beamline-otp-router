@@ -20,6 +20,7 @@
 -export([get_extension_health/2, get_circuit_breaker_states/2, dry_run_pipeline/2]).
 -export([get_pipeline_complexity/2]).
 -export([get_admin_key/0]).
+-export([convert_admin_policy_to_policy/2, convert_policy_to_admin_policy/1]).
 
 -include("beamline_router.hrl").
 -include("flow_pb.hrl").
@@ -95,10 +96,9 @@ upsert_policy(Ctx, Request) ->
                         %% Check RBAC permission
                         CorrelationId = extract_correlation_id(Ctx),
                         Context = #{
-                            <<"trace_id">> => CorrelationId,
-                            <<"created_by">> => UserId
+                            <<"trace_id">> => CorrelationId
                         },
-                        case router_permissions:check_policy_write(UserId, FinalTenantId, undefined, Context) of
+                        case router_permissions:check_policy_write(UserId, TenantId, undefined, Ctx) of
                             false ->
                                 router_audit:log_policy_action(FinalTenantId, UserId, <<"upsert_denied">>, undefined, Context),
                                 throw({grpc_error, {?GRPC_STATUS_PERMISSION_DENIED, <<"insufficient permissions to write policy">>}});
@@ -842,6 +842,28 @@ sanitize_error_value(Value) when is_tuple(Value) ->
 sanitize_error_value(Value) ->
     Value.
 
+%% Internal helper to get user ID safely
+get_user_id(Ctx) ->
+    %% Try grpcbox metadata first, handle if undefined
+    try grpcbox_metadata:get(Ctx, <<"x-user-id">>) of
+        undefined ->
+            %% Try manual map lookup for tests
+            case maps:get(metadata, Ctx, undefined) of
+                Meta when is_list(Meta) ->
+                    proplists:get_value(<<"x-user-id">>, Meta, <<>>);
+                _ -> <<>>
+            end;
+        UserId -> UserId
+    catch
+        _:_ -> 
+            %% fallback if grpcbox_metadata is undefined or crashes
+            case maps:get(metadata, Ctx, undefined) of
+                Meta when is_list(Meta) ->
+                    proplists:get_value(<<"x-user-id">>, Meta, <<>>);
+                _ -> <<>>
+            end
+    end.
+
 %% Internal: Extract user context from gRPC context
 %% Returns {UserId, TenantId} where UserId and TenantId may be undefined
 extract_user_context(Ctx) ->
@@ -862,10 +884,7 @@ extract_user_context(Ctx) ->
             end
     end,
     
-    UserId = case proplists:get_value(<<"x-user-id">>, Metadata) of
-        undefined -> proplists:get_value(<<"X-User-Id">>, Metadata, undefined);
-        U -> U
-    end,
+    UserId = get_user_id(Ctx),
     
     TenantId = case proplists:get_value(<<"x-tenant-id">>, Metadata) of
         undefined -> proplists:get_value(<<"X-Tenant-Id">>, Metadata, undefined);
@@ -1161,5 +1180,19 @@ get_circuit_breaker_states(Ctx, _Request) -> {ok, #{states => #{}}, Ctx}.
 dry_run_pipeline(Ctx, _Request) -> {ok, #{ok => false, error => <<"not_available">>}, Ctx}.
 get_pipeline_complexity(Ctx, _Request) -> {ok, #{ok => false, complexity_score => 0}, Ctx}.
 get_admin_key() -> <<"">>.
+
+%% Internal helper to get user ID safely
+get_user_id(Ctx) ->
+    %% Try grpcbox metadata first
+    case grpcbox_metadata:get(Ctx, <<"x-user-id">>) of
+        undefined ->
+            %% Try manual map lookup for tests
+            case maps:get(metadata, Ctx, undefined) of
+                Meta when is_list(Meta) ->
+                    proplists:get_value(<<"x-user-id">>, Meta, <<>>);
+                _ -> <<>>
+            end;
+        UserId -> UserId
+    end.
 
 -endif.

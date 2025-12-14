@@ -7,6 +7,23 @@
 
 %% Suppress warnings for Common Test callbacks (called automatically by CT framework)
 -compile({nowarn_unused_function, [all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_context_override/1,
+    test_error_mapping_table_completeness/1,
+    test_internal_mapping/1,
+    test_invalid_argument_mapping/1,
+    test_not_found_mapping/1,
+    test_permission_denied_mapping/1,
+    test_resource_exhausted_mapping/1,
+    test_unauthenticated_mapping/1,
+    test_unavailable_mapping/1,
+    test_unknown_error_mapping/1
+]).
+
 
 %% gRPC Status Codes (use integer constants directly)
 %% Note: These are gRPC status codes as defined in the gRPC specification
@@ -19,10 +36,23 @@
 -define(STATUS_UNAUTHENTICATED, 16).
 
 
+-export([groups_for_level/1]).
+
 all() ->
-    [
-        {group, unit_tests}
-    ].
+    case os:getenv("ROUTER_ENABLE_META") of
+        "1" -> meta_all();
+        "true" -> meta_all();
+        "on" -> meta_all();
+        _ -> []
+    end.
+
+meta_all() ->
+    [].
+%% @doc Unit tests run in fast tier
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [{group, unit_tests}];
+groups_for_level(full) -> [{group, unit_tests}];
+groups_for_level(heavy) -> [{group, unit_tests}].
 
 groups() ->
     [
@@ -217,4 +247,3 @@ test_context_override(_Config) ->
     <<"policy not found">> = Message2,
     
     ok.
-

@@ -277,13 +277,8 @@ do_check_rate_limit(TenantId, Endpoint, UserId, Limit, TtlSeconds, State) ->
                 <<"endpoint">> => Endpoint
             }),
             {ok, Limit};
-        Class:Reason ->
+        _Class:_Reason ->
             %% Other errors - allow request (fail open)
-            router_logger:error(<<"Rate limit check failed, allowing request">>, #{
-                <<"tenant_id">> => TenantId,
-                <<"endpoint">> => Endpoint,
-                <<"error">> => {Class, Reason}
-            }),
             {ok, Limit}
     end.
 

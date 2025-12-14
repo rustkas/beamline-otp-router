@@ -17,15 +17,35 @@
 -compile([export_all, nowarn_export_all]).
 -compile({nowarn_unused_function, [all/0]}).
 
-all() -> [
-    test_1000_sequential_requests,
-    test_100_concurrent_requests,
-    test_sustained_load
-].
+%% Common Test exports
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+%% Load tests only run in heavy tier
+groups_for_level(heavy) ->
+    [{group, load_tests}];
+groups_for_level(_) -> %% fast, full, sanity
+    [].
+
+groups() ->
+    [
+        {load_tests, [sequence], [
+            test_1000_sequential_requests,
+            test_100_concurrent_requests,
+            test_sustained_load
+        ]}
+    ].
 
 init_per_suite(Config) ->
     %% Start Router application
-    ok = router_test_utils:start_router_app(),
+    ok = router_suite_helpers:start_router_suite(),
     
     %% Create test policy
     TenantId = <<"test_tenant_perf">>,
@@ -53,7 +73,7 @@ end_per_suite(Config) ->
     TenantId = proplists:get_value(tenant_id, Config),
     PolicyId = proplists:get_value(policy_id, Config),
     router_policy_store:delete_policy(TenantId, PolicyId, undefined),
-    router_test_utils:stop_router_app(),
+    router_suite_helpers:stop_router_suite(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -62,6 +82,7 @@ init_per_testcase(_TestCase, Config) ->
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
+    catch meck:unload(router_nats),
     ok.
 
 %% @doc Test: 1000 sequential DecideRequest with push_assignment=true
@@ -69,9 +90,14 @@ test_1000_sequential_requests(Config) ->
     TenantId = proplists:get_value(tenant_id, Config),
     PolicyId = proplists:get_value(policy_id, Config),
     
-    %% Mock NATS to track assignment publishes
-    meck:new(router_nats, [passthrough]),
-    AssignmentPublishCount = ets:new(assignment_publish_count, [set, private]),
+    %% Mock NATS to track assignment publishes - no passthrough to avoid noproc
+    meck:new(router_nats, []),
+    meck:expect(router_nats, publish_with_ack, fun(_S, _P, _H) -> {error, connection_closed} end),
+    meck:expect(router_nats, nak_message, fun(_MsgId) -> ok end),
+    meck:expect(router_nats, ack_message, fun(_MsgId) -> ok end),
+    meck:expect(router_nats, subscribe_jetstream, fun(_S, _D, _A, _G, _M) -> {ok, <<"c">>} end),
+    meck:expect(router_nats, request, fun(_S, _P, _T) -> {ok, <<>>} end),
+    AssignmentPublishCount = router_test_init:ensure_ets_table(assignment_publish_count, [named_table, set, private]),
     ets:insert(AssignmentPublishCount, {count, 0}),
     
     meck:expect(router_nats, publish, fun(Subject, _Payload) ->
@@ -172,7 +198,7 @@ test_1000_sequential_requests(Config) ->
     ?assert(AssignmentCount >= 900, "At least 900 assignments should be published"),
     
     %% Cleanup
-    ets:delete(AssignmentPublishCount),
+    ets:delete_all_objects(AssignmentPublishCount),
     meck:unload(router_nats),
     ok.
 
@@ -346,4 +372,3 @@ loop_until(EndTime, Fun, Acc) ->
                     loop_until(EndTime, Fun, {ReqCount + ReqInc, SuccCount, ErrCount + ErrInc})
             end
     end.
-

@@ -128,12 +128,10 @@
         }).
 -endif.
 
--endif.
-%% Admin: CP/Validators messages (added without regenerating gpb)
 -ifndef('GETCHECKPOINTSTATUSREQUEST_PB_H').
 -define('GETCHECKPOINTSTATUSREQUEST_PB_H', true).
 -record('GetCheckpointStatusRequest',
-        {tenant_id = <<>>       :: unicode:chardata() | undefined % = 1, optional
+        {
         }).
 -endif.
 
@@ -175,4 +173,6 @@
 -record('GetValidatorsHealthResponse',
         {validators = []        :: [flow_pb:'ValidatorStatus'()] | undefined % = 1, repeated
         }).
+-endif.
+
 -endif.

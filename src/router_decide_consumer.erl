@@ -8,6 +8,7 @@
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([track_delivery_count/1, check_maxdeliver_exhaustion/3, cleanup_delivery_count/1]).
 -export([normalize_boolean/1, check_tenant_allowed/1]).  %% Exported for testing only
+-export([handle_decide_message/4]). %% Exported for testing
 
 -include("beamline_router.hrl").
 
@@ -348,7 +349,82 @@ handle_decide_request(Subject, Request, Headers, MsgId) ->
     RunId = maps:get(<<"run_id">>, Request, undefined),
     FlowId = maps:get(<<"flow_id">>, Request, undefined),
     StepId = maps:get(<<"step_id">>, Request, undefined),
+    RequestId = maps:get(<<"request_id">>, Request, undefined),
+    TraceId = maps:get(<<"trace_id">>, Request, undefined),
     
+    %% CP2+: Validate tenant_id if validation is enabled
+    TenantValidationEnabled = application:get_env(beamline_router, tenant_validation_enabled, true),
+    ValidationContext = #{
+        <<"request_id">> => RequestId,
+        <<"trace_id">> => TraceId,
+        <<"subject">> => Subject,
+        <<"msg_id">> => MsgId,
+        <<"source">> => <<"decide_consumer">>
+    },
+    
+    case validate_tenant_if_enabled(TenantValidationEnabled, TenantId, ValidationContext, MsgId, Subject, Request) of
+        {error, tenant_validation_failed} ->
+            %% Tenant validation failed - error response already sent, message NAKed
+            ok;
+        ok ->
+            %% Continue with routing
+            continue_decide_request(Subject, Request, Headers, MsgId, TenantId, Task, PolicyId,
+                                   Constraints, RequestMetadata, RunId, FlowId, StepId)
+    end.
+
+%% Internal: Validate tenant if enabled
+-spec validate_tenant_if_enabled(boolean(), binary() | undefined, map(), binary() | undefined, binary(), map()) -> 
+    ok | {error, tenant_validation_failed}.
+validate_tenant_if_enabled(false, _TenantId, _ValidationContext, _MsgId, _Subject, _Request) ->
+    ok;
+validate_tenant_if_enabled(true, TenantId, ValidationContext, MsgId, Subject, Request) ->
+    case router_tenant_validator:validate_tenant(TenantId, ValidationContext) of
+        {ok, _ValidatedTenantId} ->
+            ok;
+        {error, Reason, ErrorContext} ->
+            %% Tenant validation failed - emit metric, log, send NAK
+            RequestId = maps:get(<<"request_id">>, Request, <<"unknown">>),
+            _TraceId = maps:get(<<"trace_id">>, Request, undefined),
+            
+            emit_counter(router_decide_tenant_rejected_total, maps:merge(ErrorContext, #{
+                tenant_id => TenantId,
+                reason => Reason,
+                request_id => RequestId
+            })),
+            
+            router_logger:warn(<<"Tenant validation failed for decide request">>, #{
+                <<"request_id">> => RequestId,
+                <<"tenant_id">> => TenantId,
+                <<"reason">> => Reason,
+                <<"msg_id">> => MsgId
+            }),
+            
+            %% Build and send error response
+            ErrorResponse = build_error_response(Request, tenant_not_allowed, ErrorContext),
+            ErrorResponseJson = jsx:encode(ErrorResponse),
+            ReplySubject = <<Subject/binary, ".reply">>,
+            router_nats:publish(ReplySubject, ErrorResponseJson),
+            
+            %% NAK message for controlled redelivery (respects MaxDeliver)
+            case MsgId of
+                undefined -> ok;
+                _ ->
+                    check_maxdeliver_exhaustion(MsgId, RequestId, ErrorContext),
+                    _ = router_jetstream:nak(#{id => MsgId}, tenant_validation_failed, #{
+                        request_id => RequestId,
+                        source => <<"tenant_validation">>
+                    })
+            end,
+            
+            {error, tenant_validation_failed}
+    end.
+
+%% Internal: Continue processing decide request after tenant validation
+-spec continue_decide_request(binary(), map(), map(), binary() | undefined, binary() | undefined, 
+                              map(), binary() | undefined, map(), map(), binary() | undefined,
+                              binary() | undefined, binary() | undefined) -> ok.
+continue_decide_request(Subject, Request, _Headers, MsgId, TenantId, Task, PolicyId,
+                       Constraints, RequestMetadata, RunId, FlowId, StepId) ->
     %% Build message map for RouteRequest
     %% Include CP1 correlation fields (run_id, flow_id, step_id) in message for propagation
     Message = #{

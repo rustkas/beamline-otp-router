@@ -114,24 +114,15 @@ get_metric_value(MetricName, Labels) ->
 %% @returns {ok, Reason} | {error, not_found}
 -spec get_latest_trigger_reason(binary(), binary()) -> {ok, binary()} | {error, not_found}.
 get_latest_trigger_reason(TenantId, ProviderId) ->
-    Value = get_metric_value(router_circuit_breaker_trigger_reason, #{
-        tenant_id => TenantId,
-        provider_id => ProviderId
-    }),
-    case Value > 0 of
-        true ->
-            %% Find which reason was triggered by checking all possible reasons
-            Reasons = [
-                {trigger_reason_failure_threshold(), trigger_reason_failure_threshold()},
-                {trigger_reason_error_rate(), trigger_reason_error_rate()},
-                {trigger_reason_latency(), trigger_reason_latency()},
-                {trigger_reason_half_open_failure(), trigger_reason_half_open_failure()},
-                {trigger_reason_timeout(), trigger_reason_timeout()}
-            ],
-            find_triggered_reason(TenantId, ProviderId, Reasons);
-        false ->
-            {error, not_found}
-    end.
+    %% Find which reason was triggered by checking all possible reasons
+    Reasons = [
+        {trigger_reason_failure_threshold(), trigger_reason_failure_threshold()},
+        {trigger_reason_error_rate(), trigger_reason_error_rate()},
+        {trigger_reason_latency(), trigger_reason_latency()},
+        {trigger_reason_half_open_failure(), trigger_reason_half_open_failure()},
+        {trigger_reason_timeout(), trigger_reason_timeout()}
+    ],
+    find_triggered_reason(TenantId, ProviderId, Reasons).
 
 find_triggered_reason(_TenantId, _ProviderId, []) ->
     {error, not_found};
@@ -292,8 +283,13 @@ clear_metrics() ->
                 router_nats_publish_errors_total
             ],
             lists:foreach(fun(Pattern) ->
-                %% Match all entries with this metric name (with or without labels)
-                MatchSpec = [{{Pattern, '_'}, [], [true]}, {{Pattern}, [], [true]}],
+                %% Match objects where key is {Pattern, Labels} (labeled metrics)
+                %% Object structure: {{MetricName, Labels}, Value}
+                %% Also match non-tuple keys (unlabeled): {MetricName, Value}
+                MatchSpec = [
+                    {{{Pattern, '_'}, '_'}, [], [true]}, 
+                    {{Pattern, '_'}, [], [true]}
+                ],
                 ets:select_delete(router_metrics, MatchSpec)
             end, R10MetricPatterns),
             ok

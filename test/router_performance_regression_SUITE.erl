@@ -29,16 +29,34 @@
     test_regression_ets_table_size/1
 ]).
 
-all() -> [
-    test_regression_sequential_throughput,
-    test_regression_concurrent_throughput,
-    test_regression_latency_p95,
-    test_regression_memory_usage,
-    test_regression_ets_table_size
-].
+-export([groups/0, groups_for_level/1]).
+
+all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc Performance regression tests are heavy-only
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [];
+groups_for_level(full) -> [];  %% Performance tests only run in heavy tier
+groups_for_level(heavy) -> [{group, performance_tests}].
+
+groups() ->
+    [{performance_tests, [sequence], [
+        test_regression_sequential_throughput,
+        test_regression_concurrent_throughput,
+        test_regression_latency_p95,
+        test_regression_memory_usage,
+        test_regression_ets_table_size
+    ]}].
 
 init_per_suite(Config) ->
-    ok = router_test_utils:start_router_app(),
+    ok = router_suite_helpers:start_router_suite(),
     
     %% Create test policy
     TenantId = <<"test_tenant_regression">>,
@@ -68,7 +86,7 @@ end_per_suite(Config) ->
     TenantId = proplists:get_value(tenant_id, Config),
     PolicyId = proplists:get_value(policy_id, Config),
     router_policy_store:delete_policy(TenantId, PolicyId, undefined),
-    router_test_utils:stop_router_app(),
+    router_suite_helpers:stop_router_suite(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -322,4 +340,3 @@ measure_concurrent_throughput(TenantId, PolicyId, RequestCount) ->
     end,
     
     {Throughput, P95}.
-

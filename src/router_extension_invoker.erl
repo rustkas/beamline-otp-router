@@ -139,26 +139,35 @@ invoke_extension(#extension{subject = Subject, timeout_ms = TimeoutMs, retry = R
         {error, Reason} ->
             {error, Reason};
         ok ->
-            _PayloadJson = jsx:encode(Payload),
-            
-            %% Validate timeout (security: prevent abuse)
-            case validate_timeout(TimeoutMs) of
+            %% Validate metadata size (security: prevent DoS)
+            Metadata = maps:get(<<"metadata">>, Request, #{}),
+            case validate_metadata_size(Metadata, Extension) of
                 {error, Reason} ->
                     {error, Reason};
                 ok ->
-                    %% Use retry if configured
-                    MaxRetries = case Retry of
-                        R when is_integer(R), R > 0 -> R;
-                        _ -> 0
-                    end,
+                    _PayloadJson = jsx:encode(Payload),
                     
-                    %% Validate retry count (security: prevent abuse)
-                    case validate_retry_count(MaxRetries) of
-                        {error, Reason} ->
-                            {error, Reason};
+                    %% Validate timeout (security: prevent abuse)
+                    case validate_timeout(TimeoutMs) of
+                        {error, Reason2} ->
+                            {error, Reason2};
                         ok ->
-                            invoke_with_retry_internal(#extension{subject = Subject, timeout_ms = TimeoutMs}, 
-                                                        Request, Context, MaxRetries, MaxRetries)
+                            %% Use retry if configured
+                            RetryCount = case Retry of
+                                R when is_integer(R), R > 0 -> R;
+                                _ -> 0
+                            end,
+                            
+                            %% Validate retry count (security: prevent abuse)
+                            case validate_retry_count(RetryCount) of
+                                {error, Reason3} ->
+                                    {error, Reason3};
+                                ok ->
+                                    %% MaxRetries passed to internal function represents total attempts (Initial + Retries)
+                                    TotalAttempts = RetryCount + 1,
+                                    invoke_with_retry_internal(#extension{subject = Subject, timeout_ms = TimeoutMs}, 
+                                                                Request, Context, TotalAttempts, TotalAttempts)
+                            end
                     end
             end
     end.
@@ -296,6 +305,40 @@ validate_payload_size(Payload, Extension) ->
         false ->
             ok
     end.
+
+%% Internal: Validate metadata size (security: prevent DoS)
+validate_metadata_size(Metadata, Extension) when is_map(Metadata) ->
+    MetadataJson = jsx:encode(Metadata),
+    MetadataSize = byte_size(MetadataJson),
+
+    %% Check per-extension limit first (if configured)
+    ExtensionMaxSize = case Extension#extension.metadata of
+        ExtMeta when is_map(ExtMeta) ->
+            maps:get(<<"max_metadata_size">>, ExtMeta, undefined);
+        _ ->
+            undefined
+    end,
+
+    %% Use extension-specific limit or global limit
+    MaxSize = case ExtensionMaxSize of
+        S when is_integer(S), S > 0 -> S;
+        _ ->
+            application:get_env(beamline_router, extension_max_metadata_size, 65536)  % Default: 64KB
+    end,
+
+    case MetadataSize > MaxSize of
+        true ->
+            {error, {metadata_too_large, #{
+                extension_id => Extension#extension.id,
+                size => MetadataSize,
+                max_size => MaxSize
+            }}};
+        false ->
+            ok
+    end;
+validate_metadata_size(_, _Extension) ->
+    %% Non-map metadata is allowed (empty or undefined)
+    ok.
 
 %% Internal: Validate timeout (security: prevent abuse)
 validate_timeout(TimeoutMs) ->

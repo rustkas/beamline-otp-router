@@ -12,23 +12,62 @@
 -include("beamline_router.hrl").
 
 -compile([export_all, nowarn_export_all]).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
-all() -> [
-    test_nats_protocol_compatibility,
-    test_nats_subject_format,
-    test_nats_message_format_assignment,
-    test_nats_headers_format,
-    test_jetstream_compatibility,
-    test_nats_version_compatibility,
-    test_nats_function_availability
-].
+%% Test function exports
+-export([
+    test_jetstream_compatibility/1,
+    test_nats_function_availability/1,
+    test_nats_headers_format/1,
+    test_nats_message_format_assignment/1,
+    test_nats_protocol_compatibility/1,
+    test_nats_subject_format/1,
+    test_nats_version_compatibility/1
+]).
+
+
+-export([groups_for_level/1]).
+
+all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc NATS compatibility tests run in full tier
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [];
+groups_for_level(full) -> [{group, compatibility_tests}];
+groups_for_level(heavy) -> [{group, compatibility_tests}].
+
+groups() ->
+    [
+        {compatibility_tests, [parallel], [
+            test_nats_protocol_compatibility,
+            test_nats_subject_format,
+            test_nats_message_format_assignment,
+            test_nats_headers_format,
+            test_jetstream_compatibility,
+            test_nats_version_compatibility,
+            test_nats_function_availability
+        ]}
+    ].
 
 init_per_suite(Config) ->
-    ok = router_test_utils:start_router_app(),
-    Config.
+    %% Ensure the real router_nats module is loaded BEFORE any mocking
+    %% This is needed for function_exported checks to work correctly
+    {module, router_nats} = code:ensure_loaded(router_nats),
+    %% Capture the original module exports before mocking
+    Exports = router_nats:module_info(exports),
+    ok = router_suite_helpers:start_router_suite(),
+    [{router_nats_exports, Exports} | Config].
 
 end_per_suite(_Config) ->
-    router_test_utils:stop_router_app(),
+    router_suite_helpers:stop_router_suite(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -112,12 +151,13 @@ test_nats_headers_format(_Config) ->
     ok.
 
 %% @doc Test: JetStream compatibility
-test_jetstream_compatibility(_Config) ->
-    %% Check JetStream functions are available
-    ?assert(erlang:function_exported(router_nats, subscribe_jetstream, 5)),
-    ?assert(erlang:function_exported(router_nats, js_ack, 1)),
-    ?assert(erlang:function_exported(router_nats, js_nak, 2)),
-    ?assert(erlang:function_exported(router_nats, js_dlq, 2)),
+test_jetstream_compatibility(Config) ->
+    %% Check JetStream functions are available (use captured exports from init_per_suite)
+    Exports = proplists:get_value(router_nats_exports, Config),
+    ?assert(lists:member({subscribe_jetstream, 5}, Exports)),
+    ?assert(lists:member({js_ack, 1}, Exports)),
+    ?assert(lists:member({js_nak, 2}, Exports)),
+    ?assert(lists:member({js_dlq, 2}, Exports)),
     
     ok.
 
@@ -128,17 +168,18 @@ test_nats_version_compatibility(_Config) ->
     ok.
 
 %% @doc Test: NATS function availability
-test_nats_function_availability(_Config) ->
-    %% Check core NATS functions
-    ?assert(erlang:function_exported(router_nats, publish, 2)),
-    ?assert(erlang:function_exported(router_nats, publish_with_ack, 3)),
-    ?assert(erlang:function_exported(router_nats, subscribe, 3)),
-    ?assert(erlang:function_exported(router_nats, ack_message, 1)),
-    ?assert(erlang:function_exported(router_nats, nak_message, 1)),
+test_nats_function_availability(Config) ->
+    %% Check core NATS functions (use captured exports from init_per_suite)
+    Exports = proplists:get_value(router_nats_exports, Config),
+    ?assert(lists:member({publish, 2}, Exports)),
+    ?assert(lists:member({publish_with_ack, 3}, Exports)),
+    ?assert(lists:member({subscribe, 3}, Exports)),
+    ?assert(lists:member({ack_message, 1}, Exports)),
+    ?assert(lists:member({nak_message, 1}, Exports)),
     
     %% Check connection management
-    ?assert(erlang:function_exported(router_nats, get_connection_status, 0)),
-    ?assert(erlang:function_exported(router_nats, reconnect, 0)),
+    ?assert(lists:member({get_connection_status, 0}, Exports)),
+    ?assert(lists:member({reconnect, 0}, Exports)),
     
     ok.
 
@@ -150,4 +191,3 @@ is_valid_nats_subject(Subject) when is_binary(Subject) ->
     end;
 is_valid_nats_subject(_) ->
     false.
-

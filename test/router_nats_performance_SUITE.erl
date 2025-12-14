@@ -10,6 +10,7 @@
 
 -export([
     all/0,
+    groups/0,
     init_per_suite/1,
     end_per_suite/1,
     init_per_testcase/2,
@@ -24,19 +25,31 @@
 ]).
 
 all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, performance_tests}];
+groups_for_level(_) ->
+    [].
+
+groups() ->
     [
-        %% Queue performance
-        test_queue_memory_usage_high_traffic,
-        test_queue_processing_time_recovery,
-        test_queue_limit_adequacy,
-        
-        %% Backoff performance
-        test_backoff_delay_calculation,
-        test_backoff_max_delay_limit,
-        
-        %% Retry performance
-        test_retry_storm_prevention,
-        test_retry_fifo_order
+        %% MUST be sequence: tests use meck for router_logger and router_metrics
+        %% parallel + mocking = race conditions on meck:new/unload
+        {performance_tests, [sequence], [
+            test_queue_memory_usage_high_traffic,
+            test_queue_processing_time_recovery,
+            test_queue_limit_adequacy,
+            test_backoff_delay_calculation,
+            test_backoff_max_delay_limit,
+            test_retry_storm_prevention,
+            test_retry_fifo_order
+        ]}
     ].
 
 init_per_suite(Config) ->
@@ -68,6 +81,8 @@ init_per_testcase(_TestCase, Config) ->
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
+    catch meck:unload(router_logger),
+    catch meck:unload(router_metrics),
     ok.
 
 %% ============================================================================
@@ -150,7 +165,7 @@ test_queue_limit_adequacy(_Config) ->
     
     %% Setup tracking
     meck:new(router_logger, [passthrough]),
-    LogCalls = ets:new(log_calls, [set, private]),
+    LogCalls = router_test_init:ensure_ets_table(log_calls, [named_table, set, private]),
     
     meck:expect(router_logger, warn, fun(Message, Context) ->
         ets:insert(LogCalls, {log, warn, Message, Context}),
@@ -184,7 +199,7 @@ test_queue_limit_adequacy(_Config) ->
     true = is_process_alive(RouterNatsPid),
     
     meck:unload(router_logger),
-    ets:delete(LogCalls),
+    ets:delete_all_objects(LogCalls),
     
     ok.
 
@@ -242,7 +257,7 @@ test_retry_storm_prevention(_Config) ->
     
     %% Setup tracking
     meck:new(router_metrics, [passthrough]),
-    MetricCalls = ets:new(metric_calls, [set, private]),
+    MetricCalls = router_test_init:ensure_ets_table(metric_calls, [named_table, set, private]),
     
     meck:expect(router_metrics, inc, fun(MetricName) ->
         ets:insert(MetricCalls, {metric, inc, MetricName, erlang:system_time(millisecond)}),
@@ -298,7 +313,7 @@ test_retry_storm_prevention(_Config) ->
     
     exit(StubPid, normal),
     meck:unload(router_metrics),
-    ets:delete(MetricCalls),
+    ets:delete_all_objects(MetricCalls),
     
     ok.
 
@@ -334,4 +349,3 @@ test_retry_fifo_order(_Config) ->
     exit(StubPid, normal),
     
     ok.
-

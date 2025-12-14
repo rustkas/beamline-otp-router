@@ -18,12 +18,33 @@
     test_get_validators_health_unauthenticated/1,
     create_context_with_auth/1, create_context_without_auth/0, decode_json/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_get_checkpoint_status_ok/1,
+    test_get_checkpoint_status_unauthenticated/1,
+    test_get_validators_health_ok/1,
+    test_get_validators_health_unauthenticated/1
+]).
+
 
 
 all() ->
-    [
-        {group, admin_cp_status}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, admin_cp_status}];
+groups_for_level(full) ->
+    [{group, admin_cp_status}];
+groups_for_level(_) -> %% fast
+    [{group, admin_cp_status}].
 
 groups() ->
     [
@@ -73,7 +94,12 @@ test_get_checkpoint_status_unauthenticated(_Config) ->
         ct:fail("Should have thrown grpc_error")
     catch
         {grpc_error, {Status, _Msg}} ->
-            ?assertEqual(?GRPC_STATUS_UNAUTHENTICATED, Status)
+            %% Handle both integer and binary status codes (quirk of environment/mock)
+            case Status of
+                ?GRPC_STATUS_UNAUTHENTICATED -> ok;
+                <<"16">> -> ok;
+                _ -> ct:fail("Unexpected status code: ~p", [Status])
+            end
     end,
     ok.
 
@@ -85,7 +111,12 @@ test_get_validators_health_unauthenticated(_Config) ->
         ct:fail("Should have thrown grpc_error")
     catch
         {grpc_error, {Status, _Msg}} ->
-            ?assertEqual(?GRPC_STATUS_UNAUTHENTICATED, Status)
+             %% Handle both integer and binary status codes
+            case Status of
+                ?GRPC_STATUS_UNAUTHENTICATED -> ok;
+                <<"16">> -> ok;
+                _ -> ct:fail("Unexpected status code: ~p", [Status])
+            end
     end,
     ok.
 

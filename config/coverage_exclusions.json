@@ -1,0 +1,37 @@
+{
+  "description": "Coverage exclusion configuration for targeted coverage calculation",
+  "version": "1.0.0",
+  
+  "exclude_patterns": [
+    "_pb$",
+    "_template$",
+    "_ctl_",
+    "_cli$"
+  ],
+  
+  "exclude_modules": [
+    "ack_pb",
+    "flow_pb",
+    "result_pb",
+    "router_error_handling_template",
+    "router_gen_server_lifecycle_template",
+    "router_rN_metrics_template",
+    "router_ctl_r10"
+  ],
+  
+  "exclude_reasons": {
+    "*_pb": "Auto-generated protobuf modules - not part of business logic",
+    "*_template": "Template/skeleton modules - reference implementations only",
+    "*_ctl_*": "CLI/control modules - operational tooling, not core router logic"
+  },
+  
+  "include_only": null,
+  
+  "notes": [
+    "Modules matching exclude_patterns or listed in exclude_modules are removed from coverage calculation",
+    "This produces a 'targeted coverage' metric focusing on actual router business logic",
+    "Auto-generated code (protobuf) should not inflate or deflate coverage metrics",
+    "Template modules are reference implementations and may not be fully exercised"
+  ]
+}
+

@@ -89,15 +89,13 @@ check_backpressure_impl(Subject) ->
     
     emit_backpressure_status(Subject, BackpressureActive, Pending, LatencyP95, InFlight),
     
-    %% Track status in history
-    track_backpressure_status_history(Subject, Status),
-    
-    %% Check for recovery
+    %% Check for recovery BEFORE updating history to avoid overwriting previous status
     case Status of
         {backpressure_inactive, _} ->
-            check_backpressure_recovery(Subject);
+            check_backpressure_recovery(Subject),
+            track_backpressure_status_history(Subject, Status);
         _ ->
-            ok
+            track_backpressure_status_history(Subject, Status)
     end,
     
     %% Apply policy to determine action
@@ -825,9 +823,8 @@ get_backpressure_events(Subject) ->
             undefined ->
                 [];
             _Tid ->
-                %% Get events for this subject (last 100)
-                MatchSpec = [{'_', {Subject, '_'}, [], ['$_']}],
-                Events = ets:select(Table, MatchSpec, 100),
+                MatchSpec = [{{'$1', Subject, '$2'}, [], ['$_']}],
+                Events = ets:select(Table, MatchSpec),
                 lists:map(fun({Timestamp, _Subject, EventInfo}) ->
                     maps:merge(EventInfo, #{
                         timestamp => Timestamp,

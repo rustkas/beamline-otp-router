@@ -33,9 +33,14 @@
 ]).
 
 all() ->
-    [
-        {group, unit_tests}
-    ].
+    [].
+
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast
+    [{group, unit_tests}].
 
 groups() ->
     [
@@ -133,15 +138,15 @@ test_publish_assignment_success(_Config) ->
         reason = <<"best_score">>
     },
     
-    meck:new(router_nats, [passthrough]),
+    ok = router_mock_helpers:setup_router_nats_mock(),
     %% Mock publish_with_ack/3 to return success with PubAck ID
-    meck:expect(router_nats, publish_with_ack, fun(_Subject, _Payload, _Headers) -> {ok, <<"ack-123">>} end),
-    
+    router_mock_helpers:expect(router_nats, publish_with_ack, fun(_Subject, _Payload, _Headers) -> {ok, <<"ack-123">>} end),
+
     Result = router_caf_adapter:publish_assignment(Request, Decision),
-    
+
     ?assertEqual(ok, Result),
-    
-    meck:unload(router_nats),
+
+    router_mock_helpers:unload(router_nats),
     ok.
 
 %% Test: Assignment publication failure
@@ -163,16 +168,16 @@ test_publish_assignment_failure(_Config) ->
         reason = <<"best_score">>
     },
     
-    meck:new(router_nats, [passthrough]),
+    ok = router_mock_helpers:setup_router_nats_mock(),
     %% Mock publish_with_ack/3 instead of publish/2
-    meck:expect(router_nats, publish_with_ack, fun(_Subject, _Payload, _Headers) -> {error, connection_failed} end),
-    
+    router_mock_helpers:expect(router_nats, publish_with_ack, fun(_Subject, _Payload, _Headers) -> {error, connection_failed} end),
+
     Result = router_caf_adapter:publish_assignment(Request, Decision),
-    
+
     %% Should return error after retries exhausted
     ?assertEqual(error, Result),
-    
-    meck:unload(router_nats),
+
+    router_mock_helpers:unload(router_nats),
     ok.
 
 %% Test: ExecAssignment format validation
@@ -275,4 +280,3 @@ test_exec_assignment_correlation(_Config) ->
     ?assertEqual(<<"req-correlate">>, maps:get(<<"request_id">>, ExecAssignment)),
     ?assertEqual(<<"tr-correlate">>, maps:get(<<"trace_id">>, maps:get(<<"correlation">>, ExecAssignment))),
     ok.
-

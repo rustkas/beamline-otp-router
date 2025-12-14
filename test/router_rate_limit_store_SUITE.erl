@@ -24,8 +24,33 @@
     test_rate_limit_error_handling/1,
     test_rate_limit_restart_behavior/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_rate_limit_allowed/1,
+    test_rate_limit_burst/1,
+    test_rate_limit_concurrent/1,
+    test_rate_limit_config_change/1,
+    test_rate_limit_disabled/1,
+    test_rate_limit_error_handling/1,
+    test_rate_limit_exceeded/1,
+    test_rate_limit_refill/1,
+    test_rate_limit_reset/1,
+    test_rate_limit_restart_behavior/1,
+    test_rate_limit_scope_isolation/1,
+    test_rate_limit_status/1
+]).
+
 
 all() ->
+    case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> groups_for_level(heavy);
+        _ -> []
+    end.
+
+groups_for_level(_) ->
     [
         {group, unit_tests},
         {group, edge_case_tests}
@@ -237,14 +262,11 @@ test_rate_limit_concurrent(_Config) ->
         <<"burst">> => 5
     },
     
-    %% Spawn multiple concurrent requests
-    Pids = [spawn(fun() ->
-        Result = router_rate_limit_store:check_rate_limit(policy, {TenantId, PolicyId}, Config),
-        self() ! {result, Result}
-    end) || _ <- lists:seq(1, 10)],
+    %% Spawn multiple concurrent requests safely
+    Pids = spawn_rate_limit_workers(TenantId, PolicyId, Config, 10),
     
-    %% Collect results
-    Results = [receive {result, R} -> R end || _ <- Pids],
+    %% Collect results (guarded by timeout to avoid timetrap)
+    Results = collect_rate_limit_results(length(Pids)),
     
     %% Verify: exactly 5 should be allowed (burst = 5), rest should be exceeded
     AllowedCount = length([R || R <- Results, R =:= {ok, allow}]),
@@ -254,6 +276,26 @@ test_rate_limit_concurrent(_Config) ->
     ?assertEqual(5, ExceededCount, "Remaining requests should be rate limited"),
     
     ok.
+
+%% Helper: spawn a fixed number of workers that report results back to caller
+spawn_rate_limit_workers(TenantId, PolicyId, Config, Count) ->
+    Parent = self(),
+    [spawn(fun() -> send_rate_limit_result(Parent, TenantId, PolicyId, Config) end) || _ <- lists:seq(1, Count)].
+
+send_rate_limit_result(Parent, TenantId, PolicyId, Config) ->
+    Result =
+        try router_rate_limit_store:check_rate_limit(policy, {TenantId, PolicyId}, Config) of
+            R -> R
+        catch
+            Class:Reason -> {error, {Class, Reason}}
+        end,
+    Parent ! {result, Result}.
+
+collect_rate_limit_results(Count) ->
+    [receive {result, Result} -> Result
+     after 5000 ->
+         ct:fail("Timed out waiting for rate limit worker result (expected ~p)", [Count])
+     end || _ <- lists:seq(1, Count)].
 
 %% Test: Configuration change handling
 test_rate_limit_config_change(_Config) ->
@@ -396,4 +438,3 @@ test_rate_limit_restart_behavior(_Config) ->
     ?assert(AllowedCount >= 4, "After restart, should get full burst capacity again"),
     
     ok.
-

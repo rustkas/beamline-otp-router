@@ -1,4 +1,7 @@
+# Ensure consistent line endings (LF) for scripts and Erlang source
 *.sh text eol=lf
 *.erl text eol=lf
-*.sh text eol=lf
-*.erl text eol=lf
+*.hrl text eol=lf
+*.config text eol=lf
+*.escript text eol=lf
+Makefile text eol=lf

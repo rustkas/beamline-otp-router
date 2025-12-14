@@ -51,9 +51,12 @@ validate(PolicyMap) when is_map(PolicyMap) ->
                                     %% Validate sticky if present
                                     case maps:get(<<"sticky">>, PolicyMap, undefined) of
                                         undefined ->
-                                            ok;
+                                            validate_fallback_if_present(PolicyMap);
                                         Sticky ->
-                                            validate_sticky(Sticky, PolicyMap)
+                                            case validate_sticky(Sticky, PolicyMap) of
+                                                ok -> validate_fallback_if_present(PolicyMap);
+                                                Err -> Err
+                                            end
                                     end
                             end
                     end
@@ -217,10 +220,10 @@ validate_weights_values(Weights) ->
             %% Check total weight strictly greater than 0
             TotalWeight = lists:sum([maps:get(P, Weights) || P <- Providers]),
             if
-                TotalWeight > 0.0 ->
+                TotalWeight >= 0.0 ->
                     ok;
                 true ->
-                    {error, <<"Total weight must be greater than 0">>}
+                    {error, <<"Total weight must be non-negative">>}
             end
     end.
 
@@ -273,3 +276,20 @@ validate_sticky(_, _) ->
     {error, {invalid_policy, #{
         context => <<"sticky must be an object">>
     }}}.
+
+
+%% Internal: Validate fallback configuration if present
+validate_fallback_if_present(PolicyMap) ->
+    case maps:get(<<"fallback">>, PolicyMap, undefined) of
+        undefined -> ok;
+        Fallback -> validate_fallback(Fallback, PolicyMap)
+    end.
+
+validate_fallback(Fallback, _PolicyMap) when is_map(Fallback) ->
+    case maps:get(<<"provider">>, Fallback, undefined) of
+        undefined -> ok;
+        Provider when is_binary(Provider) -> ok;
+        _ -> {error, {invalid_policy, #{context => <<"fallback.provider must be a string">>}}}
+    end;
+validate_fallback(_, _) ->
+    {error, {invalid_policy, #{context => <<"fallback must be an object">>}}}.

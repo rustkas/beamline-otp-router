@@ -299,7 +299,10 @@ else
     
     # Build suite list
     SUITE_LIST=$(IFS=,; echo "${EXISTING_SUITES[*]}" | sed 's/,/,test\//g' | sed 's/^/test\//')
-    
+
+    # Record start time for baseline
+    START_TIME=$(date +%s)
+
     if time rebar3 ct --suite "$SUITE_LIST"; then
         echo ""
         echo -e "${GREEN}✓ All full tier tests executed${NC}"
@@ -310,9 +313,19 @@ else
         if "$SCRIPT_DIR/ci_full_quality_gates.sh"; then
             echo ""
             echo -e "${GREEN}✓ All quality gates passed - Full tier complete${NC}"
+            
+            # Generate baseline metrics
+            END_TIME=$(date +%s)
+            DURATION=$((END_TIME - START_TIME))
+            "$SCRIPT_DIR/generate_baseline.sh" --parse-ct "$DURATION" "${#EXISTING_SUITES[@]}" 0
         else
             echo ""
             echo -e "${RED}✗ Quality gates failed${NC}"
+            
+            # Still generate baseline with failure status
+            END_TIME=$(date +%s)
+            DURATION=$((END_TIME - START_TIME))
+            "$SCRIPT_DIR/generate_baseline.sh" --parse-ct "$DURATION" "${#EXISTING_SUITES[@]}" 1
             exit 1
         fi
     else
@@ -320,6 +333,11 @@ else
         echo -e "${RED}✗ Some full tier tests failed${NC}"
         # Still run quality gates to get detailed report
         "$SCRIPT_DIR/ci_full_quality_gates.sh" || true
+        
+        # Generate baseline with failure status
+        END_TIME=$(date +%s)
+        DURATION=$((END_TIME - START_TIME))
+        "$SCRIPT_DIR/generate_baseline.sh" --parse-ct "$DURATION" "${#EXISTING_SUITES[@]}" 1
         exit 1
     fi
 fi

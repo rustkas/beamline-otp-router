@@ -22,7 +22,7 @@
 ]}).
 
 %% Common Test callbacks
--export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
 %% Test functions
 -export([
@@ -36,25 +36,45 @@
     test_circuit_breaker_alert_conditions/1
 ]).
 
-all() -> [
-    test_alert_rules_definitions,
-    test_r13_fault_rules,
-    test_circuit_breaker_rules,
-    test_error_rate_rules,
-    test_performance_rules,
-    test_alert_evaluation,
-    test_alert_state_management,
-    test_circuit_breaker_alert_conditions
-].
+all() ->
+    case os:getenv("ROUTER_ENABLE_META") of
+        "1" -> meta_all();
+        "true" -> meta_all();
+        "on" -> meta_all();
+        _ -> []
+    end.
+
+meta_all() ->
+    [].
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast
+    [{group, unit_tests}].
+
+groups() ->
+    [
+        {unit_tests, [], [
+            test_alert_rules_definitions,
+            test_r13_fault_rules,
+            test_circuit_breaker_rules,
+            test_error_rate_rules,
+            test_performance_rules,
+            test_alert_evaluation,
+            test_alert_state_management,
+            test_circuit_breaker_alert_conditions
+        ]}
+    ].
 
 init_per_suite(Config) ->
-    ok = router_test_utils:start_router_app(),
+    ok = router_suite_helpers:start_router_suite(),
     ok = router_metrics:clear_all(),
     ok = router_r10_metrics:clear_metrics(),
     Config.
 
 end_per_suite(_Config) ->
-    router_test_utils:stop_router_app(),
+    router_suite_helpers:stop_router_suite(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -207,4 +227,3 @@ test_circuit_breaker_alert_conditions(_Config) ->
     ?assert(is_map(FilteredConditions)),
     
     ok.
-

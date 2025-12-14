@@ -34,12 +34,57 @@
     %% Generic metric waiter (accepts function, not specific metric)
     wait_for_metric/3,
     wait_for_metric_loop/4,
+    wait_for_metric_in_ets/3,
+    ensure_nats_connected/0,
     %% Debugging utilities
     dump_metrics/0,
-    dump_supervisor_children/0
+    dump_supervisor_children/0,
+    set_env_if_missing/3
 ]).
 
 -include_lib("common_test/include/ct.hrl").
+
+%% @doc Ensure NATS is connected, reconnecting/waiting if necessary
+-spec ensure_nats_connected() -> ok.
+ensure_nats_connected() ->
+    WaitFun = fun() ->
+        case catch router_nats:get_connection_status() of
+            {ok, #{state := connected}} -> true;
+            {ok, connected} -> true;
+            {ok, #{state := disconnected}} ->
+                 catch router_nats:reconnect(),
+                 false;
+            {ok, disconnected} -> 
+                 catch router_nats:reconnect(),
+                 false;
+             _ -> false
+        end
+    end,
+    ensure_nats_connected_loop(WaitFun, 50, 100).
+
+ensure_nats_connected_loop(_, 0, _) -> ct:fail(nats_connection_timeout);
+ensure_nats_connected_loop(Fun, Retries, Delay) ->
+    case Fun() of
+        true -> ok;
+        false -> 
+            timer:sleep(Delay),
+            ensure_nats_connected_loop(Fun, Retries-1, Delay)
+    end.
+
+%% @doc Wait for a specific metric name to appear in the ETS table mocked by router_metrics
+%% Checks if count >= 1
+-spec wait_for_metric_in_ets(ets:tid(), atom(), integer()) -> ok.
+wait_for_metric_in_ets(EtsTable, MetricName, TimeoutMs) ->
+    CheckFun = fun() ->
+        try
+            AllMetrics = ets:tab2list(EtsTable),
+            Matching = [M || {metric, inc, Name} = M <- AllMetrics, Name =:= MetricName],
+            length(Matching)
+        catch
+            _:_ -> 0
+        end
+    end,
+    wait_for_metric(CheckFun, 1, TimeoutMs).
 
 %% @doc Start beamline_router application with standard configuration
 %% Idempotent: safe to call multiple times (checks if already started)
@@ -90,11 +135,11 @@ start_router_app() ->
             end;
         false ->
             _ = application:load(beamline_router),
-            ok = application:set_env(beamline_router, grpc_port, 0),
-            ok = application:set_env(beamline_router, grpc_enabled, false),
-            ok = application:set_env(beamline_router, nats_mode, mock),
-            ok = application:set_env(beamline_router, tracing_enabled, false),
-            ok = application:set_env(beamline_router, disable_heir, true),
+            router_test_utils:set_env_if_missing(beamline_router, grpc_port, 0),
+            router_test_utils:set_env_if_missing(beamline_router, grpc_enabled, false),
+            router_test_utils:set_env_if_missing(beamline_router, nats_mode, mock),
+            router_test_utils:set_env_if_missing(beamline_router, tracing_enabled, false),
+            router_test_utils:set_env_if_missing(beamline_router, disable_heir, true),
             case application:ensure_all_started(beamline_router) of
                 {ok, _} ->
                     %% Wait for supervisor to start all children
@@ -408,4 +453,12 @@ ensure_idem_table() ->
 %% - dump_*/0: Dump component state for debugging
 %% - Uses ct:pal for test output
 %% - Returns list of state information
-
+%% @doc Set application environment variable only if it's currently undefined
+-spec set_env_if_missing(atom(), atom(), term()) -> ok.
+set_env_if_missing(App, Key, Val) ->
+    case application:get_env(App, Key) of
+        undefined ->
+            application:set_env(App, Key, Val);
+        {ok, _} ->
+            ok
+    end.

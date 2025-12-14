@@ -193,6 +193,22 @@ get_metric_metadata(Name) ->
     router_error_total ->
       {"counter", "Total number of router errors"};
     
+    %% ============================================================
+    %% Circuit Breaker metrics (R10)
+    %% Emitted by: router_circuit_breaker.erl
+    %% Labels: tenant_id, provider_id, state/reason/from/to
+    %% ============================================================
+    router_circuit_breaker_state ->
+      {"gauge", "Current circuit breaker state (0=closed, 0.5=half_open, 1=open)"};
+    router_circuit_breaker_state_transitions_total ->
+      {"counter", "Total circuit breaker state transitions"};
+    router_circuit_breaker_trigger_reason ->
+      {"counter", "Count of circuit breaker openings by trigger reason"};
+    
+    %% NATS publish latency (used by latency threshold CB)
+    router_nats_publish_latency_seconds ->
+      {"gauge", "Latest NATS publish latency in seconds"};
+    
     %% Default (unknown metric)
     _ -> 
       {"counter", "Router metric"}

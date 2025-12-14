@@ -79,7 +79,7 @@ verify_gdpr_compliance() ->
         DataRetention = check_data_retention_policies(),
         
         %% Check PII handling
-        PIIHandling = verify_pii_handling(),
+        {ok, PIIHandlingReport} = verify_pii_handling(),
         
         %% Check audit logging
         AuditLogging = check_audit_logging(),
@@ -87,10 +87,10 @@ verify_gdpr_compliance() ->
         Report = #{
             right_to_be_forgotten => RightToBeForgotten,
             data_retention => DataRetention,
-            pii_handling => PIIHandling,
+            pii_handling => PIIHandlingReport,
             audit_logging => AuditLogging,
             compliant => RightToBeForgotten andalso DataRetention andalso
-                        maps:get(compliant, PIIHandling, false) andalso AuditLogging,
+                        maps:get(compliant, PIIHandlingReport, false) andalso AuditLogging,
             timestamp => erlang:system_time(second)
         },
         
@@ -105,27 +105,27 @@ verify_gdpr_compliance() ->
 -spec get_data_retention_policies() -> map().
 get_data_retention_policies() ->
     #{
-        audit_logs => #{
+        <<"audit_logs">> => #{
             retention_days => ?AUDIT_RETENTION_DAYS,
             policy => <<"Audit logs retained for compliance and security">>,
             auto_delete => true
         },
-        application_logs => #{
+        <<"application_logs">> => #{
             retention_days => ?LOG_RETENTION_DAYS,
             policy => <<"Application logs retained for debugging">>,
             auto_delete => true
         },
-        metrics => #{
+        <<"metrics">> => #{
             retention_days => ?METRICS_RETENTION_DAYS,
             policy => <<"Metrics retained for performance monitoring">>,
             auto_delete => true
         },
-        policies => #{
+        <<"policies">> => #{
             retention_days => undefined,
             policy => <<"Policies retained until explicitly deleted">>,
             auto_delete => false
         },
-        rbac_data => #{
+        <<"rbac_data">> => #{
             retention_days => undefined,
             policy => <<"RBAC data retained until explicitly deleted">>,
             auto_delete => false
@@ -254,6 +254,8 @@ check_logger_pii_filter() ->
 %% Internal: Check audit PII handling
 -spec check_audit_pii_handling() -> boolean().
 check_audit_pii_handling() ->
+    %% Ensure module is loaded
+    code:ensure_loaded(router_audit),
     %% Check if audit module exists and handles PII
     case erlang:function_exported(router_audit, get_audit_retention_days, 0) of
         true ->
@@ -345,4 +347,3 @@ binary_to_lowercase(Bin) when is_binary(Bin) ->
     end)>> || <<C>> <= Bin >>;
 binary_to_lowercase(_) ->
     <<>>.
-

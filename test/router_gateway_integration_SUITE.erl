@@ -17,22 +17,58 @@
          test_gateway_to_router_decide/1, test_gateway_to_router_error_handling/1,
          test_gateway_to_router_policy_not_found/1, test_gateway_to_router_rate_limiting/1,
          test_gateway_backpressure_status_query/1, test_gateway_backpressure_notification/1,
-         test_gateway_backpressure_health_check/1, test_gateway_to_router_overload_response/1]).
+         test_gateway_backpressure_health_check/1, test_gateway_to_router_overload_response/1,
+         suite/0, groups_for_level/1]).
 
-all() -> [
-    test_gateway_to_router_decide,
-    test_gateway_to_router_error_handling,
-    test_gateway_to_router_policy_not_found,
-    test_gateway_to_router_rate_limiting,
-    test_gateway_backpressure_status_query,
-    test_gateway_backpressure_notification,
-    test_gateway_backpressure_health_check,
-    test_gateway_to_router_overload_response
-].
+suite() ->
+    [
+        {timetrap, {minutes, 2}}
+    ].
+
+all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc Integration tests run in full tier
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [];
+groups_for_level(full) -> 
+    [
+        test_gateway_to_router_decide,
+        test_gateway_to_router_error_handling,
+        test_gateway_to_router_policy_not_found,
+        test_gateway_to_router_rate_limiting,
+        test_gateway_backpressure_status_query,
+        test_gateway_backpressure_notification,
+        test_gateway_backpressure_health_check,
+        test_gateway_to_router_overload_response
+    ];
+groups_for_level(heavy) -> [{group, integration_tests}].
+
+groups() ->
+    [
+        {integration_tests, [parallel], [
+            test_gateway_to_router_decide,
+            test_gateway_to_router_error_handling,
+            test_gateway_to_router_policy_not_found,
+            test_gateway_to_router_rate_limiting,
+            test_gateway_backpressure_status_query,
+            test_gateway_backpressure_notification,
+            test_gateway_backpressure_health_check,
+            test_gateway_to_router_overload_response
+        ]}
+    ].
 
 init_per_suite(Config) ->
     %% Start Router application
-    ok = router_test_utils:start_router_app(),
+    ok = router_suite_helpers:start_router_suite(),
+    _ = router_test_init:ensure_ets_table(router_jetstream_pending_cache, [named_table, set, public]),
+    _ = router_test_init:ensure_ets_table(router_intake_latency_cache, [named_table, set, public]),
     
     %% Create test policy
     TenantId = <<"test_tenant_gateway">>,
@@ -51,7 +87,7 @@ init_per_suite(Config) ->
         sticky = undefined,
         metadata = #{}
     },
-    {ok, _} = router_policy_store:upsert_policy(TenantId, PolicyId, Policy, undefined),
+    {ok, _} = router_policy_store:upsert_policy(TenantId, Policy),
     
     [{tenant_id, TenantId}, {policy_id, PolicyId} | Config].
 
@@ -59,11 +95,14 @@ end_per_suite(Config) ->
     %% Cleanup
     TenantId = proplists:get_value(tenant_id, Config),
     PolicyId = proplists:get_value(policy_id, Config),
-    router_policy_store:delete_policy(TenantId, PolicyId, undefined),
-    router_test_utils:stop_router_app(),
+    router_policy_store:delete_policy(TenantId, PolicyId),
+    router_suite_helpers:stop_router_suite(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
+    %% Ensure tables exist before clearing (idempotent)
+    _ = router_test_init:ensure_ets_table(router_jetstream_pending_cache, [named_table, set, public]),
+    _ = router_test_init:ensure_ets_table(router_intake_latency_cache, [named_table, set, public]),
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
@@ -121,7 +160,7 @@ test_gateway_to_router_error_handling(_Config) ->
     
     %% Call Router.Decide (should fail)
     case catch router_grpc:decide(Ctx, Request) of
-        {grpc_error, {?GRPC_STATUS_INVALID_ARGUMENT, _}} ->
+        {grpc_error, {3, _}} -> %% INVALID_ARGUMENT = 3
             ok;
         Other ->
             ct:fail({unexpected_result, Other})
@@ -152,7 +191,7 @@ test_gateway_to_router_policy_not_found(Config) ->
     
     %% Call Router.Decide (should fail with NOT_FOUND)
     case catch router_grpc:decide(Ctx, Request) of
-        {grpc_error, {?GRPC_STATUS_NOT_FOUND, _}} ->
+        {grpc_error, {5, _}} -> %% NOT_FOUND = 5
             ok;
         Other ->
             ct:fail({unexpected_result, Other})
@@ -195,17 +234,9 @@ test_gateway_backpressure_status_query(_Config) ->
     
     %% Setup: Create ETS tables for backpressure
     PendingTable = router_jetstream_pending_cache,
-    case ets:whereis(PendingTable) of
-        undefined -> ets:new(PendingTable, [named_table, set, public]);
-        _ -> ok
-    end,
     ets:insert(PendingTable, {Subject, 1200, erlang:system_time(millisecond)}),
     
     LatencyTable = router_intake_latency_cache,
-    case ets:whereis(LatencyTable) of
-        undefined -> ets:new(LatencyTable, [named_table, set, public]);
-        _ -> ok
-    end,
     ets:insert(LatencyTable, {{Subject, p95}, 5500, erlang:system_time(millisecond)}),
     
     %% Get Gateway-formatted status
@@ -230,8 +261,8 @@ test_gateway_backpressure_status_query(_Config) ->
     ?assert(maps:is_key(inflight_messages, Metrics)),
     
     %% Cleanup
-    ets:delete(PendingTable),
-    ets:delete(LatencyTable),
+    ets:delete_all_objects(PendingTable),
+    ets:delete_all_objects(LatencyTable),
     ok.
 
 %% @doc Test: Gateway backpressure notification
@@ -241,10 +272,6 @@ test_gateway_backpressure_notification(_Config) ->
     
     %% Setup: Create backpressure status
     PendingTable = router_jetstream_pending_cache,
-    case ets:whereis(PendingTable) of
-        undefined -> ets:new(PendingTable, [named_table, set, public]);
-        _ -> ok
-    end,
     ets:insert(PendingTable, {Subject, 1500, erlang:system_time(millisecond)}),
     
     %% Get Gateway status
@@ -262,7 +289,7 @@ test_gateway_backpressure_notification(_Config) ->
     ?assertEqual(<<"backpressure_status">>, maps:get(type, Notification)),
     
     %% Cleanup
-    ets:delete(PendingTable),
+    ets:delete_all_objects(PendingTable),
     ok.
 
 %% @doc Test: Gateway backpressure health check
@@ -290,17 +317,9 @@ test_gateway_to_router_overload_response(_Config) ->
     
     %% Setup: Create overload condition
     PendingTable = router_jetstream_pending_cache,
-    case ets:whereis(PendingTable) of
-        undefined -> ets:new(PendingTable, [named_table, set, public]);
-        _ -> ok
-    end,
     ets:insert(PendingTable, {Subject, 1500, erlang:system_time(millisecond)}),
     
     LatencyTable = router_intake_latency_cache,
-    case ets:whereis(LatencyTable) of
-        undefined -> ets:new(LatencyTable, [named_table, set, public]);
-        _ -> ok
-    end,
     ets:insert(LatencyTable, {{Subject, p95}, 6000, erlang:system_time(millisecond)}),
     
     %% Check backpressure status
@@ -322,4 +341,3 @@ test_gateway_to_router_overload_response(_Config) ->
     ets:delete(PendingTable),
     ets:delete(LatencyTable),
     ok.
-

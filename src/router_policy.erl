@@ -71,11 +71,14 @@ load_from_database_or_static(TenantId, PolicyId) ->
 
 %% @doc Parse JSON policy
 parse_policy_json(PolicyJson) when is_binary(PolicyJson) ->
-    case jsx:decode(PolicyJson, [return_maps]) of
+    try jsx:decode(PolicyJson, [return_maps]) of
         Policy when is_map(Policy) ->
             {ok, Policy};
-        Error ->
-            {error, {invalid_json, Error}}
+        _ ->
+            {error, {invalid_json, invalid_structure}}
+    catch
+        error:_ ->
+            {error, {invalid_json, invalid_syntax}}
     end;
 parse_policy_json(PolicyJson) when is_map(PolicyJson) ->
     {ok, PolicyJson};

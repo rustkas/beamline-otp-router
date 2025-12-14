@@ -13,16 +13,37 @@
     test_usage_emit_failed_code/1,
     test_unknown_error_code/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
+%% Test function exports
+-export([
+    test_invalid_status_code/1,
+    test_missing_status_code/1,
+    test_parse_error_code/1,
+    test_tenant_validation_failed_code/1,
+    test_unknown_error_code/1,
+    test_usage_emit_failed_code/1
+]).
+
+
+
+-export([groups_for_level/1]).
 
 all() ->
-    [
-        {group, error_codes}
-    ].
+    [].
+
+%% Unit tests run in all tiers
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast, sanity
+    [{group, unit_tests}].
 
 groups() ->
     [
-        {error_codes, [sequence], [
+        {unit_tests, [sequence], [
             test_parse_error_code,
             test_missing_status_code,
             test_invalid_status_code,

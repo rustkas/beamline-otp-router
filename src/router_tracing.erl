@@ -70,10 +70,12 @@ start_span(SpanName, Attributes, ParentContext) ->
         case should_sample(SpanName) of
             false ->
                 %% Not sampled - return stub span
-                TraceContext = case ParentContext of
-                    undefined -> create_new_context();
-                    _ -> extract_trace_context(ParentContext)
-                end,
+                TraceContext =
+                    ParentContext0 = case ParentContext of
+                        undefined -> create_new_context();
+                        _ -> extract_trace_context(ParentContext)
+                    end,
+                    normalize_trace_context(ParentContext0),
                 Span = create_stub_span(SpanName, Attributes, TraceContext),
                 put(current_span, Span),
                 put(trace_id, maps:get(trace_id, TraceContext, undefined)),
@@ -82,9 +84,9 @@ start_span(SpanName, Attributes, ParentContext) ->
                 %% Sampled - create real span
                 %% Get or create tracer
                 Tracer = get_tracer(),
-                
+
                 %% Extract trace context from parent or create new
-                TraceContext = case ParentContext of
+                TraceContext0 = case ParentContext of
                     undefined ->
                         %% Create new trace context
                         create_new_context();
@@ -92,15 +94,16 @@ start_span(SpanName, Attributes, ParentContext) ->
                         %% Extract trace context from parent
                         extract_trace_context(ParentContext)
                 end,
-                
+                TraceContext = normalize_trace_context(TraceContext0),
+
                 %% Start span with OpenTelemetry
                 Span = start_otel_span(Tracer, SpanName, Attributes, TraceContext),
-                
+
                 %% Store span in process dictionary for context propagation
                 put(current_span, Span),
                 put(trace_id, maps:get(trace_id, TraceContext, undefined)),
                 put(span_id, maps:get(span_id, Span, undefined)),
-                
+
                 {ok, Span}
         end
     catch
@@ -112,10 +115,11 @@ start_span(SpanName, Attributes, ParentContext) ->
                 <<"event">> => <<"span_start_failed">>
             }),
             %% Fallback to stub span
-            FallbackTraceContext = case ParentContext of
+            FallbackTraceContext0 = case ParentContext of
                 undefined -> create_new_context();
                 _ -> extract_trace_context(ParentContext)
             end,
+            FallbackTraceContext = normalize_trace_context(FallbackTraceContext0),
             FallbackSpan = create_stub_span(SpanName, Attributes, FallbackTraceContext),
             put(current_span, FallbackSpan),
             put(trace_id, maps:get(trace_id, FallbackTraceContext, undefined)),
@@ -796,6 +800,11 @@ set_sampling_config(Config) ->
             application:set_env(beamline_router, trace_sampling_strategy, Strategy)
     end,
     ok.
+
+%% Internal: Normalize trace context to a map
+normalize_trace_context(undefined) -> create_new_context();
+normalize_trace_context(Context) when is_map(Context) -> Context;
+normalize_trace_context(_) -> create_new_context().
 
 %% @doc Check if span should be sampled
 -spec should_sample(binary()) -> boolean().

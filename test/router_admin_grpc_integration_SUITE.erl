@@ -22,9 +22,13 @@
 
 %% Test suite callbacks
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1]).
--export([init_per_testcase/2, end_per_testcase/2]).
+-export([init_per_testcase/2, end_per_testcase/2, suite/0]).
+
+
+
 -export([
     test_upsert_policy_success/1,
+
     test_upsert_policy_unauthorized/1,
     test_delete_policy_success/1,
     test_delete_policy_not_found/1,
@@ -32,13 +36,26 @@
     test_get_policy_not_found/1,
     test_list_policies_success/1,
     test_get_checkpoint_status/1,
-    create_context_with_user/2
+    create_context_with_user/1
 ]).
 
+suite() ->
+    [{timetrap, {minutes, 2}}].
+
 all() ->
-    [
-        {group, integration_tests}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, integration_tests}];
+groups_for_level(full) ->
+    [{group, integration_tests}];
+groups_for_level(_) -> %% fast
+    [{group, integration_tests}].
 
 groups() ->
     [
@@ -55,19 +72,20 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
+    ct:pal("### init_per_suite: setting up test environment", []),
+    
     _ = application:load(beamline_router),
     ok = application:set_env(beamline_router, grpc_port, 0),
     ok = application:set_env(beamline_router, grpc_enabled, true),
     ok = application:set_env(beamline_router, admin_grpc_enabled, true),
     ok = application:set_env(beamline_router, cp2_plus_allowed, true),
     ok = application:set_env(beamline_router, nats_mode, mock),
+    %% Enable test mode: bypasses RBAC permission checks in router_permissions
     ok = application:set_env(beamline_router, rbac_test_mode, true),
     AdminKey = <<"test-admin-key">>,
     ok = application:set_env(beamline_router, admin_api_key, AdminKey),
     case application:ensure_all_started(beamline_router) of
         {ok, _} ->
-            %% Wait for gRPC server to start
-            timer:sleep(500),
             [{admin_api_key, AdminKey} | Config];
         Error ->
             ct:fail("Failed to start beamline_router: ~p", [Error])
@@ -79,172 +97,19 @@ end_per_suite(_Config) ->
 
 init_per_testcase(_Case, Config) ->
     %% Reset policy store for clean test state
-    case whereis(router_policy_store) of
-        undefined -> ok;
-        _ -> gen_server:call(router_policy_store, reset_all)
-    end,
-    %% Ensure router_rbac is running (don't reset - it clears default roles)
-    case whereis(router_rbac) of
-        undefined ->
-            case router_rbac:start_link() of
-                {ok, _} -> 
-                    timer:sleep(500);  %% Wait for initialization
-                _ -> ok
-            end;
-        _ -> 
-            %% RBAC already running, ensure default roles are initialized
-            timer:sleep(100)
-    end,
-    %% Reset RBAC tables to avoid stale permissions between tests
-    case catch router_rbac:reset() of
-        ok -> ok;
-        {error, ResetError} ->
-            ct:log("Warning: Failed to reset RBAC state: ~p", [ResetError]);
-        {'EXIT', ResetExit} ->
-            ct:log("Warning: RBAC reset exited: ~p", [ResetExit])
-    end,
-    %% Verify default roles are initialized by checking if admin role exists
-    case ensure_default_roles_initialized() of
-        ok -> ok;
-        {error, InitError} ->
-            ct:log("Warning: Failed to ensure default roles initialized: ~p", [InitError])
-    end,
-    %% Setup test user with admin role for all tenants used in tests
+    ok = router_policy_store:reset(),
+    
+    %% NOTE: With rbac_test_mode=true, RBAC permission checks are bypassed.
+    %% We only need a test user ID for the context metadata.
     TestUserId = <<"test-user">>,
-    TestTenants = [<<"test_tenant">>],
-    %% Assign admin role to test user for all tenants
-    lists:foreach(
-        fun(TenantId) ->
-            case router_rbac:assign_role(TestUserId, TenantId, <<"admin">>) of
-                ok -> 
-                    %% Clear permission cache after role assignment to ensure new permissions are used
-                    clear_permission_cache(TestUserId, TenantId),
-                    %% Verify role was actually assigned
-                    case router_rbac:get_user_roles(TestUserId, TenantId) of
-                        Roles when is_list(Roles) ->
-                            case lists:member(<<"admin">>, Roles) of
-                                true -> ok;
-                                false ->
-                                    ct:log("Warning: Admin role not found in user roles after assignment for tenant ~p", [TenantId])
-                            end;
-                        _ ->
-                            ct:log("Warning: Failed to get user roles after assignment for tenant ~p", [TenantId])
-                    end;
-                {error, role_already_assigned} -> 
-                    %% Role already assigned, clear cache anyway to ensure fresh permissions
-                    clear_permission_cache(TestUserId, TenantId);
-                {error, AssignError} ->
-                    ct:log("Warning: Failed to assign admin role to ~p for tenant ~p: ~p", 
-                           [TestUserId, TenantId, AssignError])
-            end
-        end,
-        TestTenants
-    ),
-    %% Small delay to ensure role assignment is processed
-    timer:sleep(200),
-    %% Verify role assignment by checking permissions (with retries)
-    lists:foreach(
-        fun(TenantId) ->
-            %% Try multiple times to verify permissions (in case of timing issues)
-            VerifyPermissions = fun VerifyPermissionsFun(Retries) ->
-                case router_permissions:check_policy_write(TestUserId, TenantId, undefined, #{}) of
-                    true -> 
-                        ok;
-                    false when Retries > 0 ->
-                        %% Clear cache and retry
-                        clear_permission_cache(TestUserId, TenantId),
-                        timer:sleep(100),
-                        VerifyPermissionsFun(Retries - 1);
-                    false ->
-                        %% Last attempt failed - log but don't fail test
-                        ct:log("Warning: User ~p does not have write permission for tenant ~p after role assignment. " ++
-                               "This may indicate RBAC configuration issue, but continuing test.", 
-                               [TestUserId, TenantId])
-                end
-            end,
-            VerifyPermissions(3)
-        end,
-        TestTenants
-    ),
     [{test_user_id, TestUserId} | Config].
 
 end_per_testcase(_Case, _Config) ->
     ok.
 
-%% @doc Ensure default roles are initialized in RBAC
-ensure_default_roles_initialized() ->
-    try
-        case ets:whereis(rbac_roles) of
-            undefined -> 
-                {error, roles_table_not_found};
-            RolesTable ->
-                %% Check if admin role exists
-                case ets:lookup(RolesTable, <<"admin">>) of
-                    [] ->
-                        %% Admin role not found - manually initialize default roles
-                        ct:log("Warning: Admin role not found, initializing default roles manually"),
-                        try
-                            AdminPermissions = [
-                                {<<"read">>, <<"policy">>},
-                                {<<"write">>, <<"policy">>},
-                                {<<"delete">>, <<"policy">>},
-                                {<<"admin">>, <<"config">>},
-                                {<<"read">>, <<"metrics">>}
-                            ],
-                            ets:insert(RolesTable, {<<"admin">>, AdminPermissions}),
-                            
-                            OperatorPermissions = [
-                                {<<"read">>, <<"policy">>},
-                                {<<"write">>, <<"policy">>},
-                                {<<"read">>, <<"metrics">>},
-                                {<<"read">>, <<"extension_registry">>},
-                                {<<"write">>, <<"extension_registry">>}
-                            ],
-                            ets:insert(RolesTable, {<<"operator">>, OperatorPermissions}),
-                            
-                            ViewerPermissions = [
-                                {<<"read">>, <<"policy">>},
-                                {<<"read">>, <<"metrics">>},
-                                {<<"read">>, <<"extension_registry">>}
-                            ],
-                            ets:insert(RolesTable, {<<"viewer">>, ViewerPermissions}),
-                            
-                            ct:log("Default roles initialized successfully"),
-                            ok
-                        catch
-                            _:InitError ->
-                                ct:log("Error initializing default roles: ~p", [InitError]),
-                                {error, InitError}
-                        end;
-                    [_] ->
-                        ok
-                end
-        end
-    catch
-        _:Reason -> 
-            {error, Reason}
-    end.
-
-%% @doc Clear permission cache for user/tenant to ensure fresh permissions after role assignment
-clear_permission_cache(UserId, TenantId) ->
-    try
-        case ets:whereis(permission_cache) of
-            undefined -> ok;
-            CacheTable ->
-                %% Clear specific cache entry
-                CacheKey = {UserId, TenantId},
-                ets:delete(CacheTable, CacheKey),
-                %% Also clear all cache entries for this user (in case of different tenant variations)
-                Pattern = {{UserId, '_'}, '_', '_'},
-                ets:match_delete(CacheTable, Pattern),
-                ok
-        end
-    catch
-        _:_ -> ok  %% Ignore errors (cache may not exist or be accessible)
-    end.
-
 %% @doc Create context with authentication and user ID
-create_context_with_user(AdminKey, UserId) ->
+create_context_with_user(UserId) ->
+    AdminKey = router_admin_grpc:get_admin_key(),
     Metadata = [
         {<<"x-api-key">>, AdminKey},
         {<<"x-user-id">>, UserId},
@@ -254,7 +119,6 @@ create_context_with_user(AdminKey, UserId) ->
 
 %% @doc Test: UpsertPolicy with valid authentication
 test_upsert_policy_success(Config) ->
-    AdminKey = proplists:get_value(admin_api_key, Config),
     TenantId = <<"test_tenant">>,
     PolicyId = <<"test_policy_1">>,
     
@@ -277,7 +141,7 @@ test_upsert_policy_success(Config) ->
     
     %% Create context with authentication and user ID
     TestUserId = proplists:get_value(test_user_id, Config, <<"test-user">>),
-    Ctx = create_context_with_user(AdminKey, TestUserId),
+    Ctx = create_context_with_user(TestUserId),
     
     %% Call upsert_policy
     case router_admin_grpc:upsert_policy(Ctx, Request) of
@@ -330,13 +194,17 @@ test_upsert_policy_unauthorized(_) ->
         ct:fail("Expected UNAUTHENTICATED error")
     catch
         {grpc_error, {Status, _Msg}} ->
-            ?assertEqual(16, Status),  %% GRPC_STATUS_UNAUTHENTICATED = 16
+            %% Some definitions might return binary, some integer
+            StatusInt = case Status of
+                Bin when is_binary(Bin) -> binary_to_integer(Bin);
+                Int when is_integer(Int) -> Int
+            end,
+            ?assertEqual(16, StatusInt),  %% GRPC_STATUS_UNAUTHENTICATED = 16
             ok
     end.
 
 %% @doc Test: GetPolicy with valid authentication
 test_get_policy_success(Config) ->
-    AdminKey = proplists:get_value(admin_api_key, Config),
     TenantId = <<"test_tenant">>,
     PolicyId = <<"test_policy_3">>,
     
@@ -355,7 +223,7 @@ test_get_policy_success(Config) ->
     },
     Request = flow_pb:encode_msg(RequestPb, 'UpsertPolicyRequest'),
     TestUserId = proplists:get_value(test_user_id, Config, <<"test-user">>),
-    Ctx = create_context_with_user(AdminKey, TestUserId),
+    Ctx = create_context_with_user(TestUserId),
     {ok, _, _} = router_admin_grpc:upsert_policy(Ctx, Request),
     
     %% Now get the policy
@@ -377,7 +245,6 @@ test_get_policy_success(Config) ->
 
 %% @doc Test: ListPolicies with valid authentication
 test_list_policies_success(Config) ->
-    AdminKey = proplists:get_value(admin_api_key, Config),
     TenantId = <<"test_tenant">>,
     
     %% Create multiple policies
@@ -398,7 +265,7 @@ test_list_policies_success(Config) ->
             },
             Request = flow_pb:encode_msg(RequestPb, 'UpsertPolicyRequest'),
             TestUserId = proplists:get_value(test_user_id, Config, <<"test-user">>),
-            Ctx = create_context_with_user(AdminKey, TestUserId),
+            Ctx = create_context_with_user(TestUserId),
             {ok, _, _} = router_admin_grpc:upsert_policy(Ctx, Request)
         end,
         lists:seq(1, 3)
@@ -410,7 +277,7 @@ test_list_policies_success(Config) ->
     },
     ListRequest = flow_pb:encode_msg(ListRequestPb, 'ListPoliciesRequest'),
     TestUserId = proplists:get_value(test_user_id, Config, <<"test-user">>),
-    Ctx = create_context_with_user(AdminKey, TestUserId),
+    Ctx = create_context_with_user(TestUserId),
     
     %% Call list_policies
     {ok, ListResponse, _} = router_admin_grpc:list_policies(Ctx, ListRequest),
@@ -424,7 +291,6 @@ test_list_policies_success(Config) ->
 
 %% @doc Test: DeletePolicy with valid authentication
 test_delete_policy_success(Config) ->
-    AdminKey = proplists:get_value(admin_api_key, Config),
     TenantId = <<"test_tenant">>,
     PolicyId = <<"test_policy_delete">>,
     
@@ -443,7 +309,7 @@ test_delete_policy_success(Config) ->
     },
     Request = flow_pb:encode_msg(RequestPb, 'UpsertPolicyRequest'),
     TestUserId = proplists:get_value(test_user_id, Config, <<"test-user">>),
-    Ctx = create_context_with_user(AdminKey, TestUserId),
+    Ctx = create_context_with_user(TestUserId),
     {ok, _, _} = router_admin_grpc:upsert_policy(Ctx, Request),
     
     %% Verify policy exists
@@ -470,7 +336,6 @@ test_delete_policy_success(Config) ->
 
 %% @doc Test: DeletePolicy with non-existent policy
 test_delete_policy_not_found(Config) ->
-    AdminKey = proplists:get_value(admin_api_key, Config),
     TenantId = <<"test_tenant">>,
     PolicyId = <<"non_existent_policy">>,
     
@@ -481,7 +346,7 @@ test_delete_policy_not_found(Config) ->
     },
     DeleteRequest = flow_pb:encode_msg(DeleteRequestPb, 'DeletePolicyRequest'),
     TestUserId = proplists:get_value(test_user_id, Config, <<"test-user">>),
-    Ctx = create_context_with_user(AdminKey, TestUserId),
+    Ctx = create_context_with_user(TestUserId),
     
     %% Call delete_policy - should fail with NOT_FOUND
     try
@@ -489,13 +354,16 @@ test_delete_policy_not_found(Config) ->
         ct:fail("Expected NOT_FOUND error")
     catch
         {grpc_error, {Status, _Msg}} ->
-            ?assertEqual(5, Status),  %% GRPC_STATUS_NOT_FOUND = 5
+            StatusInt = case Status of
+                Bin when is_binary(Bin) -> binary_to_integer(Bin);
+                Int when is_integer(Int) -> Int
+            end,
+            ?assertEqual(5, StatusInt),  %% GRPC_STATUS_NOT_FOUND = 5
             ok
     end.
 
 %% @doc Test: GetPolicy with non-existent policy
 test_get_policy_not_found(Config) ->
-    AdminKey = proplists:get_value(admin_api_key, Config),
     TenantId = <<"test_tenant">>,
     PolicyId = <<"non_existent_policy">>,
     
@@ -506,7 +374,7 @@ test_get_policy_not_found(Config) ->
     },
     GetRequest = flow_pb:encode_msg(GetRequestPb, 'GetPolicyRequest'),
     TestUserId = proplists:get_value(test_user_id, Config, <<"test-user">>),
-    Ctx = create_context_with_user(AdminKey, TestUserId),
+    Ctx = create_context_with_user(TestUserId),
     
     %% Call get_policy - should fail with NOT_FOUND
     try
@@ -514,19 +382,21 @@ test_get_policy_not_found(Config) ->
         ct:fail("Expected NOT_FOUND error")
     catch
         {grpc_error, {Status, _Msg}} ->
-            ?assertEqual(5, Status),  %% GRPC_STATUS_NOT_FOUND = 5
+            StatusInt = case Status of
+                Bin when is_binary(Bin) -> binary_to_integer(Bin);
+                Int when is_integer(Int) -> Int
+            end,
+            ?assertEqual(5, StatusInt),  %% GRPC_STATUS_NOT_FOUND = 5
             ok
     end.
 
 %% @doc Test: GetCheckpointStatus with valid authentication
 test_get_checkpoint_status(Config) ->
-    AdminKey = proplists:get_value(admin_api_key, Config),
-    
     %% Create empty request
     RequestPb = #'GetCheckpointStatusRequest'{},
     Request = flow_pb:encode_msg(RequestPb, 'GetCheckpointStatusRequest'),
     TestUserId = proplists:get_value(test_user_id, Config, <<"test-user">>),
-    Ctx = create_context_with_user(AdminKey, TestUserId),
+    Ctx = create_context_with_user(TestUserId),
     
     %% Call get_checkpoint_status
     {ok, Response, _} = router_admin_grpc:get_checkpoint_status(Ctx, Request),

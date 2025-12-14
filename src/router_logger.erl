@@ -339,8 +339,21 @@ date_string() ->
 %% @doc Ensure value is binary
 -spec ensure_binary(term()) -> binary().
 ensure_binary(B) when is_binary(B) -> B;
-ensure_binary(L) when is_list(L) -> iolist_to_binary(L);
+ensure_binary(L) when is_list(L) ->
+    %% Check if it's a valid iolist (string-like) vs a complex list (stack trace, etc.)
+    case io_lib:printable_unicode_list(L) of
+        true ->
+            try
+                iolist_to_binary(L)
+            catch
+                _:_ -> iolist_to_binary(io_lib:format("~p", [L]))
+            end;
+        false ->
+            iolist_to_binary(io_lib:format("~p", [L]))
+    end;
 ensure_binary(A) when is_atom(A) -> atom_to_binary(A, utf8);
+ensure_binary(I) when is_integer(I) -> integer_to_binary(I);
+ensure_binary(F) when is_float(F) -> float_to_binary(F);
 ensure_binary(T) -> iolist_to_binary(io_lib:format("~p", [T])).
 
 %% Internal: Sanitize error for logging (masks secrets)

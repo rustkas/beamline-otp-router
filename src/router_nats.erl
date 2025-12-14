@@ -5,6 +5,9 @@
 -export([js_setup_consumer/2, js_ack/1, js_nak/2, js_dlq/2]).
 -export([subscribe_jetstream/5, publish/2, publish_with_ack/3, ack_message/1, nak_message/1, subscribe/3, request/3]).
 -export([get_connection_status/0, reconnect/0]).
+-ifdef(TEST).
+-export([simulate_connection_lost/0]).
+-endif.
 -export([get_connection_health/0, get_jetstream_consumers/0]).
 %% Helper functions for testing
 -export([error_to_reason/1, extract_stream_from_subject/1]).
@@ -155,6 +158,7 @@ handle_call({subscribe_jetstream, Subject, DurableGroup, AckPolicy, DeliverGroup
 handle_call(get_connection_status, _From, State) ->
     Status = build_connection_status(State),
     {reply, {ok, Status}, State};
+%% TEST-ONLY: simulate connection lost via exported function under TEST macro
 handle_call({get_connection_health}, _From, State) ->
     Health = check_connection_health(State),
     {reply, Health, State};
@@ -223,6 +227,13 @@ get_connection_status() ->
 %% @doc Manually trigger reconnect
 reconnect() ->
     gen_server:call(?MODULE, reconnect).
+
+-ifdef(TEST).
+simulate_connection_lost() ->
+    gen_server:call(?MODULE, reconnect),
+    gen_server:cast(?MODULE, {connection_lost, test_injected}),
+    ok.
+-endif.
 
 %% @doc Get connection health status
 get_connection_health() ->
@@ -654,11 +665,12 @@ handle_connection_restored(Pid, State) ->
     erlang:monitor(process, Pid),
     
     Now = erlang:system_time(millisecond),
+    FailOpenConfig = application:get_env(beamline_router, nats_fail_open_mode, false),
     NewState = State#state{
         connection_state = ?CONN_STATE_CONNECTED,
         connection_pid = Pid,
         reconnect_attempts = 0,
-        fail_open_mode = false,
+        fail_open_mode = FailOpenConfig,
         reconnect_timer = undefined,
         last_connection_time = Now,
         connection_health_checks = 0
@@ -1221,22 +1233,22 @@ retry_pending_operations(State) ->
                 end
             end, State#state.pending_operations),
             ReversedOps = lists:reverse(Operations),
-            {Successful, Failed} = lists:partition(fun(Operation) ->
+            {Successful, Failed, NewStateAfter} = lists:foldl(fun(Operation, {Succ, Fail, AccState}) ->
                 case Operation of
                     {publish, Subject, Payload} ->
-                        case do_publish(Subject, Payload, State) of
-                            ok -> true;
-                            _ -> false
+                        case do_publish(Subject, Payload, AccState) of
+                            ok -> {[Operation|Succ], Fail, AccState};
+                            _ -> {Succ, [Operation|Fail], AccState}
                         end;
                     {publish_with_ack, Subject, Payload, Headers} ->
-                        case do_publish_with_ack(Subject, Payload, Headers, State) of
-                            {ok, _} -> true;
-                            _ -> false
+                        case do_publish_with_ack(Subject, Payload, Headers, AccState) of
+                            {ok, _} -> {[Operation|Succ], Fail, AccState};
+                            _ -> {Succ, [Operation|Fail], AccState}
                         end;
                     _ ->
-                        false
+                        {Succ, [Operation|Fail], AccState}
                 end
-            end, ReversedOps),
+            end, {[], [], State}, ReversedOps),
             
             SuccessCount = length(Successful),
             FailCount = length(Failed),
@@ -1252,7 +1264,7 @@ retry_pending_operations(State) ->
             router_metrics:emit_metric(router_nats_pending_operations_retry_failed, #{count => FailCount}, #{}),
             
             %% Clear pending operations (even if some failed - they won't be retried again)
-            State#state{pending_operations = []};
+            NewStateAfter#state{pending_operations = []};
         false ->
             State
     end.

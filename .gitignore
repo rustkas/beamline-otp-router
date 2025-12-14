@@ -5,22 +5,28 @@ ebin/
 deps/
 .rebar3/
 .rebar/
+bin/
 
 ### Cursor / Windsurf / вспомогательные
 .cursor/
 .windsurf/
+.agent/
 *.beam.dump
 
 ### Erlang runtime dumps
 erl_crash.dump
+rebar3.crashdump
 *.dump
 *.beam
+rebar3_new
 
 ### Logs / tmp
 logs/
 log/
 tmp/
 *.log
+*_output.txt
+nats_*.txt
 
 ### OS / редакторы
 .DS_Store
@@ -31,6 +37,10 @@ Thumbs.db
 
 # IDE
 .vscode/
-#.idea/ct_logs/
+
+# Test artifacts (generated)
 ct_logs/
+test_results/
+stress/
+reports/
 

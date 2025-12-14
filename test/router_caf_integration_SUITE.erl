@@ -18,47 +18,88 @@
     test_router_to_caf_assignment_retry/1,
     test_router_to_caf_assignment_failure/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_router_to_caf_assignment/1,
+    test_router_to_caf_assignment_failure/1,
+    test_router_to_caf_assignment_retry/1,
+    suite/0
+]).
+
 
 -compile([export_all, nowarn_export_all]).
 
-all() -> [
-    test_router_to_caf_assignment,
-    test_router_to_caf_assignment_retry,
-    test_router_to_caf_assignment_failure
-].
+suite() ->
+    [
+        {timetrap, {minutes, 2}}
+    ].
+
+all() ->
+    [].
+
+groups_for_level(heavy) ->
+    [{group, integration_tests}];
+groups_for_level(full) ->
+    [{group, integration_tests}];
+groups_for_level(_) -> %% fast
+    [{group, integration_tests}].
+
+groups() ->
+    [
+        {integration_tests, [sequence, shuffle], [
+            test_router_to_caf_assignment,
+            test_router_to_caf_assignment_retry,
+            test_router_to_caf_assignment_failure
+        ]}
+    ].
+
+%% NOTE: Meck lifecycle for router_nats
+%% - meck:new BEFORE starting application (so gen_server uses mocked module)
+%% - meck:reset in init_per_testcase (for each test)
+%% - meck:unload in end_per_suite (once, with catch for safety)
+%% - Never use meck:validate to check if mocked - it throws, not returns false
 
 init_per_suite(Config) ->
-    %% Start Router application
-    ok = router_test_utils:start_router_app(),
+    %% Load application config first but don't start
+    _ = application:load(beamline_router),
+    ok = application:set_env(beamline_router, grpc_port, 0),
+    ok = application:set_env(beamline_router, grpc_enabled, false),
+    ok = application:set_env(beamline_router, nats_mode, mock),
+    ok = application:set_env(beamline_router, tracing_enabled, false),
+    ok = application:set_env(beamline_router, disable_heir, true),
     
-    %% Mock NATS (since we don't have real CAF)
-    meck:new(router_nats, [passthrough]),
-    meck:expect(router_nats, publish_with_ack, fun(_Subject, _Payload, _Headers) -> 
-        {ok, <<"mock_pub_ack_id">>} 
+    %% Mock NATS BEFORE starting application so gen_server uses mocked module
+    ok = router_mock_helpers:setup_router_nats_mock(),
+    meck:expect(router_nats, publish_with_ack, fun(_Subject, _Payload, _Headers) ->
+        {ok, <<"mock_pub_ack_id">>}
     end),
     
-    Config.
+    %% Now start Router application
+    case application:ensure_all_started(beamline_router) of
+        {ok, _} -> Config;
+        Error -> ct:fail("Failed to start beamline_router: ~p", [Error])
+    end.
 
 end_per_suite(_Config) ->
-    meck:unload(router_nats),
+    %% Safe unload - catch error if not mocked
+    router_mock_helpers:unload(router_nats),
     router_test_utils:stop_router_app(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
-    %% Ensure meck is properly initialized
-    case meck:validate(router_nats) of
-        true -> ok;
-        false -> 
-            meck:new(router_nats, [passthrough]),
-            meck:expect(router_nats, publish_with_ack, fun(_Subject, _Payload, _Headers) -> 
-                {ok, <<"mock_pub_ack_id">>} 
-            end)
-    end,
+    ok = router_mock_helpers:setup_router_nats_mock(),
+    router_mock_helpers:reset(router_nats),
+    router_mock_helpers:expect(router_nats, publish_with_ack, fun(_Subject, _Payload, _Headers) ->
+        {ok, <<"mock_pub_ack_id">>}
+    end),
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
-    %% Reset meck history for next test
-    meck:reset(router_nats),
+    %% Just reset history, don't unload
+    router_mock_helpers:reset(router_nats),
     ok.
 
 %% @doc Test: Router → CAF assignment publishing
@@ -85,10 +126,9 @@ test_router_to_caf_assignment(_Config) ->
     %% Publish assignment (as Router would)
     case router_caf_adapter:publish_assignment(RequestMap, Decision) of
         ok ->
-            %% Verify NATS publish_with_ack was called (check history)
-            Calls = meck:history(router_nats),
-            PublishCalls = [C || C <- Calls, element(2, C) =:= publish_with_ack],
-            ?assert(length(PublishCalls) > 0, "NATS publish_with_ack should be called"),
+            %% Verify NATS publish_with_ack was called
+            History = router_nats_test_helper:get_call_history(publish_with_ack),
+            ?assert(length(History) > 0, "NATS publish_with_ack should be called"),
             ok;
         Error ->
             ct:fail({publish_failed, Error})
@@ -134,14 +174,10 @@ test_router_to_caf_assignment_retry(_Config) ->
     %% Publish assignment (should retry)
     case router_caf_adapter:publish_assignment(RequestMap, Decision) of
         ok ->
-            %% Verify NATS publish_with_ack was called multiple times (retry)
-            Calls = meck:history(router_nats),
-            PublishCalls = [C || C <- Calls, 
-                                tuple_size(C) >= 2,
-                                element(1, C) =:= router_nats,
-                                element(2, C) =:= publish_with_ack],
+            %% Verify NATS publish_with_ack was called
+            History = router_nats_test_helper:get_call_history(publish_with_ack),
             %% Allow for at least 1 call (retry may not always trigger in test environment)
-            ?assert(length(PublishCalls) >= 1, "Should have called publish_with_ack at least once"),
+            ?assert(length(History) >= 1, "Should have called publish_with_ack at least once"),
             erase(RetryCount),
             ok;
         Error ->
@@ -183,11 +219,9 @@ test_router_to_caf_assignment_failure(_Config) ->
     case router_caf_adapter:publish_assignment(RequestMap, Decision) of
         error ->
             %% Verify NATS publish_with_ack was called multiple times (retries)
-            Calls = meck:history(router_nats),
-            PublishCalls = [C || C <- Calls, element(2, C) =:= publish_with_ack],
-            ?assert(length(PublishCalls) >= 3, "Should have retried multiple times"),
+            History = router_nats_test_helper:get_call_history(publish_with_ack),
+            ?assert(length(History) >= 3, "Should have retried multiple times"),
             ok;
         ok ->
             ct:fail({unexpected_success})
     end.
-

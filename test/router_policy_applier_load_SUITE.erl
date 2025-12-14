@@ -24,6 +24,19 @@
     test_load_latency_p95/1,
     test_load_latency_p99/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_load_10k_qps/1,
+    test_load_1k_qps/1,
+    test_load_5k_qps/1,
+    test_load_latency_p50/1,
+    test_load_latency_p95/1,
+    test_load_latency_p99/1
+]).
+
 
 %% Define stats record if not already defined
 -ifndef(STATS_RECORD).
@@ -38,14 +51,26 @@
 }).
 -endif.
 
+-export([groups_for_level/1]).
+
 all() ->
-    [
-        {group, load_tests}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc Load tests are heavy-only - they generate high QPS and are slow
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [];
+groups_for_level(full) -> [];  %% Load tests only run in heavy tier
+groups_for_level(heavy) -> [{group, load_tests}].
 
 groups() ->
     [
-        {load_tests, [parallel], [
+        {load_tests, [sequence], [
             test_load_1k_qps,
             test_load_5k_qps,
             test_load_10k_qps,

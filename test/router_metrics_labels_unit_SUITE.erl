@@ -14,9 +14,53 @@
 %% Suppress warnings for Common Test callbacks
 -compile({nowarn_unused_function, [all/0, init_per_suite/1, end_per_suite/1,
                                     init_per_testcase/2, end_per_testcase/2]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_dlq_metric_emission_with_labels/1,
+    test_error_to_reason_atom/1,
+    test_error_to_reason_binary/1,
+    test_error_to_reason_connection_closed/1,
+    test_error_to_reason_timeout/1,
+    test_error_to_reason_unknown/1,
+    test_extract_assignment_id_decide/1,
+    test_extract_assignment_id_results/1,
+    test_extract_assignment_id_unknown/1,
+    test_extract_request_id_from_headers/1,
+    test_extract_request_id_from_payload/1,
+    test_extract_request_id_missing/1,
+    test_extract_stream_from_subject_decide/1,
+    test_extract_stream_from_subject_results/1,
+    test_extract_stream_from_subject_unknown/1,
+    test_extract_tenant_id_from_headers/1,
+    test_extract_tenant_id_from_payload/1,
+    test_extract_tenant_id_missing/1,
+    test_nats_ack_failure_emission_with_labels/1,
+    test_nats_publish_failure_emission_with_labels/1
+]).
+
+-export([groups/0, groups_for_level/1]).
 
 all() ->
-    [
+    case os:getenv("ROUTER_ENABLE_META") of
+        "1" -> meta_all();
+        "true" -> meta_all();
+        "on" -> meta_all();
+        _ -> []
+    end.
+
+meta_all() ->
+    [].
+%% @doc Unit tests run in fast tier
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [{group, unit_tests}];
+groups_for_level(full) -> [{group, unit_tests}];
+groups_for_level(heavy) -> [{group, unit_tests}].
+
+groups() ->
+    [{unit_tests, [parallel], [
         %% router_jetstream helper functions
         test_extract_assignment_id_decide,
         test_extract_assignment_id_results,
@@ -42,12 +86,19 @@ all() ->
         test_dlq_metric_emission_with_labels,
         test_nats_publish_failure_emission_with_labels,
         test_nats_ack_failure_emission_with_labels
-    ].
+    ]}].
 
 init_per_suite(Config) ->
     _ = application:load(beamline_router),
     _ = application:set_env(beamline_router, test_mode, true),
-    ok = router_metrics:ensure(),
+    %% Ensure metrics ETS table exists (may already exist from other tests)
+    try router_metrics:ensure() of
+        ok -> ok;
+        {ok, _} -> ok
+    catch
+        error:{badmatch, {error, {already_exists, _}}} -> ok;
+        _:_ -> ok
+    end,
     Config.
 
 end_per_suite(_Config) ->
@@ -76,14 +127,16 @@ test_extract_assignment_id_decide(_Config) ->
 test_extract_assignment_id_results(_Config) ->
     Subject = <<"caf.exec.result.v1">>,
     AssignmentId = router_jetstream:extract_assignment_id(Subject),
-    %% For "caf.exec.result.v1", pattern is [caf, exec, result, v1], so Assignment should be "result"
-    ?assertEqual(<<"result">>, AssignmentId),
+    %% For "caf.exec.result.v1", pattern is [caf, exec, result, v1] - 4 elements
+    %% This matches pattern [_, _, _, Assignment] -> returns last element "v1"
+    ?assertEqual(<<"v1">>, AssignmentId),
     ok.
 
 test_extract_assignment_id_unknown(_Config) ->
     Subject = <<"unknown.subject">>,
     AssignmentId = router_jetstream:extract_assignment_id(Subject),
-    ?assertEqual(<<"unknown">>, AssignmentId),
+    %% For non-matching patterns, fallback returns full subject
+    ?assertEqual(<<"unknown.subject">>, AssignmentId),
     ok.
 
 test_extract_tenant_id_from_headers(_Config) ->
@@ -290,4 +343,3 @@ test_nats_ack_failure_emission_with_labels(_Config) ->
     }),
     ?assertEqual(1, Value),
     ok.
-

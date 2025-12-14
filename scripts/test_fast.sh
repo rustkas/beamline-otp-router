@@ -8,6 +8,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROUTER_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${ROUTER_DIR}"
 
+# Use local rebar3 built for OTP 27
+export PATH="$(pwd)/bin:$PATH"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -26,7 +29,7 @@ DESCRIPTION:
   - Property-based tests
 
   Fast test suites include:
-  - CP1 smoke tests (router_core_SUITE, router_e2e_smoke_SUITE, etc.)
+  - CP1 smoke tests (router_core_basic_SUITE, router_e2e_smoke_SUITE, etc.)
   - Contract tests (router_gateway_contract_smoke_SUITE)
   - Unit tests (router_caf_adapter_unit_SUITE, router_grpc_SUITE, etc.)
 
@@ -115,68 +118,103 @@ if [ "${ROUTER_TEST_AUTODISCOVERY:-0}" = "1" ]; then
     
     if [ ${#FAST_TEST_SUITES[@]} -eq 0 ]; then
         log_error "Autodiscovery found no fast test suites, falling back to explicit list"
-        # Fall back to explicit list
+        # Fall back to explicit list (same as below)
         FAST_TEST_SUITES=(
-            "router_core_SUITE"              # @test_category cp1_smoke, fast
-            "router_e2e_smoke_SUITE"         # @test_category cp1_smoke, fast
-            "router_rbac_SUITE"              # @test_category cp1_smoke, fast
-            "router_policy_enforcement_SUITE" # @test_category cp1_smoke, fast
-            "router_decider_SUITE"           # @test_category cp1_smoke, fast
-            "router_policy_store_SUITE"       # @test_category cp1_smoke, fast
-            "router_error_SUITE"             # @test_category cp1_smoke, fast
-            "router_grpc_SUITE"              # @test_category fast
-            "router_grpc_integration_SUITE"   # @test_category fast
-            "router_caf_adapter_unit_SUITE"   # @test_category fast
-            "router_core_telemetry_contract_SUITE" # @test_category fast
-            "router_secrets_logging_SUITE"    # @test_category fast
-            "router_nats_contract_validation_SUITE" # @test_category fast
+            "router_core_basic_SUITE"
+            "router_e2e_smoke_SUITE"
+            "router_decider_SUITE"
+            "router_error_SUITE"
+            "router_policy_store_SUITE"
+            "router_policy_enforcement_SUITE"
+            "router_policy_dsl_parsing_SUITE"
+            "router_policy_validator_SUITE"
+            "router_rbac_SUITE"
+            "router_grpc_SUITE"
+            "router_grpc_integration_SUITE"
+            "router_nats_contract_validation_SUITE"
+            "router_caf_adapter_unit_SUITE"
+            "router_core_telemetry_contract_SUITE"
+            "router_metrics_format_SUITE"
+            "router_metrics_labels_unit_SUITE"
+            "router_circuit_breaker_smoke_SUITE"
+            "router_secrets_logging_SUITE"
         )
     else
         log_info "Autodiscovery found ${#FAST_TEST_SUITES[@]} fast test suites"
     fi
 else
     # Explicit list (default behavior)
+    # Covers critical domains: core, policy, NATS, metrics, circuit breaker, gRPC
     FAST_TEST_SUITES=(
-        "router_core_SUITE"              # @test_category cp1_smoke, fast
-        "router_e2e_smoke_SUITE"         # @test_category cp1_smoke, fast
-        "router_rbac_SUITE"              # @test_category cp1_smoke, fast
-        "router_policy_enforcement_SUITE" # @test_category cp1_smoke, fast
-        "router_decider_SUITE"           # @test_category cp1_smoke, fast
-        "router_policy_store_SUITE"       # @test_category cp1_smoke, fast
-        "router_error_SUITE"             # @test_category cp1_smoke, fast
-        "router_grpc_SUITE"              # @test_category fast
-        "router_grpc_integration_SUITE"   # @test_category fast
-        "router_caf_adapter_unit_SUITE"   # @test_category fast
-        "router_core_telemetry_contract_SUITE" # @test_category fast
-        "router_secrets_logging_SUITE"    # @test_category fast
+        # Core domain
+        "router_core_basic_SUITE"              # @test_category cp1_smoke, fast
+        "router_e2e_smoke_SUITE"               # @test_category cp1_smoke, fast
+        "router_decider_SUITE"                 # @test_category cp1_smoke, fast
+        "router_error_SUITE"                   # @test_category cp1_smoke, fast
+        
+        # Policy domain
+        "router_policy_store_SUITE"            # @test_category cp1_smoke, fast
+        "router_policy_enforcement_SUITE"      # @test_category cp1_smoke, fast
+        "router_policy_dsl_parsing_SUITE"      # DSL parsing (from_map/2)
+        "router_policy_validator_SUITE"        # Policy validation
+        
+        # Security domain
+        "router_rbac_SUITE"                    # @test_category cp1_smoke, fast
+        
+        # gRPC domain
+        "router_grpc_SUITE"                    # @test_category fast
+        "router_grpc_integration_SUITE"        # @test_category fast
+        
+        # NATS domain
         "router_nats_contract_validation_SUITE" # @test_category fast
+        
+        # CAF/Adapter domain
+        "router_caf_adapter_unit_SUITE"        # @test_category fast
+        
+        # Metrics/Telemetry domain
+        "router_core_telemetry_contract_SUITE" # @test_category fast
+        "router_metrics_format_SUITE"          # Metrics format validation
+        "router_metrics_labels_unit_SUITE"     # Metrics labels validation
+        
+        # Circuit breaker domain
+        "router_circuit_breaker_smoke_SUITE"   # CB smoke tests
+        
+        # Security/Logging domain
+        "router_secrets_logging_SUITE"         # @test_category fast
     )
 fi
 
 # Slow test suites (excluded from fast run)
+# NOTE: Suite names updated to match current split structure
 SLOW_TEST_SUITES=(
     "router_jetstream_e2e_SUITE"           # Heavy JetStream E2E tests
     "router_delivery_count_tracking_SUITE"  # JetStream delivery count
-    "router_result_consumer_SUITE"          # May use JetStream features
+    "router_result_consumer_core_SUITE"     # Result consumer (core)
+    "router_result_consumer_faults_SUITE"   # Result consumer (faults)
     "router_caf_adapter_SUITE"              # May use JetStream features
     "router_caf_adapter_enhanced_SUITE"     # Enhanced features
+    "router_caf_adapter_advanced_SUITE"     # Advanced CAF tests
     "router_nats_subscriber_caf_SUITE"      # NATS/JetStream integration
     "router_decider_prop_SUITE"             # Property-based tests
     "router_policy_store_prop_SUITE"        # Property-based tests
     "router_normalize_boolean_prop_SUITE"   # Property-based tests
-    "router_options_merge_prop_SUITE"      # Property-based tests
+    "router_options_merge_prop_SUITE"       # Property-based tests
     "router_policy_store_load_SUITE"        # Load tests
-    "router_idempotency_SUITE"              # CP2+ idempotency
+    "router_idem_core_SUITE"                # Idempotency core
+    "router_idempotency_core_SUITE"         # Idempotency core (alias)
     "router_tenant_allowlist_SUITE"         # CP2+ tenant validation
     "router_policy_store_fault_tolerance_SUITE"  # Fault tolerance
     "router_admin_grpc_integration_SUITE"   # CP2+ admin gRPC
     "router_admin_grpc_concurrency_SUITE"   # CP2+ concurrency
-    "router_assignment_SUITE"                # Assignment handling
-    "router_sticky_store_SUITE"              # Sticky session store
-    "router_policy_SUITE"                     # Policy management
-    "router_policy_validator_SUITE"          # Policy validation
-    "router_ets_guard_SUITE"                 # ETS guard tests
-    "router_error_status_SUITE"               # Error status handling
+    "router_assignment_SUITE"               # Assignment handling
+    "router_sticky_store_SUITE"             # Sticky session store
+    "router_policy_SUITE"                   # Policy management
+    "router_policy_validator_SUITE"         # Policy validation
+    "router_ets_guard_SUITE"                # ETS guard tests
+    "router_error_status_SUITE"             # Error status handling
+    "router_decide_consumer_core_SUITE"     # Decide consumer (core)
+    "router_decide_consumer_faults_SUITE"   # Decide consumer (faults)
+    "router_decide_consumer_heavy_SUITE"    # Decide consumer (heavy)
 )
 
 echo -e "${YELLOW}Fast Test Suites (${#FAST_TEST_SUITES[@]} suites):${NC}"
@@ -190,6 +228,9 @@ for suite in "${SLOW_TEST_SUITES[@]}"; do
     echo "  ✗ ${suite}"
 done
 echo ""
+
+# Static lint of suites before running CT
+erl -noshell -pa test -pa test_support -eval 'case compile:file("test_support/router_suite_linter", [report]) of {ok, _} -> ok; Error -> io:format("router_suite_linter compile failed: ~p~n", [Error]), halt(1) end, case router_suite_linter:run() of ok -> halt(0); {error, Issues} -> io:format("router_suite_linter failed (~p issues)~n", [length(Issues)]), halt(1) end.'
 
 # Check if rebar3 is available
 if ! command -v rebar3 &> /dev/null; then
@@ -231,4 +272,3 @@ else
 fi
 
 exit ${EXIT_CODE}
-

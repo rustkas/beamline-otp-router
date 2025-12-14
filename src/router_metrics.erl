@@ -25,7 +25,15 @@
 
 ensure() ->
   case ets:info(router_metrics) of
-    undefined -> _ = ets:new(router_metrics, [named_table, public, {read_concurrency, true}, {write_concurrency, true}]), ok;
+    undefined ->
+      try
+        _ = ets:new(router_metrics, [named_table, public, {read_concurrency, true}, {write_concurrency, true}]),
+        ok
+      catch
+        error:badarg ->
+          %% Table was created by another process between check and create
+          ok
+      end;
     _ -> ok
   end.
 

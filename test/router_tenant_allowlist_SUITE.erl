@@ -18,12 +18,37 @@
     test_allowlist_map_string_keys/1,
     test_undefined_tenant_id_with_allowlist/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_allowlist_binary_tenants/1,
+    test_allowlist_map_binary_keys/1,
+    test_allowlist_map_string_keys/1,
+    test_allowlist_mixed_types/1,
+    test_allowlist_string_tenants/1,
+    test_tenant_id_binary_matches_string_allowlist/1,
+    test_tenant_id_string_matches_binary_allowlist/1,
+    test_undefined_tenant_id_with_allowlist/1
+]).
+
 
 
 all() ->
-    [
-        {group, unit_tests}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast
+    [{group, unit_tests}].
 
 groups() ->
     [

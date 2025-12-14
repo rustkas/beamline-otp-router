@@ -56,11 +56,27 @@ end_per_suite(Config) ->
     Config.
 
 init_per_testcase(_TestCase, Config) ->
-    meck:new(router_nats, [passthrough]),
+    meck:new(router_nats, []),
+
+    %% IMPORTANT:
+    %% Do NOT passthrough functions that call gen_server:call(router_nats, ...)
+    %% Otherwise tests become nondeterministic (noproc/already_started) when router_nats
+    %% is not started or is being killed/restarted by the supervisor.
+    meck:expect(router_nats, publish_with_ack, fun(_Subject, _Payload) ->
+        {error, connection_closed}
+    end),
+    meck:expect(router_nats, publish_with_ack, fun(_Subject, _Payload, _Headers) ->
+        {error, connection_closed}
+    end),
+    meck:expect(router_nats, subscribe_jetstream, fun(_Subject, _Stream, _AckPolicy, _Durable, _DeliverMode) ->
+        {error, connection_closed}
+    end),
+    meck:expect(router_nats, nak_message, fun(_MsgId) -> ok end),
+    meck:expect(router_nats, ack_message, fun(_MsgId) -> ok end),
     Config.
 
 end_per_testcase(_TestCase, Config) ->
-    meck:unload(router_nats),
+    (catch meck:unload(router_nats)),
     %% Clean up ETS tables if needed
     case ets:whereis(router_delivery_count) of
         undefined -> ok;

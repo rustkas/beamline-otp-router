@@ -15,12 +15,35 @@
     test_cp1_blocks_admin_grpc/1,
     test_cp2_allows_cp2_features/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
+%% Test function exports
+-export([
+    test_cp1_blocks_ack_consumer/1,
+    test_cp1_blocks_admin_grpc/1,
+    test_cp1_blocks_idempotency/1,
+    test_cp2_allows_cp2_features/1
+]).
+
+
+
+-export([groups_for_level/1]).
 
 all() ->
-    [
-        {group, cp1_enforcement_tests}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc CP1 minimal mode tests involve app restarts, so they run in full tier
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [];
+groups_for_level(full) -> [{group, cp1_enforcement_tests}];
+groups_for_level(heavy) -> [{group, cp1_enforcement_tests}].
 
 groups() ->
     [

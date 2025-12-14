@@ -5,6 +5,7 @@
 %% CP2: OpenTelemetry tracing integration
 -module(router_policy_applier).
 -export([apply_policy/3, apply_policy/4]).
+-export([from_map/2]).  %% DSL parsing: convert map to #policy{}
 
 -include("beamline_router.hrl").
 
@@ -556,31 +557,179 @@ extract_extensions(Policy) ->
 
 %% Internal: Check policy rate limit
 check_policy_rate_limit(Policy, TenantId, PolicyId) ->
-    #policy{
-        rate_limit = RateLimit
-    } = Policy,
-    
+    #policy{rate_limit = RateLimit} = Policy,
     case RateLimit of
         undefined ->
-            %% No rate limit configured, allow
             {ok, allow};
         RateLimitMap when is_map(RateLimitMap) ->
-            %% Check if rate limiting is enabled
             Enabled = maps:get(<<"enabled">>, RateLimitMap, false),
             case Enabled of
                 false ->
                     {ok, allow};
                 true ->
-                    %% Check rate limit using rate limit store
                     case router_rate_limit_store:check_rate_limit(policy, {TenantId, PolicyId}, RateLimitMap) of
-                        {ok, allow} ->
-                            {ok, allow};
-                        {error, {rate_limit_exceeded, Details}} ->
-                            {error, {rate_limit_exceeded, Details}}
+                        {ok, allow} -> {ok, allow};
+                        {error, {rate_limit_exceeded, Details}} -> {error, {rate_limit_exceeded, Details}};
+                        Other -> {error, {rate_limit_error, Other}}
                     end
             end;
         _ ->
-            %% Invalid rate limit configuration, allow (fail open)
             {ok, allow}
     end.
 
+%% ============================================================================
+%% DSL Parsing: from_map/2
+%% ============================================================================
+
+%% @doc Parse a policy map (JSON-like) into a #policy{} record
+%% Used for Policy DSL/CP1 rule parsing
+%% @param TenantId The tenant identifier
+%% @param PolicyMap A map representing a policy in DSL format
+%% @returns #policy{} record
+-spec from_map(binary(), map()) -> #policy{}.
+from_map(TenantId, PolicyMap) when is_binary(TenantId), is_map(PolicyMap) ->
+    PolicyId = maps:get(<<"policy_id">>, PolicyMap, <<"default">>),
+    
+    %% Parse providers array into weights map, or use legacy weights format
+    Weights = case maps:get(<<"providers">>, PolicyMap, undefined) of
+        undefined ->
+            %% Check for legacy <<"weights">> format (direct map)
+            case maps:get(<<"weights">>, PolicyMap, undefined) of
+                undefined -> #{};
+                LegacyWeights when is_map(LegacyWeights) -> LegacyWeights;
+                _ -> #{}
+            end;
+        Providers when is_list(Providers) ->
+            parse_providers(Providers);
+        _ -> #{}
+    end,
+    
+    %% Parse fallbacks array
+    Fallbacks = parse_fallbacks(maps:get(<<"fallbacks">>, PolicyMap, [])),
+    
+    %% Parse legacy fallback (single object)
+    Fallback = maps:get(<<"fallback">>, PolicyMap, undefined),
+    
+    %% Parse sticky session configuration
+    Sticky = parse_sticky(maps:get(<<"sticky">>, PolicyMap, undefined)),
+    
+    %% Parse extensions
+    Extensions = maps:get(<<"extensions">>, PolicyMap, #{}),
+    Pre = parse_extensions_list(maps:get(<<"pre">>, Extensions, [])),
+    Validators = parse_extensions_list(maps:get(<<"validators">>, Extensions, [])),
+    Post = parse_extensions_list(maps:get(<<"post">>, Extensions, [])),
+    
+    %% Parse rate limit and circuit breaker
+    RateLimit = maps:get(<<"rate_limit">>, PolicyMap, undefined),
+    CircuitBreaker = maps:get(<<"circuit_breaker">>, PolicyMap, undefined),
+    
+    %% Parse metadata
+    Metadata = maps:get(<<"metadata">>, PolicyMap, #{}),
+    
+    #policy{
+        tenant_id = TenantId,
+        policy_id = PolicyId,
+        weights = Weights,
+        fallback = Fallback,
+        fallbacks = Fallbacks,
+        sticky = Sticky,
+        rate_limit = RateLimit,
+        circuit_breaker = CircuitBreaker,
+        pre = Pre,
+        validators = Validators,
+        post = Post,
+        metadata = Metadata
+    }.
+
+%% @doc Parse providers array into weights map
+%% Converts [{id, weight}, ...] array to #{provider_id => normalized_weight}
+-spec parse_providers(list()) -> map().
+parse_providers(Providers) when is_list(Providers) ->
+    %% Calculate total weight for normalization
+    TotalWeight = lists:foldl(fun(Provider, Acc) ->
+        Weight = maps:get(<<"weight">>, Provider, 0),
+        Acc + Weight
+    end, 0, Providers),
+    
+    %% Build weights map with normalized weights
+    lists:foldl(fun(Provider, Acc) ->
+        Id = maps:get(<<"id">>, Provider, undefined),
+        Weight = maps:get(<<"weight">>, Provider, 0),
+        NormalizedWeight = case TotalWeight of
+            0 -> 0.0;
+            _ -> Weight / TotalWeight
+        end,
+        case Id of
+            undefined -> Acc;
+            _ -> maps:put(Id, NormalizedWeight, Acc)
+        end
+    end, #{}, Providers);
+parse_providers(_) ->
+    #{}.
+
+%% @doc Parse fallbacks array
+%% Each fallback has: when conditions, to provider, retry config
+-spec parse_fallbacks(list()) -> list().
+parse_fallbacks(Fallbacks) when is_list(Fallbacks) ->
+    lists:map(fun(Fallback) ->
+        WhenConditions = maps:get(<<"when">>, Fallback, []),
+        ToProvider = maps:get(<<"to">>, Fallback, undefined),
+        Retry = maps:get(<<"retry">>, Fallback, undefined),
+        #{
+            when_conditions => WhenConditions,
+            to => ToProvider,
+            retry => Retry
+        }
+    end, Fallbacks);
+parse_fallbacks(_) ->
+    [].
+
+%% @doc Parse sticky session configuration
+%% Converts TTL strings like "5m", "1h" to milliseconds
+-spec parse_sticky(map() | undefined) -> map() | undefined.
+parse_sticky(undefined) -> undefined;
+parse_sticky(Sticky) when is_map(Sticky) ->
+    Enabled = maps:get(<<"enabled">>, Sticky, false),
+    Key = maps:get(<<"key">>, Sticky, <<"session_id">>),
+    TtlStr = maps:get(<<"ttl">>, Sticky, <<"5m">>),
+    TtlMs = parse_duration_to_ms(TtlStr),
+    #{
+        enabled => Enabled,
+        key => Key,
+        ttl_ms => TtlMs
+    };
+parse_sticky(_) -> undefined.
+
+%% @doc Parse duration string to milliseconds
+%% Supports: "5m" (minutes), "1h" (hours), "30s" (seconds)
+-spec parse_duration_to_ms(binary() | integer()) -> integer().
+parse_duration_to_ms(Ms) when is_integer(Ms) -> Ms;
+parse_duration_to_ms(DurationStr) when is_binary(DurationStr) ->
+    DurationList = binary_to_list(DurationStr),
+    case re:run(DurationList, "^([0-9]+)([smh])$", [{capture, all_but_first, list}]) of
+        {match, [NumStr, "s"]} ->
+            list_to_integer(NumStr) * 1000;
+        {match, [NumStr, "m"]} ->
+            list_to_integer(NumStr) * 60 * 1000;
+        {match, [NumStr, "h"]} ->
+            list_to_integer(NumStr) * 60 * 60 * 1000;
+        _ ->
+            %% Default: treat as milliseconds
+            case catch list_to_integer(DurationList) of
+                Ms when is_integer(Ms) -> Ms;
+                _ -> 300000  %% Default: 5 minutes
+            end
+    end.
+
+%% @doc Parse extensions list
+%% Each extension has: id, config (optional)
+-spec parse_extensions_list(list()) -> list().
+parse_extensions_list(Extensions) when is_list(Extensions) ->
+    lists:map(fun(Ext) ->
+        #{
+            id => maps:get(<<"id">>, Ext, undefined),
+            config => maps:get(<<"config">>, Ext, #{})
+        }
+    end, Extensions);
+parse_extensions_list(_) ->
+    [].

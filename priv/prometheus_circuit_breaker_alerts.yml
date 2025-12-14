@@ -1,0 +1,249 @@
+# Circuit Breaker Alert Rules for Prometheus
+# Deploy to: /etc/prometheus/rules/circuit_breaker_alerts.yml
+# Reload: curl -X POST http://localhost:9090/-/reload
+#
+# Integration with existing infrastructure:
+#   1. Copy this file to Prometheus rules directory
+#   2. Add to prometheus.yml: rule_files: ["circuit_breaker_alerts.yml"]
+#   3. Reload Prometheus: curl -X POST http://localhost:9090/-/reload
+#
+# Metrics emitted by router_circuit_breaker.erl:
+#   - router_circuit_breaker_state{tenant_id, provider_id, state}
+#   - router_circuit_breaker_state_transitions_total{tenant_id, provider_id, from, to}
+#   - router_circuit_breaker_trigger_reason{tenant_id, provider_id, reason}
+#
+# Testing and CI:
+#   - Test suite: router_alerts_test_SUITE.erl
+#   - Business problems map: test/BUSINESS_PROBLEMS_MAP.md
+#   - CI chaos tests: make test-chaos-ci (requires Docker+NATS)
+#   - Validate queries: scripts/validate_prometheus_queries.sh
+
+groups:
+  - name: circuit_breaker_state_alerts
+    interval: 30s
+    rules:
+      # === CRITICAL: Latency Threshold Triggered ===
+      # This alert fires when CB opens due to latency - indicates provider performance issues
+      - alert: CircuitBreakerLatencyThresholdExceeded
+        expr: |
+          sum by (tenant_id, provider_id) (
+            increase(router_circuit_breaker_trigger_reason{reason="latency_threshold_exceeded"}[5m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+          component: circuit_breaker
+        annotations:
+          summary: "Circuit breaker opened due to high latency"
+          description: |
+            Circuit breaker for tenant={{ $labels.tenant_id }} provider={{ $labels.provider_id }}
+            was triggered by latency threshold.
+            Action: Check provider latency metrics and consider adjusting latency_threshold_ms.
+          runbook_url: "https://wiki.example.com/runbooks/circuit-breaker-latency"
+          dashboard_url: "https://grafana.example.com/d/circuit-breaker?var-tenant={{ $labels.tenant_id }}&var-provider={{ $labels.provider_id }}"
+
+      # === CRITICAL: Failure Threshold Triggered ===
+      - alert: CircuitBreakerFailureThresholdExceeded
+        expr: |
+          sum by (tenant_id, provider_id) (
+            increase(router_circuit_breaker_trigger_reason{reason="failure_threshold_exceeded"}[5m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+          component: circuit_breaker
+        annotations:
+          summary: "Circuit breaker opened due to failure count"
+          description: |
+            Circuit breaker for tenant={{ $labels.tenant_id }} provider={{ $labels.provider_id }}
+            exceeded failure threshold (default: 5 failures).
+            Action: Check provider health and NATS connectivity.
+          runbook_url: "https://wiki.example.com/runbooks/circuit-breaker-failures"
+
+      # === CRITICAL: Error Rate Triggered ===
+      - alert: CircuitBreakerErrorRateExceeded
+        expr: |
+          sum by (tenant_id, provider_id) (
+            increase(router_circuit_breaker_trigger_reason{reason="error_rate_threshold_exceeded"}[5m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+          component: circuit_breaker
+        annotations:
+          summary: "Circuit breaker opened due to high error rate"
+          description: |
+            Circuit breaker for tenant={{ $labels.tenant_id }} provider={{ $labels.provider_id }}
+            exceeded error rate threshold (default: 50%).
+            Action: Investigate upstream provider errors.
+
+      # === HIGH: Half-Open Failures (provider still unhealthy) ===
+      - alert: CircuitBreakerHalfOpenFailures
+        expr: |
+          sum by (tenant_id, provider_id) (
+            rate(router_circuit_breaker_trigger_reason{reason="half_open_failure"}[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+          component: circuit_breaker
+        annotations:
+          summary: "Circuit breaker repeatedly failing in half-open state"
+          description: |
+            Provider {{ $labels.provider_id }} for tenant {{ $labels.tenant_id }}
+            is repeatedly failing health checks (half-open test calls).
+            This indicates persistent provider issues.
+            Action: Consider manual intervention or provider replacement.
+
+      # === CRITICAL: Multiple Circuits Open ===
+      - alert: MultipleCircuitBreakersOpen
+        expr: |
+          count by (tenant_id) (
+            router_circuit_breaker_state{state="open"} == 1
+          ) > 3
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          component: circuit_breaker
+        annotations:
+          summary: "Multiple circuit breakers open for tenant"
+          description: |
+            {{ $value }} circuit breakers are open for tenant {{ $labels.tenant_id }}.
+            This may indicate widespread provider issues or network problems.
+            Action: Check network connectivity and provider cluster health.
+
+      # === WARNING: Circuit Breaker Open Too Long ===
+      - alert: CircuitBreakerOpenTooLong
+        expr: |
+          (router_circuit_breaker_state{state="open"} == 1)
+          and on(tenant_id, provider_id)
+          (time() - max by(tenant_id, provider_id)(router_circuit_breaker_last_transition_timestamp) > 600)
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          component: circuit_breaker
+        annotations:
+          summary: "Circuit breaker has been open for over 10 minutes"
+          description: |
+            Circuit breaker for {{ $labels.provider_id }} (tenant: {{ $labels.tenant_id }})
+            has been open for more than 10 minutes without recovery.
+            Action: Manual investigation required.
+
+      # === WARNING: Circuit Breaker Flapping ===
+      - alert: CircuitBreakerFlapping
+        expr: |
+          sum by (tenant_id, provider_id) (
+            increase(router_circuit_breaker_state_transitions_total[10m])
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          component: circuit_breaker
+        annotations:
+          summary: "Circuit breaker is flapping"
+          description: |
+            Circuit breaker for {{ $labels.provider_id }} (tenant: {{ $labels.tenant_id }})
+            has transitioned {{ $value }} times in the last 10 minutes.
+            This indicates unstable provider behavior.
+            Action: Consider increasing timeout_ms or adjusting thresholds.
+
+  - name: circuit_breaker_recording_rules
+    interval: 30s
+    rules:
+      # === Recording rules for dashboards ===
+      
+      # Current state by tenant/provider (1=open, 0=closed, 0.5=half_open)
+      - record: router:circuit_breaker_state:current
+        expr: |
+          max by (tenant_id, provider_id) (
+            router_circuit_breaker_state{state="open"} * 1
+            or
+            router_circuit_breaker_state{state="half_open"} * 0.5
+            or
+            router_circuit_breaker_state{state="closed"} * 0
+          )
+
+      # Transition rate per minute
+      - record: router:circuit_breaker_transitions:rate1m
+        expr: |
+          sum by (tenant_id, provider_id, from, to) (
+            rate(router_circuit_breaker_state_transitions_total[1m])
+          )
+
+      # Trigger reason counts over 5m
+      - record: router:circuit_breaker_triggers:5m
+        expr: |
+          sum by (tenant_id, provider_id, reason) (
+            increase(router_circuit_breaker_trigger_reason[5m])
+          )
+
+      # Open circuit count per tenant
+      - record: router:circuit_breaker_open_count:by_tenant
+        expr: |
+          count by (tenant_id) (
+            router_circuit_breaker_state{state="open"} == 1
+          )
+
+      # Provider health score (0=all circuits open, 1=all closed)
+      - record: router:provider_health_score
+        expr: |
+          1 - clamp_max(
+            count by (tenant_id) (router_circuit_breaker_state{state="open"} == 1)
+            /
+            count by (tenant_id) (router_circuit_breaker_state),
+            1
+          )
+
+  # ============================================================================
+  # NATS Publishing Alerts (consolidated - only critical)
+  # ============================================================================
+  - name: nats_publishing_alerts
+    interval: 30s
+    rules:
+      # === CRITICAL: NATS Connection Lost ===
+      - alert: NATSConnectionLost
+        expr: router_nats_connection_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          component: nats
+        annotations:
+          summary: "NATS connection is down"
+          description: "Router lost NATS connection. Check cluster availability."
+
+      # === WARNING: NATS Unhealthy (failures OR high latency OR retries) ===
+      - alert: NATSUnhealthy
+        expr: |
+          (sum(rate(router_nats_publish_failures_total[5m])) > 0.1)
+          or
+          (histogram_quantile(0.95, sum(rate(router_nats_publish_latency_seconds_bucket[5m])) by (le)) > 0.5)
+          or
+          (sum(rate(router_nats_publish_retries_total[5m])) / (sum(rate(router_nats_publish_attempts_total[5m])) + 1) > 0.2)
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+          component: nats
+        annotations:
+          summary: "NATS publishing unhealthy"
+          description: "High failure rate, latency, or retries. Check NATS cluster."
+
+  # ============================================================================
+  # Recording Rules (kept for dashboards)
+  # ============================================================================
+  - name: router_recording_rules
+    interval: 30s
+    rules:
+      - record: router:nats_publish_success_rate:5m
+        expr: 1 - (sum(rate(router_nats_publish_failures_total[5m])) / (sum(rate(router_nats_publish_attempts_total[5m])) + 1))
+
+      - record: router:nats_publish_latency_avg:5m
+        expr: sum(rate(router_nats_publish_latency_seconds_sum[5m])) / (sum(rate(router_nats_publish_latency_seconds_count[5m])) + 1)

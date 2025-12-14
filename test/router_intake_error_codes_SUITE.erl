@@ -18,12 +18,34 @@
     test_error_code_message_internal_validation_error/1,
     test_all_error_codes_defined/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
+%% Test function exports
+-export([
+    test_all_error_codes_defined/1,
+    test_error_code_message_correlation_fields_invalid/1,
+    test_error_code_message_idempotency_violation/1,
+    test_error_code_message_internal_validation_error/1,
+    test_error_code_message_schema_validation_failed/1,
+    test_error_code_message_tenant_forbidden/1,
+    test_error_code_message_version_unsupported/1,
+    test_error_code_severity/1,
+    test_error_code_to_string/1
+]).
+
+
+
+-export([groups_for_level/1]).
 
 all() ->
-    [
-        {group, unit_tests}
-    ].
+    [].
+
+%% @doc Error code unit tests -> Fast
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [{group, unit_tests}];
+groups_for_level(full) -> [{group, unit_tests}];
+groups_for_level(heavy) -> [{group, unit_tests}].
 
 groups() ->
     [
@@ -161,4 +183,3 @@ test_all_error_codes_defined(_Config) ->
     end, AllCodes),
     
     ok.
-

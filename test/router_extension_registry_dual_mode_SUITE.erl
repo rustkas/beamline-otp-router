@@ -8,22 +8,56 @@
 -include_lib("beamline_router/include/beamline_router.hrl").
 
 %% Suppress warnings for Common Test callbacks (called automatically by CT framework)
--compile({nowarn_unused_function, [all/0, end_per_suite/1, end_per_testcase/2, init_per_suite/1, init_per_testcase/2]}).
+-compile({nowarn_unused_function, [all/0, groups/0, end_per_suite/1, end_per_testcase/2, init_per_suite/1, init_per_testcase/2]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_auto_mode_database_available/1,
+    test_auto_mode_database_unavailable/1,
+    test_database_mode/1,
+    test_fixtures_mode/1,
+    test_periodic_sync/1,
+    test_reload_auto_mode/1,
+    test_reload_database/1,
+    test_reload_fixtures/1
+]).
+
+
+-export([groups_for_level/1]).
 
 %% Test suite configuration
 suite() ->
     [{timetrap, {seconds, 30}}].
 
 all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc Dual mode tests involve database and app restarts, so full tier
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [];
+groups_for_level(full) -> [{group, dual_mode_tests}];
+groups_for_level(heavy) -> [{group, dual_mode_tests}].
+
+groups() ->
     [
-        test_fixtures_mode,
-        test_database_mode,
-        test_auto_mode_database_available,
-        test_auto_mode_database_unavailable,
-        test_periodic_sync,
-        test_reload_fixtures,
-        test_reload_database,
-        test_reload_auto_mode
+        {dual_mode_tests, [sequence], [
+            test_fixtures_mode,
+            test_database_mode,
+            test_auto_mode_database_available,
+            test_auto_mode_database_unavailable,
+            test_periodic_sync,
+            test_reload_fixtures,
+            test_reload_database,
+            test_reload_auto_mode
+        ]}
     ].
 
 init_per_suite(Config) ->

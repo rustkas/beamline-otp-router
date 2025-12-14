@@ -35,21 +35,38 @@
     test_rollback_available/1
 ]).
 
-all() -> [
+-export([groups_for_level/1]).
+
+all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc Deployment tests check operational status, run in heavy tier
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [];
+groups_for_level(full) -> [];
+groups_for_level(heavy) -> [{group, deployment_tests}].
+
+groups() -> [{deployment_tests, [sequence], [
     test_validate_deployment,
     test_check_pre_deployment,
     test_check_post_deployment,
     test_get_deployment_status,
     test_get_deployment_history,
     test_rollback_available
-].
+]}].
 
 init_per_suite(Config) ->
-    ok = router_test_utils:start_router_app(),
+    ok = router_suite_helpers:start_router_suite(),
     Config.
 
 end_per_suite(_Config) ->
-    router_test_utils:stop_router_app(),
+    router_suite_helpers:stop_router_suite(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -133,4 +150,3 @@ test_rollback_available(_Config) ->
         {error, Reason} ->
             ct:fail({rollback_failed, Reason})
     end.
-

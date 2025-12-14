@@ -6,13 +6,38 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% Suppress warnings for Common Test callbacks (called automatically by CT framework)
--compile({nowarn_unused_function, [all/0, groups/0, init_per_suite/1, end_per_suite/1]}).
+-compile({nowarn_unused_function, [
+    all/0, groups/0, init_per_suite/1, end_per_suite/1,
+    init_per_testcase/2, end_per_testcase/2
+]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
+    init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_concurrent_logging_performance/1,
+    test_json_serialization_performance/1,
+    test_log_generation_throughput/1,
+    test_memory_usage_during_logging/1,
+    test_pii_filtering_performance/1
+]).
+
 
 
 all() ->
-    [
-        {group, performance_tests}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+%% Performance tests only run in heavy tier
+groups_for_level(heavy) ->
+    [{group, performance_tests}];
+groups_for_level(_) -> %% fast, full, sanity
+    [].
 
 groups() ->
     [
@@ -32,6 +57,12 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
+    ok.
+
+init_per_testcase(_TestCase, Config) ->
+    Config.
+
+end_per_testcase(_TestCase, _Config) ->
     ok.
 
 %% @doc Test log generation throughput (logs/second)
@@ -227,4 +258,3 @@ test_concurrent_logging_performance(_Config) ->
                          [LogsPerSecond])),
     
     ok.
-

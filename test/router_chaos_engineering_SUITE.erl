@@ -19,7 +19,8 @@
     reset_circuit_breaker/0
 ]).
 
--compile({nowarn_unused_function, [all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]}).
+%% Common Test callbacks - MUST be exported for CT to find them
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
 %% Export test functions for Common Test
 -export([
@@ -34,9 +35,17 @@
 ]).
 
 all() ->
-    [
-        {group, chaos_engineering_tests}
-    ].
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, chaos_engineering_tests}];
+groups_for_level(_) -> %% fast, full
+    [].
 
 groups() ->
     [
@@ -53,30 +62,130 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    ok = start_router_app(),
-    ok = ensure_circuit_breaker_alive(),
-    router_metrics:ensure(),
-    router_r10_metrics:clear_metrics(),
-    router_nats_fault_injection:clear_all_faults(),
-    Config.
+    %% === TESTOPS: Initialize chaos mode detection ===
+    Config1 = router_testops_helper:init_chaos_mode(Config),
+    
+    %% === TESTOPS: Enforce Docker mode in CI if required ===
+    router_testops_helper:ci_fail_on_mock_mode(),
+    
+    %% Check if chaos tests should run (require special env var)
+    %% These tests require: NATS server, network tools (tc, iptables)
+    case os:getenv("RUN_CHAOS_TESTS") of
+        "true" ->
+            %% Start router application
+            ok = start_router_app(),
+            ok = ensure_circuit_breaker_alive(),
+            router_metrics:ensure(),
+            router_r10_metrics:clear_metrics(),
+            
+            %% Start chaos testing infrastructure
+            case start_chaos_infrastructure() of
+                ok ->
+                    safe_clear_faults(),
+                    router_testops_helper:ci_log_test_mode(Config1),
+                    Config1;
+                {error, Reason} ->
+                    stop_router_app(),
+                    {skip, io_lib:format("Chaos infrastructure not available: ~p", [Reason])}
+            end;
+        _ ->
+            {skip, "Chaos tests disabled (set RUN_CHAOS_TESTS=true to enable)"}
+    end.
 
 end_per_suite(_Config) ->
-    router_nats_fault_injection:clear_all_faults(),
+    safe_clear_faults(),
     stop_router_app(),
     ok.
 
-init_per_testcase(_TestCase, Config) ->
+init_per_testcase(TestCase, Config) ->
+    %% === TESTOPS: Setup deterministic seed for reproducibility ===
+    Config1 = router_testops_helper:setup_deterministic_seed(TestCase, Config),
+    
     ok = start_router_app(),
     ok = ensure_circuit_breaker_alive(),
     ok = reset_circuit_breaker(),
     router_metrics:ensure(),
     router_r10_metrics:clear_metrics(),
-    router_nats_fault_injection:clear_all_faults(),
+    safe_clear_faults(),
+    
+    %% Check if chaos infrastructure is available for tests that need it
+    NeedsNetworkPartition = lists:member(TestCase, [
+        test_chaos_network_partition_single_instance,
+        test_chaos_network_partition_multi_instance,
+        test_chaos_flapping_network
+    ]),
+    case NeedsNetworkPartition of
+        true ->
+            case whereis(router_network_partition) of
+                undefined ->
+                    %% Try to start it
+                    case router_network_partition:start_link() of
+                        {ok, _} -> Config1;
+                        _ -> {skip, "router_network_partition not available"}
+                    end;
+                _ -> Config1
+            end;
+        false ->
+            Config1
+    end.
+
+end_per_testcase(TestCase, Config) ->
+    safe_clear_faults(),
+    
+    %% === TESTOPS: Check mock discipline ===
+    router_testops_helper:check_mock_discipline(TestCase, Config),
+    
+    %% === TESTOPS: Log seed on failure for reproduction ===
+    case proplists:get_value(test_seed, Config) of
+        undefined -> ok;
+        Seed -> router_testops_helper:log_seed_for_reproduction(Seed)
+    end,
+    
     Config.
 
-end_per_testcase(_TestCase, Config) ->
-    router_nats_fault_injection:clear_all_faults(),
-    Config.
+%% Start chaos testing infrastructure gen_servers
+start_chaos_infrastructure() ->
+    %% Ensure fault injection module is loaded
+    _ = code:ensure_loaded(router_nats_fault_injection),
+    
+    %% Start router_network_partition if not already running
+    StartResult = case whereis(router_network_partition) of
+        undefined ->
+            ct:pal("Starting router_network_partition..."),
+            case router_network_partition:start_link() of
+                {ok, Pid} ->
+                    ct:pal("router_network_partition started: ~p", [Pid]),
+                    ok;
+                {error, {already_started, _}} -> ok;
+                {error, Reason1} ->
+                    ct:pal("Failed to start router_network_partition: ~p", [Reason1]),
+                    {error, {network_partition_start_failed, Reason1}}
+            end;
+        Pid ->
+            ct:pal("router_network_partition already running: ~p", [Pid]),
+            ok
+    end,
+    %% Verify it's actually running now (only if start succeeded)
+    case StartResult of
+        {error, _} = Err -> Err;
+        ok -> case whereis(router_network_partition) of
+            undefined ->
+                ct:pal("router_network_partition not found after start!"),
+                {error, network_partition_not_started};
+            _ ->
+                %% router_nats_fault_injection is a module without gen_server (uses ETS)
+                %% Check if its functions are available after loading
+                case erlang:function_exported(router_nats_fault_injection, clear_all_faults, 0) of
+                    true -> ok;
+                    false -> {error, fault_injection_not_available}
+                end
+        end
+    end.
+
+%% Safe wrapper for fault injection clear
+safe_clear_faults() ->
+    catch router_nats_fault_injection:clear_all_faults(),
+    ok.
 
 %% ========================================================================
 %% CHAOS ENGINEERING TESTS

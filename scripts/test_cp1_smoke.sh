@@ -129,7 +129,7 @@ if [ "${ROUTER_TEST_AUTODISCOVERY:-0}" = "1" ]; then
         log_warn "Autodiscovery found no CP1 smoke test suites, falling back to explicit list"
         # Fall back to explicit list
         CP1_SMOKE_SUITES=(
-            "router_core_SUITE"              # @test_category cp1_smoke, fast
+            "router_core_basic_SUITE"        # @test_category cp1_smoke, fast
             "router_e2e_smoke_SUITE"         # @test_category cp1_smoke, fast
             "router_rbac_SUITE"              # @test_category cp1_smoke, fast
             "router_policy_enforcement_SUITE" # @test_category cp1_smoke, fast
@@ -143,7 +143,7 @@ if [ "${ROUTER_TEST_AUTODISCOVERY:-0}" = "1" ]; then
 else
     # Explicit list (default behavior)
     CP1_SMOKE_SUITES=(
-        "router_core_SUITE"              # @test_category cp1_smoke, fast
+        "router_core_basic_SUITE"        # @test_category cp1_smoke, fast
         "router_e2e_smoke_SUITE"         # @test_category cp1_smoke, fast
         "router_rbac_SUITE"              # @test_category cp1_smoke, fast
         "router_policy_enforcement_SUITE" # @test_category cp1_smoke, fast
@@ -154,15 +154,18 @@ else
 fi
 
 # CP2+ test suites (excluded from CP1 smoke)
+# NOTE: Suite names updated to match current split structure
 CP2_EXCLUDED_SUITES=(
     "router_jetstream_e2e_SUITE"           # Heavy JetStream E2E tests
     "router_delivery_count_tracking_SUITE" # JetStream delivery count
-    "router_idempotency_SUITE"             # CP2+ idempotency
+    "router_idempotency_core_SUITE"        # CP2+ idempotency
+    "router_idem_core_SUITE"               # CP2+ idempotency (alias)
     "router_tenant_allowlist_SUITE"        # CP2+ tenant validation
-    "router_result_consumer_SUITE"         # May use JetStream features
-    "router_caf_adapter_SUITE"             # May use JetStream features
-    "router_caf_adapter_enhanced_SUITE"    # Enhanced features
-    "router_nats_subscriber_caf_SUITE"     # NATS/JetStream integration
+    "router_result_consumer_core_SUITE"    # Result consumer (core)
+    "router_result_consumer_faults_SUITE"  # Result consumer (faults)
+    "router_caf_adapter_core_SUITE"        # CAF adapter core
+    "router_caf_adapter_advanced_SUITE"    # Enhanced features
+    "router_nats_sub_caf_core_SUITE"       # NATS/JetStream integration
 )
 
 echo -e "${YELLOW}CP1 Baseline Test Suites (${#CP1_SMOKE_SUITES[@]} suites):${NC}"

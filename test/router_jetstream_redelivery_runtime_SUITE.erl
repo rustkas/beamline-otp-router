@@ -7,24 +7,62 @@
 -module(router_jetstream_redelivery_runtime_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -compile([export_all, nowarn_export_all]).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_nak_emits_metric/1,
+    test_nak_with_context_labels/1,
+    test_reason_to_binary_conversion/1,
+    test_source_derivation/1
+]).
+
+
+-export([groups_for_level/1]).
 
 all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc Redelivery runtime tests checking telemetry emission -> Full
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [];
+groups_for_level(full) -> [{group, runtime_telemetry_tests}];
+groups_for_level(heavy) -> [{group, runtime_telemetry_tests}].
+
+groups() ->
     [
-        test_nak_emits_metric,
-        test_nak_with_context_labels,
-        test_source_derivation,
-        test_reason_to_binary_conversion
+        %% MUST be sequence: tests use meck:new/unload for router_nats
+        %% parallel + per-test mocking = already_started race conditions
+        {runtime_telemetry_tests, [sequence], [
+            test_nak_emits_metric,
+            test_nak_with_context_labels,
+            test_source_derivation,
+            test_reason_to_binary_conversion
+        ]}
     ].
 
 init_per_suite(Config) ->
     _ = application:load(beamline_router),
     ok = router_metrics:ensure(),
+    %% Ensure router_jetstream ETS table exists (normally created by app start)
+    %% Use configure/1 to create ETS table with MaxDeliver=10, BackoffSeconds=[1,2,4]
+    ok = router_jetstream:configure(#{max_deliver => 10, backoff_seconds => [1, 2, 4]}),
     Config.
 
 end_per_suite(_Config) ->
     ok.
 
 init_per_testcase(_TestCase, Config) ->
+    %% Ensure router_jetstream ETS table exists for each test
+    %% (may not exist if previous test failed or was skipped)
+    ok = router_jetstream:configure(#{max_deliver => 10, backoff_seconds => [1, 2, 4]}),
     %% Reset metrics
     case ets:info(router_metrics) of
         undefined -> ok;
@@ -33,6 +71,7 @@ init_per_testcase(_TestCase, Config) ->
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
+    catch meck:unload(router_nats),
     ok.
 
 %% @doc Test: Verify nak/3 emits metric via telemetry
@@ -45,9 +84,14 @@ test_nak_emits_metric(_Config) ->
             [{telemetry_event, Metadata} | Acc]
         end, []),
     
-    %% Mock router_nats
-    meck:new(router_nats, [passthrough]),
+    %% Mock router_nats - no passthrough to avoid noproc on gen_server:call
+    meck:new(router_nats, []),
     meck:expect(router_nats, nak_message, fun(_Id) -> ok end),
+    meck:expect(router_nats, ack_message, fun(_Id) -> ok end),
+    meck:expect(router_nats, publish, fun(_S, _P) -> ok end),
+    meck:expect(router_nats, publish_with_ack, fun(_S, _P, _H) -> {error, connection_closed} end),
+    meck:expect(router_nats, subscribe_jetstream, fun(_S, _D, _A, _G, _M) -> {ok, <<"c">>} end),
+    meck:expect(router_nats, request, fun(_S, _P, _T) -> {ok, <<>>} end),
     
     %% Call nak/3
     Msg = #{id => <<"test-msg-1">>},
@@ -81,13 +125,19 @@ test_nak_emits_metric(_Config) ->
 
 %% @doc Test: Verify nak/3 includes all required labels in context
 test_nak_with_context_labels(_Config) ->
-    %% Mock router_nats
-    meck:new(router_nats, [passthrough]),
+    %% Mock router_nats - no passthrough to avoid noproc on gen_server:call
+    meck:new(router_nats, []),
     meck:expect(router_nats, nak_message, fun(_Id) -> ok end),
+    meck:expect(router_nats, ack_message, fun(_Id) -> ok end),
+    meck:expect(router_nats, publish, fun(_S, _P) -> ok end),
+    meck:expect(router_nats, publish_with_ack, fun(_S, _P, _H) -> {error, connection_closed} end),
+    meck:expect(router_nats, subscribe_jetstream, fun(_S, _D, _A, _G, _M) -> {ok, <<"c">>} end),
+    meck:expect(router_nats, request, fun(_S, _P, _T) -> {ok, <<>>} end),
     
     %% Setup telemetry handler to capture metadata
     HandlerId = {?MODULE, test_nak_with_context_labels},
-    CapturedMetadata = ets:new(captured_metadata, [set, private]),
+    CapturedMetadata = router_test_init:ensure_ets_table(captured_metadata, [set, public]),
+    ets:delete_all_objects(CapturedMetadata),
     
     telemetry:attach(HandlerId, [router, jetstream, nak],
         fun(_Event, _Measurements, Metadata, _Acc) ->
@@ -136,13 +186,19 @@ test_nak_with_context_labels(_Config) ->
 
 %% @doc Test: Verify source is derived from reason when not provided
 test_source_derivation(_Config) ->
-    %% Mock router_nats
-    meck:new(router_nats, [passthrough]),
+    %% Mock router_nats - no passthrough to avoid noproc on gen_server:call
+    meck:new(router_nats, []),
     meck:expect(router_nats, nak_message, fun(_Id) -> ok end),
+    meck:expect(router_nats, ack_message, fun(_Id) -> ok end),
+    meck:expect(router_nats, publish, fun(_S, _P) -> ok end),
+    meck:expect(router_nats, publish_with_ack, fun(_S, _P, _H) -> {error, connection_closed} end),
+    meck:expect(router_nats, subscribe_jetstream, fun(_S, _D, _A, _G, _M) -> {ok, <<"c">>} end),
+    meck:expect(router_nats, request, fun(_S, _P, _T) -> {ok, <<>>} end),
     
     %% Setup telemetry handler
     HandlerId = {?MODULE, test_source_derivation},
-    CapturedMetadata = ets:new(captured_metadata_source, [set, private]),
+    CapturedMetadata = router_test_init:ensure_ets_table(captured_metadata_source, [set, public]),
+    ets:delete_all_objects(CapturedMetadata),
     
     telemetry:attach(HandlerId, [router, jetstream, nak],
         fun(_Event, _Measurements, Metadata, _Acc) ->
@@ -205,12 +261,18 @@ test_reason_to_binary_conversion(_Config) ->
     ],
     
     lists:foreach(fun({ReasonAtom, ExpectedBinary}) ->
-        %% Test via nak/3 (indirectly tests reason_to_binary)
-        meck:new(router_nats, [passthrough]),
+        %% Test via nak/3 (indirectly tests reason_to_binary) - no passthrough
+        meck:new(router_nats, []),
         meck:expect(router_nats, nak_message, fun(_Id) -> ok end),
+        meck:expect(router_nats, ack_message, fun(_Id) -> ok end),
+        meck:expect(router_nats, publish, fun(_S, _P) -> ok end),
+        meck:expect(router_nats, publish_with_ack, fun(_S, _P, _H) -> {error, connection_closed} end),
+        meck:expect(router_nats, subscribe_jetstream, fun(_S, _D, _A, _G, _M) -> {ok, <<"c">>} end),
+        meck:expect(router_nats, request, fun(_S, _P, _T) -> {ok, <<>>} end),
         
         HandlerId = {?MODULE, test_reason_conversion},
-        CapturedMetadata = ets:new(captured_reason, [set, private]),
+        CapturedMetadata = router_test_init:ensure_ets_table(captured_reason, [set, public]),
+        ets:delete_all_objects(CapturedMetadata),
         
         telemetry:attach(HandlerId, [router, jetstream, nak],
             fun(_Event, _Measurements, Metadata, _Acc) ->
@@ -249,4 +311,3 @@ test_reason_to_binary_conversion(_Config) ->
     end, TestCases),
     
     ok.
-

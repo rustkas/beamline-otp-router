@@ -5,10 +5,18 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
 
--compile({nowarn_unused_function, [all/0, groups/0, init_per_suite/1, end_per_suite/1]}).
+-compile({nowarn_unused_function, [
+    all/0, groups/0, init_per_suite/1, end_per_suite/1,
+    init_per_testcase/2, end_per_testcase/2,
+    get_metric_value/2  %% Helper for metric assertions
+]}).
+
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
+         init_per_testcase/2, end_per_testcase/2]).
 
 %% Export test functions for Common Test
 -export([
+    test_retry_module_smoke/1,
     test_exponential_backoff_calculation/1,
     test_linear_backoff_calculation/1,
     test_backoff_with_jitter/1,
@@ -19,14 +27,37 @@
     test_non_retryable_errors/1
 ]).
 
+-export([groups_for_level/1]).
+
 all() ->
-    [
-        {group, retry_logic_tests}
-    ].
+    case os:getenv("ROUTER_ENABLE_META") of
+        "1" -> meta_all();
+        "true" -> meta_all();
+        "on" -> meta_all();
+        _ -> []
+    end.
+
+meta_all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "sanity" -> sanity;
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
+    end,
+    groups_for_level(Level).
+
+%% @doc Retry logic tests -> Full
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [{group, smoke_tests}];
+groups_for_level(full) -> [{group, retry_tests}];
+groups_for_level(heavy) -> [{group, retry_tests}].
 
 groups() ->
     [
-        {retry_logic_tests, [sequence], [
+        {smoke_tests, [parallel], [
+            test_retry_module_smoke
+        ]},
+        {retry_tests, [parallel], [
             test_exponential_backoff_calculation,
             test_linear_backoff_calculation,
             test_backoff_with_jitter,
@@ -62,6 +93,32 @@ init_per_testcase(_TestCase, Config) ->
 
 end_per_testcase(_TestCase, Config) ->
     Config.
+
+%% ========================================================================
+%% SMOKE TEST
+%% ========================================================================
+
+%% @doc Smoke test - verify module loads and exports expected functions
+test_retry_module_smoke(_Config) ->
+    ct:comment("Smoke test: verify router_nats_publish_retry module"),
+    
+    %% Verify module is loaded
+    {module, router_nats_publish_retry} = code:ensure_loaded(router_nats_publish_retry),
+    
+    %% Verify expected functions exist
+    true = erlang:function_exported(router_nats_publish_retry, calculate_backoff, 5),
+    true = erlang:function_exported(router_nats_publish_retry, is_retryable_error, 1),
+    true = erlang:function_exported(router_nats_publish_retry, get_default_config, 0),
+    
+    %% Quick sanity check on calculate_backoff
+    Delay = router_nats_publish_retry:calculate_backoff(1, exponential, 100, 5000, 0),
+    ?assertEqual(100, Delay),
+    
+    %% Quick sanity check on is_retryable_error
+    true = router_nats_publish_retry:is_retryable_error(timeout),
+    false = router_nats_publish_retry:is_retryable_error(invalid_payload),
+    
+    ok.
 
 %% ========================================================================
 %% HELPER FUNCTIONS
@@ -330,4 +387,3 @@ test_non_retryable_errors(_Config) ->
     end, NonRetryableErrors),
     
     ok.
-

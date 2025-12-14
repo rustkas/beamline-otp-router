@@ -9,19 +9,57 @@
 
 %% Suppress warnings for Common Test callbacks (called automatically by CT framework)
 -compile({nowarn_unused_function, [all/0, end_per_suite/1, end_per_testcase/2, init_per_suite/1, init_per_testcase/2, suite/0]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
+%% Test function exports
+-export([
+    test_audit_log_completeness/1,
+    test_cross_tenant_isolation/1,
+    test_policy_quota_enforcement/1,
+    test_rate_limit_integration/1,
+    test_rbac_with_quota/1
+]).
+
+
+
+-export([groups_for_level/1]).
 
 %% Test suite configuration
 suite() ->
     [{timetrap, {seconds, 60}}].
 
 all() ->
+    case os:getenv("ROUTER_ENABLE_META") of
+        "1" -> meta_all();
+        "true" -> meta_all();
+        "on" -> meta_all();
+        _ -> []
+    end.
+
+meta_all() ->
+    case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> groups_for_level(heavy);
+        _ -> []
+    end.
+
+%% @doc Policy enforcement (quota/rbac) -> Fast (as per header)
+groups_for_level(sanity) -> [];
+groups_for_level(fast) -> [{group, enforcement_tests}];
+groups_for_level(full) -> [{group, enforcement_tests}];
+groups_for_level(heavy) -> [{group, enforcement_tests}].
+
+groups() ->
     [
-        test_policy_quota_enforcement,
-        test_cross_tenant_isolation,
-        test_audit_log_completeness,
-        test_rbac_with_quota,
-        test_rate_limit_integration
+        %% MUST be sequence: test_policy_quota_enforcement uses meck for router_policy_store
+        %% parallel + mocking = race conditions and already_started errors
+        {enforcement_tests, [sequence], [
+            test_policy_quota_enforcement,
+            test_cross_tenant_isolation,
+            test_audit_log_completeness,
+            test_rbac_with_quota,
+            test_rate_limit_integration
+        ]}
     ].
 
 init_per_suite(Config) ->
@@ -65,6 +103,7 @@ init_per_testcase(_TestCase, Config) ->
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
+    catch meck:unload(router_policy_store),
     ok.
 
 %% Test: Policy quota enforcement
@@ -225,4 +264,3 @@ test_rate_limit_integration(_Config) ->
     {error, rate_limit_exceeded, 0} = router_rate_limiter:check_rate_limit(TenantId, Endpoint, UserId),
     
     ok.
-

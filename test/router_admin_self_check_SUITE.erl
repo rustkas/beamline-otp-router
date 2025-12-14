@@ -18,7 +18,7 @@
 ]).
 
 %% Test suite callbacks
--export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 -export([
     test_self_check_all/1,
     test_extension_health_format/1,
@@ -97,13 +97,25 @@ end_per_testcase(_TestCase, _Config) ->
 
 %% Test cases
 all() ->
+    [].
+
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast
+    [{group, unit_tests}].
+
+groups() ->
     [
-        test_self_check_all,
-        test_extension_health_format,
-        test_circuit_breaker_states_format,
-        test_dry_run_pipeline_format,
-        test_pipeline_complexity_format,
-        test_all_admin_subjects_respond
+        {unit_tests, [], [
+            test_self_check_all,
+            test_extension_health_format,
+            test_circuit_breaker_states_format,
+            test_dry_run_pipeline_format,
+            test_pipeline_complexity_format,
+            test_all_admin_subjects_respond
+        ]}
     ].
 
 %% @doc Test self_check_all function
@@ -308,4 +320,3 @@ test_all_admin_subjects_respond(_Config) ->
             ct:log("Unexpected connection status response, skipping NATS call tests"),
             ok
     end.
-

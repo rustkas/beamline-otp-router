@@ -13,6 +13,14 @@
     all/0, suite/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2,
     test_happy_path_rbac_to_audit/1
 ]}).
+%% Common Test exports (REQUIRED for CT to find tests)
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+
+%% Test function exports
+-export([
+    test_happy_path_rbac_to_audit/1
+]).
+
 
 
 %% Test suite configuration
@@ -20,8 +28,28 @@ suite() ->
     [{timetrap, {seconds, 60}}].
 
 all() ->
+    Level = case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> heavy;
+        "full"  -> full;
+        "sanity" -> sanity;
+        _       -> fast
+    end,
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    [{group, integration_tests}];
+groups_for_level(full) ->
+    [{group, integration_tests}];
+groups_for_level(sanity) ->
+    [{group, integration_tests}];
+groups_for_level(_) -> %% fast
+    [{group, integration_tests}].
+
+groups() ->
     [
-        test_happy_path_rbac_to_audit
+        {integration_tests, [], [
+            test_happy_path_rbac_to_audit
+        ]}
     ].
 
 init_per_suite(Config) ->
@@ -30,8 +58,8 @@ init_per_suite(Config) ->
     %% Stop application if already running
     catch application:stop(beamline_router),
     timer:sleep(100),
-    %% Start application
-    ok = application:load(beamline_router),
+    %% Start application (ignore already_loaded error)
+    _ = application:load(beamline_router),
     ok = application:set_env(beamline_router, grpc_port, 9003),  %% Use different port for E2E
     ok = application:set_env(beamline_router, disable_heir, true),
     case application:ensure_all_started(beamline_router) of

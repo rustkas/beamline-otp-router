@@ -21,7 +21,7 @@
 ]}).
 
 %% Common Test callbacks
--export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
 %% Test functions
 -export([
@@ -36,24 +36,37 @@
     test_is_pii_field/1
 ]).
 
-all() -> [
-    test_license_compliance,
-    test_dependency_licenses,
-    test_license_compatibility,
-    test_pii_handling,
-    test_gdpr_compliance,
-    test_data_retention_policies,
-    test_data_retention_check,
-    test_anonymize_pii,
-    test_is_pii_field
-].
+all() ->
+    [].
+
+groups_for_level(heavy) ->
+    [{group, unit_tests}];
+groups_for_level(full) ->
+    [{group, unit_tests}];
+groups_for_level(_) -> %% fast
+    [{group, unit_tests}].
+
+groups() ->
+    [
+        {unit_tests, [sequence], [
+            test_license_compliance,
+            test_dependency_licenses,
+            test_license_compatibility,
+            test_pii_handling,
+            test_gdpr_compliance,
+            test_data_retention_policies,
+            test_data_retention_check,
+            test_anonymize_pii,
+            test_is_pii_field
+        ]}
+    ].
 
 init_per_suite(Config) ->
-    ok = router_test_utils:start_router_app(),
+    ok = router_suite_helpers:start_router_suite(),
     Config.
 
 end_per_suite(_Config) ->
-    router_test_utils:stop_router_app(),
+    router_suite_helpers:stop_router_suite(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -204,4 +217,3 @@ test_is_pii_field(_Config) ->
     ?assertNot(router_data_privacy:is_pii_field(<<"message">>)),
     
     ok.
-
