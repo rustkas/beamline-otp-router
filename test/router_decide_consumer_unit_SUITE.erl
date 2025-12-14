@@ -13,7 +13,12 @@
     test_module_exports/1,
     test_gen_server_callbacks/1,
     test_start_link_exported/1,
-    test_behaviour_gen_server/1
+    test_behaviour_gen_server/1,
+    test_normalize_boolean/1,
+    test_check_tenant_allowed/1,
+    test_track_delivery_count/1,
+    test_cleanup_delivery_count/1,
+    test_handle_decide_message_export/1
 ]).
 
 all() ->
@@ -21,15 +26,27 @@ all() ->
 
 groups() ->
     [
-        {unit_tests, [parallel], [
+        {unit_tests, [sequence], [
             test_module_exports,
             test_gen_server_callbacks,
             test_start_link_exported,
-            test_behaviour_gen_server
+            test_behaviour_gen_server,
+            test_normalize_boolean,
+            test_check_tenant_allowed,
+            test_track_delivery_count,
+            test_cleanup_delivery_count,
+            test_handle_decide_message_export
         ]}
     ].
 
 init_per_suite(Config) ->
+    _ = application:load(beamline_router),
+    %% Create ETS table for delivery count tracking (needed by some tests)
+    case ets:info(router_decide_delivery_count) of
+        undefined -> 
+            ets:new(router_decide_delivery_count, [set, named_table, public, {write_concurrency, true}, {read_concurrency, true}]);
+        _ -> ok
+    end,
     Config.
 
 end_per_suite(_Config) ->
@@ -77,3 +94,80 @@ test_behaviour_gen_server(_Config) ->
                  proplists:get_value(behavior, Attrs, []),
     ?assertEqual(true, lists:member(gen_server, Behaviours)),
     ok.
+
+%% ============================================================================
+%% Tests for normalize_boolean/1
+%% ============================================================================
+
+test_normalize_boolean(_Config) ->
+    %% Test atom true
+    ?assertEqual(true, router_decide_consumer:normalize_boolean(true)),
+    %% Test atom false
+    ?assertEqual(false, router_decide_consumer:normalize_boolean(false)),
+    %% Test binary "true"
+    ?assertEqual(true, router_decide_consumer:normalize_boolean(<<"true">>)),
+    %% Test binary "false"
+    ?assertEqual(false, router_decide_consumer:normalize_boolean(<<"false">>)),
+    %% Test integer 1
+    ?assertEqual(true, router_decide_consumer:normalize_boolean(1)),
+    %% Test integer 0
+    ?assertEqual(false, router_decide_consumer:normalize_boolean(0)),
+    %% Test unknown value
+    ?assertEqual(false, router_decide_consumer:normalize_boolean(unknown)),
+    ok.
+
+%% ============================================================================
+%% Tests for check_tenant_allowed/1
+%% ============================================================================
+
+test_check_tenant_allowed(_Config) ->
+    %% Test with undefined tenant
+    Result1 = router_decide_consumer:check_tenant_allowed(undefined),
+    ?assertEqual(true, is_boolean(Result1)),
+    
+    %% Test with binary tenant
+    Result2 = router_decide_consumer:check_tenant_allowed(<<"test-tenant">>),
+    ?assertEqual(true, is_boolean(Result2)),
+    ok.
+
+%% ============================================================================
+%% Tests for track_delivery_count/1
+%% ============================================================================
+
+test_track_delivery_count(_Config) ->
+    %% Test tracking undefined
+    Result1 = router_decide_consumer:track_delivery_count(undefined),
+    ?assertEqual(ok, Result1),
+    
+    %% Test tracking binary msg_id
+    MsgId = <<"test-msg-id-", (integer_to_binary(erlang:system_time(nanosecond)))/binary>>,
+    Result2 = router_decide_consumer:track_delivery_count(MsgId),
+    ?assertEqual(ok, Result2),
+    ok.
+
+%% ============================================================================
+%% Tests for cleanup_delivery_count/1
+%% ============================================================================
+
+test_cleanup_delivery_count(_Config) ->
+    %% Test cleanup undefined
+    Result1 = router_decide_consumer:cleanup_delivery_count(undefined),
+    ?assertEqual(ok, Result1),
+    
+    %% Test cleanup binary msg_id
+    MsgId = <<"cleanup-test-msg-id">>,
+    router_decide_consumer:track_delivery_count(MsgId),
+    Result2 = router_decide_consumer:cleanup_delivery_count(MsgId),
+    ?assertEqual(ok, Result2),
+    ok.
+
+%% ============================================================================
+%% Tests for handle_decide_message export
+%% ============================================================================
+
+test_handle_decide_message_export(_Config) ->
+    %% Verify that handle_decide_message is exported (for testing infra)
+    Exports = router_decide_consumer:module_info(exports),
+    ?assertEqual(true, lists:member({handle_decide_message, 4}, Exports)),
+    ok.
+
