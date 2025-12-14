@@ -5,7 +5,7 @@
 -module(router_decide_consumer).
 -behaviour(gen_server).
 
--export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2]).
+-export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([track_delivery_count/1, check_maxdeliver_exhaustion/3, cleanup_delivery_count/1]).
 -export([normalize_boolean/1, check_tenant_allowed/1]).  %% Exported for testing only
 -export([handle_decide_message/4]). %% Exported for testing
@@ -1038,3 +1038,16 @@ emit_abuse_metric(targeted_tenant, TenantId, AbuseContext) ->
 -spec get_config(atom(), term()) -> term().
 get_config(Key, Default) ->
     application:get_env(beamline_router, Key, Default).
+
+%% ====================================================================
+%% GenServer Boilerplate
+%% ====================================================================
+
+%% @doc Handle shutdown
+terminate(_Reason, _State) ->
+    ok.
+
+%% @doc Handle code change
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+

@@ -84,9 +84,23 @@ end_per_suite(_Config) ->
     ok.
 
 init_per_testcase(_TestCase, Config) ->
+    %% Mock router_nats for gen_server tests
+    catch meck:unload(router_nats),
+    try
+        code:ensure_loaded(router_nats),
+        meck:new(router_nats, [passthrough]),
+        meck:expect(router_nats, subscribe_jetstream, fun(_, _, _, _, _) -> {ok, <<"mock_sub_id">>} end),
+        meck:expect(router_nats, ack_message, fun(_) -> ok end),
+        meck:expect(router_nats, nak_message, fun(_) -> ok end)
+    catch
+        _:Reason ->
+            ct:pal("Failed to mock router_nats: ~p", [Reason]),
+            erlang:error({mock_failed, Reason})
+    end,
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
+    catch meck:unload(router_nats),
     ok.
 
 %% ============================================================================
@@ -421,3 +435,6 @@ test_clear_delivery_count(_Config) ->
             ok
     end,
     ok.
+
+%% ============================================================================
+

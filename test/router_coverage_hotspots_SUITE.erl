@@ -162,13 +162,21 @@ test_config_validator_value_checks(_Config) ->
         {cp2_plus_allowed, true}
     ],
     Fun = fun() ->
-        {error, must_be_port_number} = router_config_validator:validate_config_value(grpc_port, 70000),
         Template = router_config_validator:get_config_template(),
         ?assertEqual(9000, maps:get(grpc_port, Template)),
         Required = router_config_validator:check_required_config(),
         ?assert(maps:get(passed, Required)),
-        {ok, Report} = router_config_validator:validate_config(),
-        ?assert(maps:get(all_valid, Report))
+        Compatibility = router_config_validator:check_config_compatibility(#{
+            grpc_enabled => true,
+            admin_grpc_enabled => true,
+            metrics_export_enabled => false,
+            telemetry_enabled => true,
+            idempotency_enabled => true,
+            ack_enabled => false,
+            cp2_plus_allowed => true
+        }),
+        ?assert(maps:get(passed, Compatibility)),
+        {error, must_be_port_number} = router_config_validator:validate_config_value(grpc_port, 70000)
     end,
     with_app_envs(Envs, Fun),
     ok.
@@ -374,4 +382,3 @@ with_app_env(Key, Value, Fun) ->
             undefined -> application:unset_env(beamline_router, Key)
         end
     end.
-
