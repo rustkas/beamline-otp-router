@@ -48,6 +48,20 @@ See [QUALITY_GATES.md](./QUALITY_GATES.md) for detailed documentation.
 | `router_caf_adapter.erl` | 75% | 90% |
 | Other production modules | 60% | 80% |
 
+### 1.4 Quarantine Policy
+
+- A quarantined suite is a documented exception: add it to `config/quarantine/quarantined_suites.txt` via the format `suite_name | owner | short_reason`. Skip empty lines and lines starting with `#` to keep the file human-readable.
+- `scripts/ct-full.sh` loads that metadata, omits each quarantined suite from the full-tier execution plan, and prints a dedicated “Quarantined suites” block when `--list` is used so reviewers see the owner/reason without digging into code.
+- The nightly/heavy runner (`scripts/ct-heavy.sh`) does not filter these suites but does log `Heavy tier includes quarantined suites: ...`, so teams still get signal on resolved flakes.
+- Add a suite to quarantine only after repeated nondeterministic failures in `ROUTER_TEST_LEVEL=full` runs and follow up with the heavy tier when fixing. Remove the entry once the suite has passed several heavy runs and the owner confirms stability.
+
+### 1.5 Quarantine lifecycle
+
+- **Review cadence & ownership**: Every quarantine entry must be reviewed at least once per release cycle (or every calendar week, whichever is shorter). The `owner` field tags the team/controller responsible for that suite; they collect flakiness data and confirm the suite still requires quarantine before each review.
+- **Exit criteria**: A quarantined suite can be removed only after the owning team documents at least three consecutive heavy-tier executions (`ROUTER_TEST_LEVEL=heavy`) that complete without the previously observed nondeterministic failure. The heavy-tier logs (CT reports, `_build/test/logs/.../ctlog.html`) serve as the evidence trail for each pass.
+- **Visibility guardrails**: Track the total number of quarantine entries and the age of the oldest entry in the policy artifact or a lightweight dashboard so the team can spot growth. Escalate the list when it grows beyond five suites or when any entry is older than four weeks without a review update.
+- **Tooling hooks (future-ready)**: Prepare for optional automation that warns when the quarantine list exceeds a configurable threshold and consider extending the metadata format with a timestamp column so reviewers know when each entry was last validated. These touches remain policy-level guidance until automation is implemented.
+
 ---
 
 ## 2. Library Standards

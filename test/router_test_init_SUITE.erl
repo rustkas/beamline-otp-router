@@ -74,17 +74,17 @@ init_per_suite(Config) ->
 
 end_per_suite(_Config) ->
     %% Clean up any leftover tables
-    catch ets:delete(?TEST_TABLE),
+    router_test_init:delete_ets_table(?TEST_TABLE),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
     %% Ensure clean state
-    catch ets:delete(?TEST_TABLE),
+    router_test_init:delete_ets_table(?TEST_TABLE),
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
     %% Clean up
-    catch ets:delete(?TEST_TABLE),
+    router_test_init:delete_ets_table(?TEST_TABLE),
     ok.
 
 %% ============================================================================
@@ -183,7 +183,7 @@ test_concurrent_reset_sanity(_Config) ->
     lists:foreach(fun(Pid) ->
         receive
             {done, Pid} -> ok
-        after 2000 ->
+        after router_test_timeouts:short_wait() ->
             ct:fail({timeout_waiting_for, Pid})
         end
     end, Workers),
@@ -226,7 +226,7 @@ test_concurrent_ensure_ets(_Config) ->
     lists:foreach(fun(Pid) ->
         receive
             {done, Pid} -> ok
-        after 10000 ->
+        after router_test_timeouts:long_wait() ->
             ct:fail({timeout_waiting_for, Pid})
         end
     end, Workers),
@@ -265,9 +265,9 @@ test_ets_snapshot_diff(_Config) ->
     ?assertNot(lists:member(TestTable1, Before)),
     ?assertNot(lists:member(TestTable2, Before)),
     
-    %% Create tables
-    ets:new(TestTable1, [named_table, set, public]),
-    ets:new(TestTable2, [named_table, set, public]),
+    %% Create tables via helper to avoid direct ets:new
+    _ = router_test_init:ensure_ets_table(TestTable1, [named_table, set, public]),
+    _ = router_test_init:ensure_ets_table(TestTable2, [named_table, set, public]),
     
     %% Snapshot after
     After = router_test_init:snapshot_ets([router_test_init_]),
@@ -280,9 +280,9 @@ test_ets_snapshot_diff(_Config) ->
     ?assert(lists:member(TestTable2, Added)),
     ?assertEqual([], Removed),
     
-    %% Cleanup
-    ets:delete(TestTable1),
-    ets:delete(TestTable2),
+    %% Cleanup using helper
+    router_test_init:delete_ets_table(TestTable1),
+    router_test_init:delete_ets_table(TestTable2),
     
     %% Diff in reverse direction
     AfterCleanup = router_test_init:snapshot_ets([router_test_init_]),

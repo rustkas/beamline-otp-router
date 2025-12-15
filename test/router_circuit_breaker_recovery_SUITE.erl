@@ -63,18 +63,29 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
+    Base = router_test_bootstrap:init_per_suite(Config, #{
+        start => router_suite,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock,
+            tracing_enabled => false
+        }
+    }),
     case ensure_cb_ready() of
         ok ->
             router_metrics:ensure(),
             router_r10_metrics:clear_metrics(),
-            Config;
+            Base;
         {skip, Reason} ->
             {skip, Reason}
     end.
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => router_suite,
+        stop => router_suite
+    }).
 
 init_per_testcase(_TestCase, Config) ->
     case ensure_cb_ready() of
@@ -82,7 +93,7 @@ init_per_testcase(_TestCase, Config) ->
             ok = reset_circuit_breaker(),
             router_metrics:ensure(),
             router_r10_metrics:clear_metrics(),
-            Config;
+            router_test_bootstrap:init_per_testcase(_TestCase, Config, #{});
         {skip, Reason} ->
             {skip, Reason}
     end.
@@ -95,18 +106,12 @@ end_per_testcase(_TestCase, Config) ->
 %% ------------------------------------------------------------------
 
 ensure_cb_ready() ->
-    try
-        ok = router_suite_helpers:start_router_suite(),
-        %% Ensure CB process is running
-        case whereis(router_circuit_breaker) of
-            undefined -> {ok, _} = router_circuit_breaker:start_link();
-            _ -> ok
-        end,
-        ok = ensure_circuit_breaker_alive(),
-        ok
-    catch
-        Class:Reason ->
-            {skip, {cb_unavailable, Class, Reason}}
+    case catch ensure_circuit_breaker_alive() of
+        true -> ok;
+        ok -> ok;
+        {error, _} = Err -> {skip, {cb_unavailable, Err}};
+        {'EXIT', Reason} -> {skip, {cb_unavailable, Reason}};
+        Other -> {skip, {cb_unavailable, Other}}
     end.
 
 %% ========================================================================

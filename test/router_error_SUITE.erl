@@ -50,12 +50,7 @@
 
 
 all() ->
-    Level = case os:getenv("ROUTER_TEST_LEVEL") of
-        "heavy" -> heavy;
-        "full"  -> full;
-        _       -> fast
-    end,
-    groups_for_level(Level).
+    router_ct_groups:all_selection(?MODULE, [{group, unit_tests}]).
 
 groups_for_level(heavy) ->
     [{group, unit_tests}];
@@ -65,8 +60,10 @@ groups_for_level(_) -> %% fast
     [{group, unit_tests}].
 
 groups() ->
+    router_ct_groups:groups_definitions(?MODULE, base_groups()).
+
+base_groups() ->
     [
-        %% Sequential execution required - tests modify global persistent_term
         {unit_tests, [sequence], [
             test_error_mapping_table,
             test_to_grpc_basic,
@@ -78,10 +75,8 @@ groups() ->
             test_nats_unavailable,
             test_invalid_payload,
             test_internal_error,
-            %% Reload tests last - they modify global state
             test_reload_validation,
             test_reload,
-            %% Persistent term cleanup check (Task 10)
             test_no_persistent_term_leak
         ]}
     ].
@@ -382,4 +377,3 @@ test_no_persistent_term_leak(_Config) ->
     ?assertEqual([], RouterErrorKeysAfter, "router_error keys should be cleaned up"),
     
     ok.
-

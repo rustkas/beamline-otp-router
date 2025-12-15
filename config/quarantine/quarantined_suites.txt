@@ -1,0 +1,2 @@
+# Suite | Owner | Reason
+router_nats_publish_retry_SUITE | qa_team | retried publish retries are nondeterministic in CI

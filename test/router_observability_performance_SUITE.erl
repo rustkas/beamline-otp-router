@@ -239,7 +239,7 @@ test_concurrent_logging_performance(_Config) ->
     lists:foreach(fun(Pid) ->
         receive
             {'EXIT', Pid, _} -> ok
-        after 5000 ->
+        after router_test_timeouts:long_wait() ->
             exit(Pid, kill)
         end
     end, Pids),

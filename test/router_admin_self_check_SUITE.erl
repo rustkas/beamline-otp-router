@@ -29,20 +29,15 @@
 ]).
 
 init_per_suite(Config) ->
-    %% Ensure Router is started
-    case application:ensure_all_started(beamline_router) of
-        {ok, _StartedApps} ->
-            Config;
-        Error ->
-            ct:fail("Failed to start beamline_router: ~p", [Error])
-    end.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => ensure_all_started
+    }).
 
 end_per_suite(_Config) ->
     ok.
 
 init_per_testcase(_TestCase, Config) ->
-    %% Setup test policy for self-check endpoints
-    %% self_check_dry_run_pipeline and self_check_pipeline_complexity require test_tenant/test_policy
+    BaseConfig = router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}),
     TenantId = <<"test_tenant">>,
     PolicyId = <<"test_policy">>,
     TestPolicy = #policy{
@@ -51,7 +46,7 @@ init_per_testcase(_TestCase, Config) ->
         version = <<"1.0">>,
         defaults = #{},
         escalate_on = [],
-        weights = #{<<"openai">> => 1.0},  %% Valid weight: 0.0-1.0
+        weights = #{<<"openai">> => 1.0},
         fallback = undefined,
         sticky = undefined,
         pre = [],
@@ -59,41 +54,33 @@ init_per_testcase(_TestCase, Config) ->
         post = [],
         metadata = #{}
     },
-    %% Ensure policy store is available
     case whereis(router_policy_store) of
-        undefined -> 
-            Config;
-        _ -> 
-            %% Clean up any existing policy first
+        undefined ->
+            BaseConfig;
+        _ ->
             catch router_policy_store:delete_policy(TenantId, PolicyId),
-            %% Create test policy
             case router_policy_store:upsert_policy(TenantId, TestPolicy) of
                 {ok, _UpdatedPolicy} ->
-                    %% Policy created/updated successfully
-                    Config;
+                    BaseConfig;
                 {error, invalid_policy, _Details} ->
-                    %% Policy validation failed - skip test
                     {skip, "Test policy validation failed"};
                 {error, Reason} ->
-                    %% Other error - skip test
                     {skip, io_lib:format("Failed to create test policy: ~p", [Reason])};
                 Other ->
-                    %% Unexpected return value - log and continue
                     ct:log("Warning: Unexpected return from upsert_policy: ~p", [Other]),
-                    Config
+                    BaseConfig
             end
     end.
 
-end_per_testcase(_TestCase, _Config) ->
-    %% Cleanup test policy if it exists
+end_per_testcase(_TestCase, Config) ->
     TenantId = <<"test_tenant">>,
     PolicyId = <<"test_policy">>,
     case whereis(router_policy_store) of
         undefined -> ok;
-        _ -> 
+        _ ->
             catch router_policy_store:delete_policy(TenantId, PolicyId)
     end,
-    ok.
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 %% Test cases
 all() ->

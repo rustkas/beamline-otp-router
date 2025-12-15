@@ -12,7 +12,7 @@
 -include_lib("stdlib/include/assert.hrl").
 -include("../include/beamline_router.hrl").
 
--export([all/0, groups/0, suite/0, init_per_suite/1, end_per_suite/1,
+-export([all/0, groups/0, groups_for_level/1, suite/0, init_per_suite/1, end_per_suite/1,
          init_per_testcase/2, end_per_testcase/2]).
 
 -export([
@@ -25,10 +25,17 @@
 suite() -> [{timetrap, {minutes, 5}}].
 
 all() ->
+    groups_for_level(test_level()).
+
+groups_for_level(heavy) -> [{group, advanced_tests}];
+groups_for_level(full) -> [{group, advanced_tests}];
+groups_for_level(_) -> [].
+
+test_level() ->
     case os:getenv("ROUTER_TEST_LEVEL") of
-        "heavy" -> [{group, advanced_tests}];
-        "full" -> [{group, advanced_tests}];
-        _ -> []
+        "heavy" -> heavy;
+        "full" -> full;
+        _ -> fast
     end.
 
 groups() ->

@@ -56,8 +56,8 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    ok = router_suite_helpers:start_router_suite(),
-    
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{}),
+
     %% Create test policy
     TenantId = <<"test_tenant_benchmark">>,
     PolicyId = <<"test_policy_benchmark">>,
@@ -76,23 +76,23 @@ init_per_suite(Config) ->
         metadata = #{}
     },
     {ok, _} = router_policy_store:upsert_policy(TenantId, PolicyId, Policy, undefined),
-    
-    [{tenant_id, TenantId}, {policy_id, PolicyId} | Config].
+
+    [{tenant_id, TenantId}, {policy_id, PolicyId} | Config1].
 
 end_per_suite(Config) ->
     TenantId = proplists:get_value(tenant_id, Config),
     PolicyId = proplists:get_value(policy_id, Config),
     router_policy_store:delete_policy(TenantId, PolicyId, undefined),
-    router_suite_helpers:stop_router_suite(),
-    ok.
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
 init_per_testcase(_TestCase, Config) ->
+    Config1 = router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}),
     ok = router_test_utils:ensure_circuit_breaker_alive(),
     ok = router_r10_metrics:clear_metrics(),
-    Config.
+    Config1.
 
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+end_per_testcase(_TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 %% @doc Establish baseline performance metrics
 test_establish_baseline_metrics(Config) ->

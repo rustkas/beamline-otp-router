@@ -93,6 +93,11 @@ init([]) ->
          {router_circuit_breaker, start_link, []},
          permanent, 5000, worker, [router_circuit_breaker]},
 
+        %% JetStream supervisor (manages JetStream consumer lifecycle)
+        {router_jetstream_sup,
+         {router_jetstream_sup, start_link, []},
+         permanent, 5000, supervisor, [router_jetstream_sup]},
+
         %% Decide consumer (for DecideRequest via JetStream)
         %% CP2+: JetStream durable consumer with explicit ack policy
         {router_decide_consumer,

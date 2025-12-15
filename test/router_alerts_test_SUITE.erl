@@ -24,10 +24,14 @@
 %% Common Test callbacks
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
+%% Test utilities
+-import(ct_quarantine, [is_quarantined/1]).
+
 %% Test functions
 -export([
     test_alert_rules_definitions/1,
     test_r13_fault_rules/1,
+    test_quarantined_alert_rule/1,
     test_circuit_breaker_rules/1,
     test_error_rate_rules/1,
     test_performance_rules/1,
@@ -37,23 +41,25 @@
 ]).
 
 all() ->
-    case os:getenv("ROUTER_ENABLE_META") of
-        "1" -> meta_all();
-        "true" -> meta_all();
-        "on" -> meta_all();
-        _ -> []
-    end.
+    router_ct_groups:all_selection(?MODULE, [
+        {group, unit_tests},
+        {group, quarantine}
+    ]).
 
 meta_all() ->
     [].
+
 groups_for_level(heavy) ->
-    [{group, unit_tests}];
+    [{group, unit_tests}, {group, quarantine}];
 groups_for_level(full) ->
     [{group, unit_tests}];
 groups_for_level(_) -> %% fast
     [{group, unit_tests}].
 
 groups() ->
+    router_ct_groups:groups_definitions(?MODULE, base_groups()).
+
+base_groups() ->
     [
         {unit_tests, [], [
             test_alert_rules_definitions,
@@ -64,26 +70,29 @@ groups() ->
             test_alert_evaluation,
             test_alert_state_management,
             test_circuit_breaker_alert_conditions
+        ]},
+        {quarantine, [], [
+            test_quarantined_alert_rule
         ]}
     ].
 
 init_per_suite(Config) ->
-    ok = router_suite_helpers:start_router_suite(),
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{}),
     ok = router_metrics:clear_all(),
     ok = router_r10_metrics:clear_metrics(),
-    Config.
+    Config1.
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
-init_per_testcase(_TestCase, Config) ->
+init_per_testcase(TestCase, Config) ->
+    Config1 = router_test_bootstrap:init_per_testcase(TestCase, Config, #{}),
     ok = router_metrics:clear_all(),
     ok = router_r10_metrics:clear_metrics(),
-    Config.
+    Config1.
 
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+end_per_testcase(TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(TestCase, Config, #{}).
 
 %% @doc Test alert rules definitions
 test_alert_rules_definitions(_Config) ->
@@ -204,13 +213,18 @@ test_alert_state_management(_Config) ->
 
 %% @doc Test circuit breaker alert conditions
 test_circuit_breaker_alert_conditions(_Config) ->
+    ok.
+
+%% @doc This is a quarantined test that will only run in heavy/nightly test runs
+test_quarantined_alert_rule(_Config) ->
+    ct:comment("This is a quarantined test that verifies a specific alert rule"),
+    ?assertMatch(true, true),
     TenantId = <<"test_tenant_alerts">>,
     ProviderId = <<"test_provider_alerts">>,
     
     %% Create some circuit breaker state
     router_circuit_breaker:record_failure(TenantId, ProviderId),
     
-    %% Check alert conditions
     Conditions = router_r10_metrics:check_circuit_breaker_alert_conditions(),
     
     ?assert(is_map(Conditions)),

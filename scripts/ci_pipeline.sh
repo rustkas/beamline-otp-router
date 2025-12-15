@@ -110,6 +110,16 @@ else
 fi
 echo ""
 
+# 6. Flaky probe
+echo -e "${GREEN}[6/6] Running flaky-probe suites...${NC}"
+if bash scripts/run_flaky_probe_job.sh; then
+    echo -e "${GREEN}✓ Flaky-probe job completed${NC}"
+else
+    echo -e "${YELLOW}⚠ Flaky-probe job reported instability (see reports/flaky_probe.json)${NC}"
+    EXIT_CODE=1
+fi
+echo ""
+
 # Summary
 if [ ${EXIT_CODE} -eq 0 ]; then
     echo -e "${GREEN}=== CI Pipeline Passed ===${NC}"
@@ -122,4 +132,3 @@ else
 fi
 
 exit ${EXIT_CODE}
-

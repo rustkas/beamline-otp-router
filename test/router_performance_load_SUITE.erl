@@ -44,9 +44,8 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    %% Start Router application
-    ok = router_suite_helpers:start_router_suite(),
-    
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{}),
+
     %% Create test policy
     TenantId = <<"test_tenant_perf">>,
     PolicyId = <<"test_policy_perf">>,
@@ -65,25 +64,25 @@ init_per_suite(Config) ->
         metadata = #{}
     },
     {ok, _} = router_policy_store:upsert_policy(TenantId, PolicyId, Policy, undefined),
-    
-    [{tenant_id, TenantId}, {policy_id, PolicyId} | Config].
+
+    [{tenant_id, TenantId}, {policy_id, PolicyId} | Config1].
 
 end_per_suite(Config) ->
     %% Cleanup
     TenantId = proplists:get_value(tenant_id, Config),
     PolicyId = proplists:get_value(policy_id, Config),
     router_policy_store:delete_policy(TenantId, PolicyId, undefined),
-    router_suite_helpers:stop_router_suite(),
-    ok.
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
 init_per_testcase(_TestCase, Config) ->
+    Config1 = router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}),
     ok = router_test_utils:ensure_circuit_breaker_alive(),
     ok = router_r10_metrics:clear_metrics(),
-    Config.
+    Config1.
 
-end_per_testcase(_TestCase, _Config) ->
+end_per_testcase(_TestCase, Config) ->
     catch meck:unload(router_nats),
-    ok.
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 %% @doc Test: 1000 sequential DecideRequest with push_assignment=true
 test_1000_sequential_requests(Config) ->
@@ -249,7 +248,7 @@ test_100_concurrent_requests(Config) ->
     Results = lists:map(fun(_) ->
         receive
             {result, Result} -> Result
-        after 5000 ->
+        after router_test_timeouts:long_wait() ->
             {error, timeout}
         end
     end, Pids),

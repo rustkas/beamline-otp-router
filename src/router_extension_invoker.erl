@@ -145,8 +145,6 @@ invoke_extension(#extension{subject = Subject, timeout_ms = TimeoutMs, retry = R
                 {error, Reason} ->
                     {error, Reason};
                 ok ->
-                    _PayloadJson = jsx:encode(Payload),
-                    
                     %% Validate timeout (security: prevent abuse)
                     case validate_timeout(TimeoutMs) of
                         {error, Reason2} ->

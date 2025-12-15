@@ -9,6 +9,7 @@
 -export([track_delivery_count/1, check_maxdeliver_exhaustion/3, cleanup_delivery_count/1]).
 -export([normalize_boolean/1, check_tenant_allowed/1]).  %% Exported for testing only
 -export([handle_decide_message/4]). %% Exported for testing
+ -export([build_decide_response/2]).
 
 -include("beamline_router.hrl").
 
@@ -1050,4 +1051,3 @@ terminate(_Reason, _State) ->
 %% @doc Handle code change
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-

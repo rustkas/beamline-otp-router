@@ -37,12 +37,12 @@
 ]).
 
 all() ->
-    case os:getenv("ROUTER_ENABLE_META") of
-        "1" -> meta_all();
-        "true" -> meta_all();
-        "on" -> meta_all();
-        _ -> []
-    end.
+    router_ct_groups:all_selection(?MODULE, [
+        {group, admin_access},
+        {group, operator_access},
+        {group, viewer_access},
+        {group, no_access}
+    ]).
 
 meta_all() ->
     [].
@@ -54,6 +54,9 @@ groups_for_level(_) -> %% fast
     [{group, admin_access}, {group, operator_access}, {group, viewer_access}, {group, no_access}].
 
 groups() ->
+    router_ct_groups:groups_definitions(?MODULE, base_groups()).
+
+base_groups() ->
     [
         {admin_access, [sequence], [
             test_admin_can_upsert,
@@ -75,45 +78,38 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    ct:pal("### init_per_suite: starting beamline_router with FULL RBAC", []),
-    
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, true),
-    ok = application:set_env(beamline_router, admin_grpc_enabled, true),
-    ok = application:set_env(beamline_router, cp2_plus_allowed, true),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    %% IMPORTANT: rbac_test_mode = false for real RBAC testing
-    ok = application:set_env(beamline_router, rbac_test_mode, false),
-    AdminKey = <<"test-admin-key">>,
-    ok = application:set_env(beamline_router, admin_api_key, AdminKey),
-    
-    case application:ensure_all_started(beamline_router) of
-        {ok, _} ->
-            [{admin_api_key, AdminKey} | Config];
-        Error ->
-            ct:fail("Failed to start beamline_router: ~p", [Error])
-    end.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => ensure_all_started,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => true,
+            admin_grpc_enabled => true,
+            cp2_plus_allowed => true,
+            nats_mode => mock,
+            rbac_test_mode => false,
+            admin_api_key => <<"test-admin-key">>
+        }
+    }).
 
-end_per_suite(_Config) ->
-    application:stop(beamline_router),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => ensure_all_started,
+        stop => stop_app
+    }).
 
 init_per_testcase(Case, Config) ->
-    %% Reset stores
+    BaseConfig = router_test_bootstrap:init_per_testcase(Case, Config, #{}),
     ok = router_policy_store:reset(),
     case catch router_rbac:reset() of
         ok -> ok;
         _ -> ok
     end,
-    
-    %% Setup roles based on test case
     TenantId = <<"test_tenant">>,
     setup_roles_for_test(Case, TenantId),
-    
-    [{tenant_id, TenantId} | Config].
+    [{tenant_id, TenantId} | BaseConfig].
 
-end_per_testcase(_Case, _Config) ->
+end_per_testcase(_Case, Config) ->
+    router_test_bootstrap:end_per_testcase(_Case, Config, #{}),
     ok.
 
 %% Setup roles for specific test cases
@@ -417,4 +413,3 @@ test_wrong_tenant_no_access(Config) ->
             end,
             ?assertEqual(7, StatusInt)  %% PERMISSION_DENIED
     end.
-

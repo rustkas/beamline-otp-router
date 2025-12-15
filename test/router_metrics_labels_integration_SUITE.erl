@@ -77,19 +77,25 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    ok = router_mock_helpers:setup_router_nats_mock(),
-    ok = router_suite_helpers:start_router_suite(),
-    Config.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => router_suite,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock
+        }
+    }).
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
-    router_mock_helpers:cleanup_and_verify(),
+end_per_suite(Config) ->
+    _ = router_test_bootstrap:end_per_suite(Config, #{
+        start => router_suite,
+        stop => router_suite,
+        cleanup_mocks => true
+    }),
     ok.
 
 init_per_testcase(TestCase, Config) ->
-    router_metrics_test_helper:clear_all_metrics(),
+    Config1 = router_test_bootstrap:init_per_testcase(TestCase, Config, #{clear_metrics => true}),
     %% Ensure router_nats mock is active for tests that need it
     case TestCase of
         test_dlq_metric_labels_during_maxdeliver ->
@@ -101,7 +107,7 @@ init_per_testcase(TestCase, Config) ->
         _ ->
             ok
     end,
-    Config.
+    Config1.
 
 end_per_testcase(_TestCase, _Config) ->
     ok.

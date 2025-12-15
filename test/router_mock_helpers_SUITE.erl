@@ -33,8 +33,8 @@
     test_router_nats_mock_idempotent_across_testcases/1,
     test_router_nats_stray_mock_reported/1,
     test_router_nats_mock_no_passthrough/1,
-    %% Stub coverage test (Task 5)
-    test_router_nats_stub_coverage/1
+    %% Connection check for real NATS server
+    test_router_nats_connection/1
 ]).
 
 suite() -> [{timetrap, {minutes, 1}}].
@@ -61,7 +61,7 @@ groups() ->
         test_router_nats_mock_idempotent_across_testcases,
         test_router_nats_stray_mock_reported,
         test_router_nats_mock_no_passthrough,
-        test_router_nats_stub_coverage
+        test_router_nats_connection
     ]}].
 
 init_per_suite(Config) ->
@@ -464,45 +464,14 @@ test_router_nats_mock_no_passthrough(_Config) ->
     router_mock_helpers:unload(router_nats),
     ok.
 
-%% @doc Stub coverage test: verify ALL router_nats stubs return expected values
-%% This test ensures setup_router_nats_mock() covers all router_nats functions
-%% that are commonly called in tests, preventing noproc errors.
-test_router_nats_stub_coverage(_Config) ->
-    %% Setup mock
-    ok = router_mock_helpers:setup_router_nats_mock(),
-    ?assert(lists:member(router_nats, meck:mocked())),
-    
-    %% Test all stubbed functions - these should NOT crash
-    %% Core publish functions
-    ?assertEqual(ok, router_nats:publish(<<"test.subject">>, <<"payload">>)),
-    ?assertEqual({ok, <<"mock-msg-id">>}, router_nats:publish_with_ack(<<"s">>, <<"p">>, #{})),
-    ?assertEqual({ok, <<>>}, router_nats:request(<<"s">>, <<"p">>, 5000)),
-    
-    %% ACK/NAK functions
-    ?assertEqual(ok, router_nats:ack_message(<<"msg-id">>)),
-    ?assertEqual(ok, router_nats:nak_message(<<"msg-id">>)),
-    
-    %% Subscription functions
-    ?assertEqual(ok, router_nats:subscribe(<<"test.subject">>, fun(_) -> ok end, 5000)),
-    ?assertEqual({ok, <<"mock-consumer">>}, 
-                 router_nats:subscribe_jetstream(<<"s">>, <<"st">>, explicit, undefined, push)),
-    
-    %% Connection status functions
-    ?assertEqual({ok, #{state => connected, fail_open_mode => false}}, router_nats:get_connection_status()),
-    ?assertMatch(#{status := healthy}, router_nats:get_connection_health()),
-    
-    %% Reconnect function
-    ?assertEqual(ok, router_nats:reconnect()),
-    
-    %% JetStream consumers
-    ?assertEqual([], router_nats:get_jetstream_consumers()),
-    
-    %% TEST-only function (simulate_connection_lost)
-    ?assertEqual(ok, router_nats:simulate_connection_lost()),
-    
-    %% Cleanup
-    router_mock_helpers:unload(router_nats),
-    ?assertNot(lists:member(router_nats, meck:mocked())),
-    
+%% @doc Connection check: ensure router_nats can reach the real server
+test_router_nats_connection(_Config) ->
+    {ok, _Pid} = router_nats_server:ensure_running(),
+    ok = router_nats_server:configure_env(),
+    {ok, _} = router_nats_server:ensure_router_process(),
+    {ok, Status} = router_nats:get_connection_status(),
+    ?assertEqual(connected, maps:get(state, Status)),
+    router_nats_server:stop_router_process(),
+    router_nats_server:stop(),
     ok.
 

@@ -54,8 +54,7 @@ end_suite(Config) ->
     Config.
 
 init_testcase(_TC, Config) ->
-    meck:new(router_nats, []),
-    %% IMPORTANT: no passthrough for functions that call gen_server:call(router_nats,...)
+    meck:new(router_nats, [passthrough]),
     meck:expect(router_nats, publish_with_ack, fun(_Subject, _Payload, _Headers) ->
         {error, connection_closed}
     end),
@@ -69,19 +68,9 @@ init_testcase(_TC, Config) ->
     end),
     meck:expect(router_nats, publish, fun(_Subject, _Payload) -> ok end),
     meck:expect(router_nats, request, fun(_Subj, _Pay, _Time) -> {ok, <<>>} end),
-    meck:new(router_decider, [passthrough]),
+    
     meck:new(router_extension_registry, [passthrough]),
     meck:new(router_extension_invoker, [passthrough]),
-    
-    meck:expect(router_decider, decide, fun(_Request, _Policy, _Context) ->
-        {ok, #route_decision{
-            provider_id = <<"openai:gpt-4o">>,
-            priority = 50,
-            expected_latency_ms = 850,
-            expected_cost = 0.012,
-            reason = <<"best_score">>
-        }}
-    end),
     
     setup_extension_mocks(),
     
@@ -99,7 +88,7 @@ end_testcase(_TC, Config) ->
         T2 when T2 =/= undefined -> ets:delete(T2);
         _ -> ok
     end,
-    meck:unload([router_nats, router_decider, router_extension_registry, router_extension_invoker]),
+    meck:unload([router_nats, router_extension_registry, router_extension_invoker]),
     Config.
 
 setup_extension_mocks() ->
@@ -182,15 +171,17 @@ create_policy_with_extensions(Extensions) ->
             _ -> #{}
         end
     end, Pre),
+    %% Add a default validator to introduce realistic failures under chaos
+    Validators = [#{id => <<"pii_guard">>, on_fail => <<"block">>, config => #{}}],
     #policy{
         tenant_id = <<"test_tenant">>,
         policy_id = <<"test_policy">>,
         version = <<"1.0">>,
         pre = PreItems,
-        validators = [],
+        validators = Validators,
         post = [],
         weights = #{<<"openai:gpt-4">> => 1.0},
-        metadata = #{}
+        metadata = {}
     }.
 
 create_route_request(Payload, Policy) ->

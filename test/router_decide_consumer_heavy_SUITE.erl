@@ -49,30 +49,32 @@ groups() ->
     ]}].
 
 init_per_suite(Config) ->
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, false),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    ok = application:set_env(beamline_router, decide_subject, <<"beamline.router.v1.decide">>),
-    ok = application:set_env(beamline_router, tracing_enabled, false),
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{
+        common_env => false,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock,
+            decide_subject => <<"beamline.router.v1.decide">>,
+            tracing_enabled => false
+        }
+    }),
     meck:new(router_rate_limiter, [passthrough]),
     meck:expect(router_rate_limiter, start_link, fun() -> {ok, spawn(fun() -> receive after infinity -> ok end end)} end),
-    ok = router_suite_helpers:start_router_suite(),
-    Config.
+    Config1.
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
+end_per_suite(Config) ->
     catch meck:unload(router_rate_limiter),
-    ok.
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
 init_per_testcase(_TestCase, Config) ->
-    ok = router_suite_helpers:start_router_suite(),
-    router_metrics:ensure(),
-    Config.
+    Config1 = router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}),
+    ok = router_metrics:ensure(),
+    Config1.
 
-end_per_testcase(_TestCase, _Config) ->
+end_per_testcase(_TestCase, Config) ->
     catch meck:unload(),
-    ok.
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 %% ============================================================================
 %% HELPER FUNCTIONS

@@ -311,9 +311,18 @@ execute_pre_processor_item(PreItem, Message, Context) ->
             
             Result = case router_extension_invoker:invoke(ExtId, Request, Context) of
                 {ok, Response} ->
-                    ProcessedPayload = maps:get(<<"payload">>, Response, Message),
+                    PayloadRaw = maps:get(<<"payload">>, Response, Message),
+                    %% Normalize payload: ensure downstream validators receive message map
+                    NormalizedPayload = case is_map(PayloadRaw) of
+                        true -> PayloadRaw;
+                        false ->
+                            case (is_binary(PayloadRaw) orelse is_list(PayloadRaw)) of
+                                true -> maps:put(<<"payload">>, PayloadRaw, Message);
+                                false -> Message
+                            end
+                    end,
                     ProcessedContext = maps:merge(Context, maps:get(<<"metadata">>, Response, #{})),
-                    {ok, ProcessedPayload, ProcessedContext};
+                    {ok, NormalizedPayload, ProcessedContext};
                 {error, Reason} ->
                     handle_pre_processor_error(Mode, ExtId, Reason, Context, Message)
             end,

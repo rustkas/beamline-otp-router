@@ -9,8 +9,6 @@
 -include_lib("stdlib/include/assert.hrl").
 
 -import(router_test_utils, [
-    start_router_app/0,
-    stop_router_app/0,
     ensure_circuit_breaker_alive/0,
     reset_circuit_breaker/0
 ]).
@@ -50,38 +48,39 @@ groups() ->
     ]}].
 
 init_per_suite(Config) ->
-    ok = start_router_app(),
+    Base = router_test_bootstrap:init_per_suite(Config, #{
+        start => router_suite,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock,
+            tracing_enabled => false
+        }
+    }),
     ok = ensure_circuit_breaker_alive(),
     router_metrics:ensure(),
     router_r10_metrics:clear_metrics(),
-    Config.
+    Base.
 
-end_per_suite(_Config) ->
-    stop_router_app(),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => router_suite,
+        stop => router_suite
+    }).
 
 init_per_testcase(_TestCase, Config) ->
-    ok = start_router_app(),
+    Base = router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}),
     ok = ensure_circuit_breaker_alive(),
     ok = reset_circuit_breaker(),
     router_metrics:ensure(),
     router_r10_metrics:clear_metrics(),
-    Config.
+    Base.
 
-end_per_testcase(_TestCase, Config) -> Config.
+end_per_testcase(_TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 verify_cb_alive() ->
-    case whereis(router_circuit_breaker) of
-        undefined ->
-            ok = start_router_app(),
-            timer:sleep(200),
-            ok = ensure_circuit_breaker_alive();
-        Pid when is_pid(Pid) ->
-            case is_process_alive(Pid) of
-                true -> ok;
-                false -> ct:fail({circuit_breaker_dead, pid, Pid})
-            end
-    end.
+    ok = ensure_circuit_breaker_alive().
 
 open_circuit(TenantId, ProviderId, Config) ->
     router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config),

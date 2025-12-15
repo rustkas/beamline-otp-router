@@ -49,52 +49,49 @@ all() ->
     ].
 
 init_per_suite(Config) ->
-    _ = application:stop(beamline_router),
-    _ = application:unload(beamline_router),
-    _ = application:load(beamline_router),
-    
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, false),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    ok = application:set_env(beamline_router, nats_reconnect_attempts, 5),
-    ok = application:set_env(beamline_router, nats_reconnect_delay_ms, 500),
-    ok = application:set_env(beamline_router, nats_max_reconnect_delay_ms, 2000),
-    ok = application:set_env(beamline_router, nats_fail_open_mode, true),
-    ok = application:set_env(beamline_router, nats_max_pending_operations, 1000),
-    
-    %% Setup mock with fail_open_mode=true BEFORE starting app
-    %% NOTE: Do NOT override get_connection_status here - the default mock
-    %% correctly reads from mock state table, which is needed for connection
-    %% loss simulation in test_publish_not_connected_fail_open tests.
     ok = router_mock_helpers:setup_router_nats_mock(),
-    
-    %% Start app manually (not via start_router_suite which would override mock)
-    {ok, _} = application:ensure_all_started(beamline_router),
-    
+    router_test_bootstrap:init_per_suite(Config, #{
+        reset_app => true,
+        start => ensure_all_started,
+        common_env => false,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock,
+            nats_reconnect_attempts => 5,
+            nats_reconnect_delay_ms => 500,
+            nats_max_reconnect_delay_ms => 2000,
+            nats_fail_open_mode => true,
+            nats_max_pending_operations => 1000
+        }
+    }),
     ok = router_test_utils:ensure_router_nats_alive(),
     assert_fail_open_mode_enabled(),
     Config.
 
 end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
+    router_test_bootstrap:end_per_suite([], #{
+        start => ensure_all_started,
+        stop => stop_app
+    }),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
-    router_nats_fault_injection:clear_all_faults(),
-    %% Reset mock connection state to connected before each test
+    Base = router_test_bootstrap:init_per_testcase(_TestCase, Config, #{
+        clear_faults => true
+    }),
     router_mock_helpers:set_mock_connection_state(connected),
     router_test_utils:ensure_router_nats_alive(),
-    %% Simplified - don't check connection status (mock handles this)
     assert_fail_open_mode_enabled(),
     router_metrics_test_helper:setup(),
     router_metrics_test_helper:clear(),
-    Config.
+    Base.
 
 end_per_testcase(_TestCase, _Config) ->
     router_nats_fault_injection:clear_all_faults(),
-    %% Reset mock connection state to connected after each test
     router_mock_helpers:set_mock_connection_state(connected),
     router_metrics_test_helper:teardown(),
+    router_test_bootstrap:end_per_testcase(_TestCase, [], #{}),
     ok.
 
 %% @doc Test: publish returns {error, Reason} in fail-open mode

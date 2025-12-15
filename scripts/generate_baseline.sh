@@ -89,7 +89,15 @@ parse_ct_logs() {
     
     if [[ -d "$ct_log_dir" ]]; then
         local latest_run
-        latest_run=$(ls -td "$ct_log_dir"/ct_run.* 2>/dev/null | head -1)
+        shopt -s nullglob
+        local runs=("$ct_log_dir"/ct_run.*)
+        shopt -u nullglob
+
+        if [[ ${#runs[@]} -eq 0 ]]; then
+            return 0
+        fi
+
+        latest_run=$(ls -td "${runs[@]}" 2>/dev/null | sed -n '1p')
         if [[ -n "$latest_run" ]]; then
             # Parse summary lines like "=== TEST COMPLETE, 13 ok, 0 failed of 13 test cases"
             # or "=== TEST COMPLETE, 4 ok, 1 failed, 2 skipped of 7 test cases"

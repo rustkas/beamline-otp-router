@@ -64,29 +64,39 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    ok = router_suite_helpers:start_router_suite(),
+    Base = router_test_bootstrap:init_per_suite(Config, #{
+        start => router_suite,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock,
+            tracing_enabled => false
+        }
+    }),
     ok = ensure_circuit_breaker_alive(),
     router_metrics:ensure(),
     router_r10_metrics:clear_metrics(),
-    Config.
+    Base.
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
-    ok.
+end_per_suite(Config) ->
+    Base = router_test_bootstrap:end_per_suite(Config, #{
+        start => router_suite,
+        stop => router_suite
+    }),
+    Base.
 
 init_per_testcase(_Case, Config) ->
-    %% Don't call start_router_suite() here - app is already started in init_per_suite
-    %% This is critical for parallel test groups to avoid mock race conditions
+    Base = router_test_bootstrap:init_per_testcase(_Case, Config, #{}),
     ok = ensure_circuit_breaker_alive(),
     router_metrics:ensure(),
     router_r10_metrics:clear_metrics(),
     ok = reset_circuit_breaker(),
-    Config.
+    Base.
 
-end_per_testcase(_Case, _Config) ->
+end_per_testcase(_Case, Config) ->
     ok = reset_circuit_breaker(),
     router_r10_metrics:clear_metrics(),
-    ok.
+    router_test_bootstrap:end_per_testcase(_Case, Config, #{}).
 
 %% ========================================================================
 %% WINDOW MONOTONICITY TESTS

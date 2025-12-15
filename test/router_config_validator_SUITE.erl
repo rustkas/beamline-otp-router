@@ -57,20 +57,20 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    %% Set valid grpc_port for config validation (validator rejects 0)
-    application:set_env(beamline_router, grpc_port, 9000),
-    ok = router_suite_helpers:start_router_suite(),
-    Config.
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{
+        common_env => false,
+        app_env => #{grpc_port => 9000}
+    }),
+    Config1.
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
-init_per_testcase(_TestCase, Config) ->
-    Config.
+init_per_testcase(TestCase, Config) ->
+    router_test_bootstrap:init_per_testcase(TestCase, Config, #{}).
 
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+end_per_testcase(TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(TestCase, Config, #{}).
 
 %% @doc Test: Validate configuration
 %% Note: This test verifies that validate_config returns a structured report.

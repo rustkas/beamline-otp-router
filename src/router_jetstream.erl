@@ -44,11 +44,15 @@
 -include("beamline_router.hrl").
 
 %% @doc Start link for supervisor (gen_server wrapper)
+% start_link() ->
+%     %% For CP1, router_jetstream is a stateless module
+%     %% Return a dummy pid to satisfy supervisor requirements
+%     Pid = spawn_link(fun() -> receive _ -> ok end end),
+%     {ok, Pid}.
+
+%% @doc Start link for supervisor (gen_server wrapper)
 start_link() ->
-    %% For CP1, router_jetstream is a stateless module
-    %% Return a dummy pid to satisfy supervisor requirements
-    Pid = spawn_link(fun() -> receive _ -> ok end end),
-    {ok, Pid}.
+    router_jetstream_sup:start_link().
 
 %% @doc Setup router_jetstream module
 setup(Opts) ->
@@ -167,7 +171,11 @@ handle(#{id := Id, subject := Subject} = Msg, Ctx) ->
     true ->
       %% MaxDeliver exhausted: ACK message and send to DLQ
       %% Extract labels from context and message
-      AssignmentId = maps:get(assignment_id, Ctx, extract_assignment_id(Subject)),
+      AssignmentId =
+        case maps:find(assignment_id, Ctx) of
+          {ok, ProvidedAssignmentId} -> ProvidedAssignmentId;
+          error -> extract_assignment_id(Subject)
+        end,
       Reason = <<"maxdeliver_exhausted">>,
       TenantId = extract_tenant_id(Msg),
       Source = <<"maxdeliver_exhausted">>,
@@ -231,82 +239,60 @@ metrics() -> [router_jetstream_ack_total, router_jetstream_redelivery_total, rou
 trace_ctx(Headers) -> {trace, Headers}.
 
 %% @doc Subscribe to decide subject (JetStream durable)
-%% Wrapper over router_nats:subscribe_jetstream/5 for decide consumer
+%% Wrapper over router_jetstream_consumer_manager for decide consumer
 subscribe_decide(Opts) ->
-    Subject = maps:get(subject, Opts, <<"beamline.router.v1.decide">>),
-    DurableGroup = maps:get(durable_group, Opts, <<"router-decide-consumer">>),
-    DeliverGroup = maps:get(deliver_group, Opts, undefined),
-    AckPolicy = maps:get(ack_policy, Opts, explicit),
-    Mode = maps:get(mode, Opts, push),
-    case router_nats:subscribe_jetstream(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode) of
-        {ok, ConsumerId} ->
-            router_logger:info(<<"JetStream subscription created for decide">>, #{
-                <<"subject">> => Subject,
-                <<"durable_group">> => DurableGroup,
-                <<"consumer_id">> => ConsumerId
-            }),
-            {ok, ConsumerId};
-        {error, Reason} ->
-            SanitizedReason = sanitize_error_for_logging(Reason),
-            router_logger:error(<<"Failed to create JetStream subscription for decide">>, #{
-                <<"subject">> => Subject,
-                <<"durable_group">> => DurableGroup,
-                <<"error">> => SanitizedReason
-            }),
-            {error, Reason}
-    end.
+    router_jetstream_consumer_manager:subscribe_decide(Opts).
 
 %% @doc Subscribe to results subject (JetStream durable)
-%% Wrapper over router_nats:subscribe_jetstream/5 for result consumer
+%% Wrapper over router_jetstream_consumer_manager for result consumer
 subscribe_results(Opts) ->
-    Subject = maps:get(subject, Opts, <<"caf.exec.result.v1">>),
-    DurableGroup = maps:get(durable_group, Opts, <<"router-results">>),
-    DeliverGroup = maps:get(deliver_group, Opts, undefined),
-    AckPolicy = maps:get(ack_policy, Opts, explicit),
-    Mode = maps:get(mode, Opts, push),
-    case router_nats:subscribe_jetstream(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode) of
-        {ok, ConsumerId} ->
-            router_logger:info(<<"JetStream subscription created for results">>, #{
-                <<"subject">> => Subject,
-                <<"durable_group">> => DurableGroup,
-                <<"consumer_id">> => ConsumerId
-            }),
-            {ok, ConsumerId};
-        {error, Reason} ->
-            SanitizedReason = sanitize_error_for_logging(Reason),
-            router_logger:error(<<"Failed to create JetStream subscription for results">>, #{
-                <<"subject">> => Subject,
-                <<"durable_group">> => DurableGroup,
-                <<"error">> => SanitizedReason
-            }),
-            {error, Reason}
-    end.
+    router_jetstream_consumer_manager:subscribe_results(Opts).
 
 %% @doc Subscribe to ACK subject (JetStream durable)
-%% Wrapper over router_nats:subscribe_jetstream/5 for ack consumer
+%% Wrapper over router_jetstream_consumer_manager for ack consumer
 subscribe_acks(Opts) ->
-    Subject = maps:get(subject, Opts, <<"caf.exec.assign.v1.ack">>),
-    DurableGroup = maps:get(durable_group, Opts, <<"router-acks">>),
-    DeliverGroup = maps:get(deliver_group, Opts, undefined),
-    AckPolicy = maps:get(ack_policy, Opts, explicit),
-    Mode = maps:get(mode, Opts, push),
-    case router_nats:subscribe_jetstream(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode) of
-        {ok, ConsumerId} ->
-            router_logger:info(<<"JetStream subscription created for ACKs">>, #{
-                <<"subject">> => Subject,
-                <<"durable_group">> => DurableGroup,
-                <<"consumer_id">> => ConsumerId
-            }),
-            {ok, ConsumerId};
-        {error, Reason} ->
-            SanitizedReason = sanitize_error_for_logging(Reason),
-            router_logger:error(<<"Failed to create JetStream subscription for ACKs">>, #{
-                <<"subject">> => Subject,
-                <<"durable_group">> => DurableGroup,
-                <<"error">> => SanitizedReason
-            }),
-            {error, Reason}
-    end.
+    router_jetstream_consumer_manager:subscribe_acks(Opts).
+
+%% @doc Helper functions for extracting common label values for metrics
+extract_assignment_id(Subject) when is_binary(Subject) ->
+  %% For known subjects with a stable prefix (4+ segments), use the last segment.
+  %% For shorter/unknown subjects, preserve the full subject (more informative).
+  case binary:split(Subject, <<".">>, [global]) of
+    [_A, _B, _C, _D | _] = Parts -> lists:last(Parts);
+    _ -> Subject
+  end;
+extract_assignment_id(Subject) when is_list(Subject) ->
+  extract_assignment_id(list_to_binary(Subject));
+extract_assignment_id(_) ->
+  <<"unknown">>.
+
+extract_tenant_id(Msg) when is_map(Msg) ->
+  Headers = maps:get(headers, Msg, #{}),
+  Payload = maps:get(payload, Msg, #{}),
+  case Headers of
+    #{<<"tenant_id">> := TenantId} -> TenantId;
+    _ ->
+      case Payload of
+        #{<<"tenant_id">> := TenantId} -> TenantId;
+        _ -> <<"unknown">>
+      end
+  end;
+extract_tenant_id(_) ->
+  <<"unknown">>.
+
+extract_request_id(Msg) when is_map(Msg) ->
+  Headers = maps:get(headers, Msg, #{}),
+  Payload = maps:get(payload, Msg, #{}),
+  case Headers of
+    #{<<"request_id">> := RequestId} -> RequestId;
+    _ ->
+      case Payload of
+        #{<<"request_id">> := RequestId} -> RequestId;
+        _ -> <<"unknown">>
+      end
+  end;
+extract_request_id(_) ->
+  <<"unknown">>.
 
 %% @doc Terminal NAK (no redelivery)
 %% Use this when message should not be redelivered (e.g., permanent error)
@@ -626,55 +612,6 @@ reason_to_source(Reason) when is_binary(Reason) ->
     %% If already binary, use as-is (but normalize)
     binary:replace(Reason, <<"_failed">>, <<"">>, [global]);
 reason_to_source(_Reason) ->
-    <<"unknown">>.
-
-%% @doc Sanitize error for logging (masks secrets)
-sanitize_error_for_logging(Error) ->
-    %% Convert error to binary for pattern matching
-    ErrorBin = case is_binary(Error) of
-        true -> Error;
-        false -> iolist_to_binary(io_lib:format("~p", [Error]))
-    end,
-    %% Check for common secret patterns in error message
-    case re:run(ErrorBin, "(?i)(api[_-]?key|secret|token|password|authorization|Bearer\\s+[A-Za-z0-9]+)", [{capture, none}]) of
-        match ->
-            <<"[REDACTED: contains sensitive data]">>;
-        nomatch ->
-            %% If error is a simple term, return as-is; otherwise format safely
-            case is_binary(Error) of
-                true -> Error;
-                false -> ErrorBin
-            end
-    end.
-
-%% @doc Extract assignment_id from subject or context
-%% Assignment ID is typically embedded in subject (e.g., "beamline.router.v1.decide" -> "decide")
-extract_assignment_id(Subject) when is_binary(Subject) ->
-    %% Try to extract from subject pattern
-    case binary:split(Subject, <<".">>, [global]) of
-        [_, _, _, <<"v1">>, Assignment] -> Assignment;
-        [_, _, _, Assignment] -> Assignment;
-        _ -> 
-            %% Fallback: use subject as assignment_id
-            Subject
-    end;
-extract_assignment_id(_) ->
-    <<"unknown">>.
-
-%% @doc Extract tenant_id from message headers or payload
-extract_tenant_id(#{headers := Headers}) when is_map(Headers) ->
-    maps:get(<<"tenant_id">>, Headers, maps:get(<<"tenant_id">>, maps:get(payload, Headers, #{}), <<"unknown">>));
-extract_tenant_id(#{payload := Payload}) when is_map(Payload) ->
-    maps:get(<<"tenant_id">>, Payload, <<"unknown">>);
-extract_tenant_id(_) ->
-    <<"unknown">>.
-
-%% @doc Extract request_id from message headers or payload
-extract_request_id(#{headers := Headers}) when is_map(Headers) ->
-    maps:get(<<"request_id">>, Headers, maps:get(<<"request_id">>, maps:get(payload, Headers, #{}), <<"unknown">>));
-extract_request_id(#{payload := Payload}) when is_map(Payload) ->
-    maps:get(<<"request_id">>, Payload, <<"unknown">>);
-extract_request_id(_) ->
     <<"unknown">>.
 
 %% @doc Get current table size (number of entries)

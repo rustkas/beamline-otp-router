@@ -56,21 +56,24 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    ct:pal("### init_per_suite: starting app", []),
-    {ok, _} = application:ensure_all_started(beamline_router),
-    Config.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => ensure_all_started
+    }).
 
-end_per_suite(_Config) ->
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => ensure_all_started,
+        stop => stop_app
+    }).
 
 init_per_testcase(_Case, Config) ->
-    %% Reset REAL policy store before each test
+    BaseConfig = router_test_bootstrap:init_per_testcase(_Case, Config, #{}),
     ok = router_policy_store:reset(),
-    
     TestUserId = <<"test-user">>,
-    [{test_user_id, TestUserId} | Config].
+    [{test_user_id, TestUserId} | BaseConfig].
 
-end_per_testcase(_Case, _Config) ->
+end_per_testcase(_Case, Config) ->
+    router_test_bootstrap:end_per_testcase(_Case, Config, #{}),
     ok.
 
 %% Helpers

@@ -58,23 +58,19 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    %% Ensure the real router_nats module is loaded BEFORE any mocking
-    %% This is needed for function_exported checks to work correctly
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{}),
     {module, router_nats} = code:ensure_loaded(router_nats),
-    %% Capture the original module exports before mocking
     Exports = router_nats:module_info(exports),
-    ok = router_suite_helpers:start_router_suite(),
-    [{router_nats_exports, Exports} | Config].
+    [{router_nats_exports, Exports} | Config1].
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
 init_per_testcase(_TestCase, Config) ->
-    Config.
+    router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}).
 
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+end_per_testcase(_TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 %% @doc Test: NATS protocol compatibility verification
 test_nats_protocol_compatibility(_Config) ->

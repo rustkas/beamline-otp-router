@@ -54,25 +54,24 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    %% Start Router application using standard test helper
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, grpc_enabled, true),
-    ok = application:set_env(beamline_router, admin_grpc_enabled, true),
-    ok = application:set_env(beamline_router, grpc_port, 0), %% Random port
-    ok = application:set_env(beamline_router, admin_api_key, <<"test-admin-key">>),
-    
-    ok = router_suite_helpers:start_router_suite(),
-    Config.
+    router_test_bootstrap:init_per_suite(Config, #{
+        common_env => false,
+        app_env => #{
+            grpc_enabled => true,
+            admin_grpc_enabled => true,
+            grpc_port => 0,
+            admin_api_key => <<"test-admin-key">>
+        }
+    }).
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
 init_per_testcase(_TestCase, Config) ->
-    Config.
+    router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}).
 
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+end_per_testcase(_TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 %% ============================================================================
 %% Fast Smoke Tests (minimal, no gRPC connection required)

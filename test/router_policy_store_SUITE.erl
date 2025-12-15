@@ -57,13 +57,10 @@
 %% Test suite callbacks
 
 all() ->
-    %% CP1 core tests run by default - use ROUTER_TEST_LEVEL for tier control
-    Level = case os:getenv("ROUTER_TEST_LEVEL") of
-        "heavy" -> heavy;
-        "full"  -> full;
-        _       -> fast
-    end,
-    groups_for_level(Level).
+    router_ct_groups:all_selection(?MODULE, [
+        {group, unit_tests},
+        {group, telemetry_tests}
+    ]).
 
 groups_for_level(heavy) ->
     [{group, unit_tests}, {group, telemetry_tests}];
@@ -73,6 +70,9 @@ groups_for_level(_) -> %% fast
     [{group, unit_tests}].
 
 groups() ->
+    router_ct_groups:groups_definitions(?MODULE, base_groups()).
+
+base_groups() ->
     [
         {unit_tests, [parallel], [
             test_upsert_policy_success,
@@ -90,28 +90,23 @@ groups() ->
             test_list_policies_success,
             test_list_policies_empty
         ]},
-        %% Telemetry tests require telemetry:execute in router_policy_store (CP2+)
         {telemetry_tests, [sequence], [
             test_telemetry_correlation_id
         ]}
     ].
 
 init_per_suite(Config) ->
-    %% Start application with ephemeral port
-    _ = application:load(beamline_router),  %% Ignore if already loaded
-    ok = application:set_env(beamline_router, grpc_port, 0),  %% Ephemeral port
-    case application:ensure_all_started(beamline_router) of
-        {ok, _} ->
-            %% Wait for policy store to initialize (bounded wait)
-            test_helpers:wait_for_app_start(router_policy_store, 1000),
-            Config;
-        Error ->
-            ct:fail("Failed to start beamline_router: ~p", [Error])
-    end.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => ensure_all_started,
+        app_env => #{grpc_port => 0},
+        wait_for_app_start => [{router_policy_store, 1000}]
+    }).
 
 end_per_suite(Config) ->
-    application:stop(beamline_router),
-    Config.
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => ensure_all_started,
+        stop => stop_app
+    }).
 
 init_per_testcase(_TestCase, Config) ->
     Config.
@@ -545,7 +540,7 @@ test_telemetry_correlation_id(_Config) ->
                     ct:pal("Note: count field not present in telemetry metadata (OK)")
             end,
             ok
-    after 1000 ->
+    after router_test_timeouts:short_wait() ->
         {error, timeout}
     end,
     

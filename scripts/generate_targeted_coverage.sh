@@ -120,50 +120,44 @@ if [[ -f "$COVER_INDEX" ]]; then
         AGGREGATE_PCT=$(echo "$total_line" | grep -oE '[0-9]+%' | head -1 | tr -d '%\n\r ' || echo "0")
         AGGREGATE_PCT=${AGGREGATE_PCT:-0}
     fi
-    
-    # Parse per-module coverage for targeted modules
-    for module in "${TARGETED_MODULES[@]}"; do
-        # Parse percentage from index.html: <tr><td><a href='...'>module</a></td><td>XX%</td>
-        pct_line=$(grep -E ">${module}<" "$COVER_INDEX" 2>/dev/null | head -1 || true)
-        if [[ -n "$pct_line" ]]; then
-            # Extract percentage, ensure it's a single number
-            pct=$(echo "$pct_line" | grep -oE '[0-9]+%' | head -1 | tr -d '%\n\r ' || echo "0")
-            pct=${pct:-0}
-            
-            # Count lines from individual module HTML
-            html_file="$COVER_CT_DIR/${module}.html"
-            if [[ -f "$html_file" ]]; then
-                # Count hits with numbers (covered lines)
-                covered=$(grep -cE 'class="hits">[0-9]' "$html_file" 2>/dev/null || echo "0")
-                covered=${covered:-0}
-                covered=$(echo "$covered" | head -1 | tr -d '\n\r ')
-                
-                # Calculate total from percentage
-                total=0
-                if [[ "$pct" =~ ^[0-9]+$ ]] && [[ "$covered" =~ ^[0-9]+$ ]]; then
-                    if [[ "$pct" -gt 0 ]] && [[ "$covered" -gt 0 ]]; then
-                        total=$(awk -v c="$covered" -v p="$pct" 'BEGIN {printf "%.0f", (c * 100 / p)}')
-                    else
-                        total=$covered
-                    fi
-                fi
-                
-                # Add to totals if we have valid data
-                if [[ "$total" =~ ^[0-9]+$ ]] && [[ "$total" -gt 0 ]]; then
-                    MODULE_COVERAGE+=("{\"module\": \"$module\", \"covered\": $covered, \"total\": $total, \"percentage\": $pct}")
-                    TOTAL_LINES=$((TOTAL_LINES + total))
-                    COVERED_LINES=$((COVERED_LINES + covered))
-                fi
-            fi
-        fi
-    done
 fi
+
+# Gather per-module coverage data from cover HTML files
+MODULE_COVERAGE=()
+for module in "${TARGETED_MODULES[@]}"; do
+    html_file="$COVER_CT_DIR/${module}.html"
+    if [[ -f "$html_file" ]]; then
+        line_count=$(grep -c '<td class="line"' "$html_file" 2>/dev/null || true)
+        misses=$(grep -c 'class="miss"' "$html_file" 2>/dev/null || true)
+        line_count=${line_count:-0}
+        misses=${misses:-0}
+        hits=$((line_count - misses))
+        if (( hits < 0 )); then
+            hits=0
+        fi
+        if (( line_count > 0 )); then
+            percentage=$(awk -v c="$hits" -v t="$line_count" 'BEGIN {printf "%.2f", (t > 0) ? (c/t)*100 : 0}')
+            TOTAL_LINES=$((TOTAL_LINES + line_count))
+            COVERED_LINES=$((COVERED_LINES + hits))
+        else
+            percentage="0.00"
+        fi
+    else
+        hits=0
+        misses=0
+        line_count=0
+        percentage="0.00"
+    fi
+    MODULE_COVERAGE+=("{\"module\": \"${module}\", \"covered\": ${hits}, \"misses\": ${misses}, \"total\": ${line_count}, \"percentage\": ${percentage}}")
+done
 
 # Calculate overall targeted coverage
 if [[ $TOTAL_LINES -gt 0 ]]; then
     OVERALL_PCT=$(awk "BEGIN {printf \"%.2f\", ($COVERED_LINES/$TOTAL_LINES)*100}")
+    OVERALL_INT=$(awk "BEGIN {printf \"%d\", $OVERALL_PCT}")
 else
     OVERALL_PCT="0.00"
+    OVERALL_INT=0
     echo -e "${YELLOW}Warning: No cover data found. Run with --run-tests to generate coverage.${NC}"
 fi
 
@@ -247,9 +241,9 @@ echo -e "${CYAN}+--------------------------------------------------------+${NC}"
 # Aggregate coverage (all modules)
 printf "${CYAN}|${NC}    Aggregate (all):  %5s%%  ${YELLOW}(for reference)${NC}        ${CYAN}|${NC}\n" "$AGGREGATE_PCT"
 # Targeted coverage (quality gate metric)
-if (( $(echo "$OVERALL_PCT >= 80" | bc -l 2>/dev/null || echo 0) )); then
+if (( OVERALL_INT >= 80 )); then
     printf "${CYAN}|${NC}    Targeted:         ${GREEN}%5s%%${NC}  ${GREEN}(quality gate)${NC}         ${CYAN}|${NC}\n" "$OVERALL_PCT"
-elif (( $(echo "$OVERALL_PCT >= 60" | bc -l 2>/dev/null || echo 0) )); then
+elif (( OVERALL_INT >= 60 )); then
     printf "${CYAN}|${NC}    Targeted:         ${YELLOW}%5s%%${NC}  ${GREEN}(quality gate)${NC}         ${CYAN}|${NC}\n" "$OVERALL_PCT"
 else
     printf "${CYAN}|${NC}    Targeted:         ${RED}%5s%%${NC}  ${GREEN}(quality gate)${NC}         ${CYAN}|${NC}\n" "$OVERALL_PCT"
@@ -266,4 +260,3 @@ echo ""
 echo -e "${CYAN}Legend:${NC}"
 echo "  Aggregate = coverage of ALL modules (protobuf, templates, etc.)"
 echo "  Targeted  = coverage of business logic modules only (quality gate metric)"
-

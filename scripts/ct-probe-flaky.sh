@@ -1,31 +1,30 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Flakiness Probe Script
-# Usage: ./scripts/ct-probe-flaky.sh <suite_path> [iterations]
-# Example: ./scripts/ct-probe-flaky.sh test/router_nats_integration_SUITE.erl 5
+suite_path="${1:-}"
+iterations="${2:-5}"
 
-SUITE=$1
-ITERATIONS=${2:-5}
-
-if [ -z "$SUITE" ]; then
+if [[ -z "$suite_path" ]]; then
     echo "Usage: $0 <suite_path> [iterations]"
     exit 1
 fi
 
-echo "=== Probing $SUITE for flakiness ($ITERATIONS iterations) ==="
+if ! [[ "$iterations" =~ ^[0-9]+$ ]]; then
+    echo "Iteration count must be a positive integer, got: $iterations" >&2
+    exit 1
+fi
 
-for i in $(seq 1 $ITERATIONS); do
-    echo "Run #$i..."
-    ROUTER_TEST_LEVEL=full rebar3 ct --suite $SUITE > /dev/null 2>&1
-    RET=$?
-    if [ $RET -ne 0 ]; then
-         echo "❌ FAILED on run #$i"
-         echo "Run with verbose output to debug: ROUTER_TEST_LEVEL=full rebar3 ct --suite $SUITE"
-         exit 1
+printf "Starting flaky probe for %s (%s iterations)\n" "$suite_path" "$iterations"
+
+for iteration in $(seq 1 "$iterations"); do
+    printf "Iteration %d/%s: running suite...\n" "$iteration" "$iterations"
+
+    if ROUTER_TEST_LEVEL=full rebar3 ct --suite "$suite_path"; then
+        printf "Iteration %d/%s: PASS\n" "$iteration" "$iterations"
     else
-         echo "✅ PASSED"
+        printf "Iteration %d/%s: FAIL\n" "$iteration" "$iterations"
+        exit 1
     fi
 done
 
-echo "=== All $ITERATIONS runs passed! ==="
+echo "All $iterations iterations passed for $suite_path"

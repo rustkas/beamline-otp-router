@@ -151,7 +151,7 @@ test_during_message_processing(_Config) ->
         MRef = monitor(process, Pid),
         receive
             {'DOWN', MRef, process, Pid, _} -> ok
-        after 30000 ->
+        after router_test_timeouts:long_wait() ->
             exit(Pid, kill)
         end
     end, Pids),

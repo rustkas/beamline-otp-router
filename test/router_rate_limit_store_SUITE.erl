@@ -293,7 +293,7 @@ send_rate_limit_result(Parent, TenantId, PolicyId, Config) ->
 
 collect_rate_limit_results(Count) ->
     [receive {result, Result} -> Result
-     after 5000 ->
+     after router_test_timeouts:long_wait() ->
          ct:fail("Timed out waiting for rate limit worker result (expected ~p)", [Count])
      end || _ <- lists:seq(1, Count)].
 

@@ -3,7 +3,17 @@
 
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 -export([js_setup_consumer/2, js_ack/1, js_nak/2, js_dlq/2]).
--export([subscribe_jetstream/5, publish/2, publish_with_ack/3, ack_message/1, nak_message/1, subscribe/3, request/3]).
+-export([
+    subscribe_jetstream/5,
+    publish/2,
+    publish_with_ack/2,
+    publish_with_ack/3,
+    ack_message/1,
+    nak_message/1,
+    subscribe/3,
+    request/3,
+    stop/0
+]).
 -export([get_connection_status/0, reconnect/0]).
 -ifdef(TEST).
 -export([simulate_connection_lost/0]).
@@ -19,13 +29,13 @@
 -export([do_publish_internal/3]).
 
 -ignore_xref([
-  {router_nats, start_link, 0},
-  {router_nats, reconnect, 0},
-  {router_nats, js_setup_consumer, 2},
-  {router_nats, js_ack, 1},
-  {router_nats, js_nak, 2},
-  {router_nats, js_dlq, 2},
-  {router_nats, get_connection_status, 0}
+    {router_nats, start_link, 0},
+    {router_nats, reconnect, 0},
+    {router_nats, js_setup_consumer, 2},
+    {router_nats, js_ack, 1},
+    {router_nats, js_nak, 2},
+    {router_nats, js_dlq, 2},
+    {router_nats, get_connection_status, 0}
 ]).
 
 -include("beamline_router.hrl").
@@ -47,12 +57,18 @@
     reconnect_attempts = 0 :: non_neg_integer(),
     max_reconnect_attempts = ?DEFAULT_RECONNECT_ATTEMPTS :: non_neg_integer(),
     reconnect_timer = undefined :: reference() | undefined,
-    fail_open_mode = false :: boolean(),  %% Fail-open mode when NATS unavailable
-    pending_operations = [] :: list(),  %% Queue of operations to retry after reconnect
-    last_connection_time = undefined :: integer() | undefined,  %% Timestamp of last successful connection
-    last_failure_time = undefined :: integer() | undefined,  %% Timestamp of last connection failure
-    connection_health_checks = 0 :: non_neg_integer(),  %% Number of successful health checks
-    jetstream_consumers = #{} :: map()  %% Map of ConsumerId => ConsumerState for JetStream subscriptions
+    %% Fail-open mode when NATS unavailable
+    fail_open_mode = false :: boolean(),
+    %% Queue of operations to retry after reconnect
+    pending_operations = [] :: list(),
+    %% Timestamp of last successful connection
+    last_connection_time = undefined :: integer() | undefined,
+    %% Timestamp of last connection failure
+    last_failure_time = undefined :: integer() | undefined,
+    %% Number of successful health checks
+    connection_health_checks = 0 :: non_neg_integer(),
+    %% Map of ConsumerId => ConsumerState for JetStream subscriptions
+    jetstream_consumers = #{} :: map()
 }).
 
 %% JetStream consumer state record
@@ -74,15 +90,17 @@ start_link() ->
 
 %% @doc Initialize gen_server
 init([]) ->
-    MaxReconnectAttempts = application:get_env(beamline_router, nats_reconnect_attempts, ?DEFAULT_RECONNECT_ATTEMPTS),
+    MaxReconnectAttempts = application:get_env(
+        beamline_router, nats_reconnect_attempts, ?DEFAULT_RECONNECT_ATTEMPTS
+    ),
     FailOpenMode = application:get_env(beamline_router, nats_fail_open_mode, false),
-    
+
     State = #state{
         connection_state = ?CONN_STATE_DISCONNECTED,
         max_reconnect_attempts = MaxReconnectAttempts,
         fail_open_mode = FailOpenMode
     },
-    
+
     %% Attempt initial connection
     case attempt_connection() of
         {ok, ConnectionPid} ->
@@ -124,22 +142,24 @@ init([]) ->
 handle_call({publish, Subject, Payload}, _From, State) ->
     Result = do_publish(Subject, Payload, State),
     %% Update state if operation was queued
-    NewState = case Result of
-        {error, not_connected} when not State#state.fail_open_mode ->
-            queue_operation({publish, Subject, Payload}, State);
-        _ ->
-            State
-    end,
+    NewState =
+        case Result of
+            {error, not_connected} when not State#state.fail_open_mode ->
+                queue_operation({publish, Subject, Payload}, State);
+            _ ->
+                State
+        end,
     {reply, Result, NewState};
 handle_call({publish_with_ack, Subject, Payload, Headers}, _From, State) ->
     Result = do_publish_with_ack(Subject, Payload, Headers, State),
     %% Update state if operation was queued
-    NewState = case Result of
-        {error, not_connected} when not State#state.fail_open_mode ->
-            queue_operation({publish_with_ack, Subject, Payload, Headers}, State);
-        _ ->
-            State
-    end,
+    NewState =
+        case Result of
+            {error, not_connected} when not State#state.fail_open_mode ->
+                queue_operation({publish_with_ack, Subject, Payload, Headers}, State);
+            _ ->
+                State
+        end,
     {reply, Result, NewState};
 handle_call({ack_message, MsgId}, _From, State) ->
     Result = do_ack_message(MsgId, State),
@@ -147,7 +167,9 @@ handle_call({ack_message, MsgId}, _From, State) ->
 handle_call({nak_message, MsgId}, _From, State) ->
     Result = do_nak_message(MsgId, State),
     {reply, Result, State};
-handle_call({subscribe_jetstream, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode}, _From, State) ->
+handle_call(
+    {subscribe_jetstream, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode}, _From, State
+) ->
     Result = do_subscribe_jetstream(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, State),
     case Result of
         {ok, ConsumerId, NewState} ->
@@ -162,9 +184,18 @@ handle_call(get_connection_status, _From, State) ->
 handle_call({get_connection_health}, _From, State) ->
     Health = check_connection_health(State),
     {reply, Health, State};
-handle_call({register_jetstream_consumer, ConsumerId, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode}, _From, State) ->
-    NewState = register_jetstream_consumer(ConsumerId, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, State),
+handle_call(
+    {register_jetstream_consumer, ConsumerId, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode},
+    _From,
+    State
+) ->
+    NewState = register_jetstream_consumer(
+        ConsumerId, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, State
+    ),
     {reply, ok, NewState};
+handle_call(stop, _From, State) ->
+    %% Stop the gen_server
+    {stop, normal, ok, State};
 handle_call({unregister_jetstream_consumer, ConsumerId}, _From, State) ->
     NewState = unregister_jetstream_consumer(ConsumerId, State),
     {reply, ok, NewState};
@@ -208,8 +239,9 @@ terminate(_Reason, State) ->
         Timer -> erlang:cancel_timer(Timer)
     end,
     case State#state.connection_pid of
-        undefined -> ok;
-        Pid when is_pid(Pid) -> 
+        undefined ->
+            ok;
+        Pid when is_pid(Pid) ->
             %% Close connection if exists
             catch exit(Pid, normal),
             ok
@@ -235,6 +267,10 @@ simulate_connection_lost() ->
     ok.
 -endif.
 
+%% @doc Stop router_nats
+stop() ->
+    gen_server:call(?MODULE, stop).
+
 %% @doc Get connection health status
 get_connection_health() ->
     gen_server:call(?MODULE, {get_connection_health}).
@@ -247,34 +283,39 @@ get_jetstream_consumers() ->
 js_setup_consumer(Stream, Consumer) -> {ok, {Stream, Consumer}}.
 
 %% @doc Acknowledge JetStream message (legacy API - use ack_message/1 directly)
-js_ack(MsgId) -> 
-  ack_message(MsgId).
+js_ack(MsgId) ->
+    ack_message(MsgId).
 
 %% @doc Negative acknowledge JetStream message (legacy API - use nak_message/1 directly)
-js_nak(MsgId, Reason) -> 
-  %% Note: nak_message/1 doesn't take reason, but we log it via telemetry
-  case nak_message(MsgId) of
-    ok -> {ok, MsgId};
-    Error -> {error, {MsgId, Reason, Error}}
-  end.
+js_nak(MsgId, Reason) ->
+    %% Note: nak_message/1 doesn't take reason, but we log it via telemetry
+    case nak_message(MsgId) of
+        ok -> {ok, MsgId};
+        Error -> {error, {MsgId, Reason, Error}}
+    end.
 
 %% @doc Send message to DLQ (legacy API - use publish_with_ack/3 directly)
 %% Stream: DLQ stream name (not used, subject is built from original subject)
 %% Payload: Message map to send to DLQ
 js_dlq(_Stream, Payload) when is_map(Payload) ->
-  %% Extract subject from payload
-  Subject = maps:get(subject, Payload, <<"unknown.dlq">>),
-  DLQSubject = build_dlq_subject(Subject),
-  DLQJson = jsx:encode(Payload),
-  publish_with_ack(DLQSubject, DLQJson, #{}).
+    %% Extract subject from payload
+    Subject = maps:get(subject, Payload, <<"unknown.dlq">>),
+    DLQSubject = build_dlq_subject(Subject),
+    DLQJson = jsx:encode(Payload),
+    publish_with_ack(DLQSubject, DLQJson, #{}).
 
 %% @doc Subscribe to JetStream subject
 subscribe_jetstream(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode) ->
-    gen_server:call(?MODULE, {subscribe_jetstream, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode}).
+    gen_server:call(
+        ?MODULE, {subscribe_jetstream, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode}
+    ).
 
 %% @doc Publish message to NATS subject
 publish(Subject, Payload) ->
     gen_server:call(?MODULE, {publish, Subject, Payload}).
+
+publish_with_ack(Subject, Payload) ->
+    publish_with_ack(Subject, Payload, #{}).
 
 %% @doc Publish message with ack
 publish_with_ack(Subject, Payload, Headers) ->
@@ -321,7 +362,7 @@ attempt_connection() ->
     end.
 
 %% @doc Internal connection attempt (without fault injection check)
-%% 
+%%
 %% ⚠️ STUB IMPLEMENTATION: Returns mock connection process
 %% CP3/Release: Implement actual NATS connection using NATS client library
 %%
@@ -336,43 +377,116 @@ attempt_connection() ->
 %% - Always returns stub process (spawn_link dummy process)
 %% - Stub process does nothing (waits for messages)
 %% - Safe for testing but not production-ready
+% do_attempt_connection() ->
+%     %% Validate NATS configuration
+%     case validate_nats_config() of
+%         {ok, Config} ->
+%             %% Configuration valid - proceed with connection attempt
+%             case application:get_env(beamline_router, nats_url, undefined) of
+%                 undefined ->
+%                     %% No NATS URL configured - use stub mode (safe for testing)
+%                     router_logger:info(<<"NATS connection: stub mode (no URL configured)">>, #{}),
+%                     create_stub_connection(Config);
+%                 Url ->
+%                     %% NATS URL configured but real connection not implemented
+%                     %% STUB IMPLEMENTATION: CP3/Release - Implement actual NATS connection
+%                     %%
+%                     %% Implementation requirements:
+%                     %% - Use NATS client library (e.g., nats.erl, nats_erl, or similar)
+%                     %% - Establish TCP/TLS connection to NATS server
+%                     %% - Handle authentication (username/password, JWT, NKey)
+%                     %% - Implement reconnection logic with exponential backoff
+%                     %% - Support connection pooling for high throughput
+%                     %% - Return {ok, ConnectionPid} on success or {error, Reason} on failure
+%                     %%
+%                     %% Current stub behavior:
+%                     %% - Returns stub process that accepts messages but does nothing
+%                     %% - Safe for testing but not production-ready
+%                     %% - All NATS operations (publish, subscribe, ack, nak) are stubbed
+%                     router_logger:warn(<<"NATS connection: stub mode (real connection not implemented)">>, #{
+%                         <<"nats_url">> => sanitize_url_for_logging(Url),
+%                         <<"config_validated">> => true
+%                     }),
+%                     create_stub_connection(Config)
+%             end;
+%         {error, Reason} ->
+%             router_logger:error(<<"NATS configuration validation failed">>, #{
+%                 <<"reason">> => Reason
+%             }),
+%             {error, {config_invalid, Reason}}
+%     end.
+
+%% @doc Internal connection attempt (without fault injection check)
 do_attempt_connection() ->
-    %% Validate NATS configuration
     case validate_nats_config() of
         {ok, Config} ->
-            %% Configuration valid - proceed with connection attempt
-            case application:get_env(beamline_router, nats_url, undefined) of
+            case maps:get(url, Config) of
                 undefined ->
-                    %% No NATS URL configured - use stub mode (safe for testing)
                     router_logger:info(<<"NATS connection: stub mode (no URL configured)">>, #{}),
                     create_stub_connection(Config);
                 Url ->
-                    %% NATS URL configured but real connection not implemented
-                    %% STUB IMPLEMENTATION: CP3/Release - Implement actual NATS connection
-                    %% 
-                    %% Implementation requirements:
-                    %% - Use NATS client library (e.g., nats.erl, nats_erl, or similar)
-                    %% - Establish TCP/TLS connection to NATS server
-                    %% - Handle authentication (username/password, JWT, NKey)
-                    %% - Implement reconnection logic with exponential backoff
-                    %% - Support connection pooling for high throughput
-                    %% - Return {ok, ConnectionPid} on success or {error, Reason} on failure
-                    %%
-                    %% Current stub behavior:
-                    %% - Returns stub process that accepts messages but does nothing
-                    %% - Safe for testing but not production-ready
-                    %% - All NATS operations (publish, subscribe, ack, nak) are stubbed
-                    router_logger:warn(<<"NATS connection: stub mode (real connection not implemented)">>, #{
-                        <<"nats_url">> => sanitize_url_for_logging(Url),
-                        <<"config_validated">> => true
-                    }),
-                    create_stub_connection(Config)
+                    case connect_to_nats(Url, Config) of
+                        {ok, ConnectionPid} ->
+                            router_logger:info(<<"NATS connection established">>, #{
+                                <<"nats_url">> => sanitize_url_for_logging(Url)
+                            }),
+                            {ok, ConnectionPid};
+                        {error, Reason} ->
+                            router_logger:error(<<"NATS connection failed">>, #{
+                                <<"nats_url">> => sanitize_url_for_logging(Url),
+                                <<"reason">> => Reason
+                            }),
+                            {error, Reason}
+                    end
             end;
         {error, Reason} ->
-            router_logger:error(<<"NATS configuration validation failed">>, #{
-                <<"reason">> => Reason
-            }),
             {error, {config_invalid, Reason}}
+    end.
+
+%% @doc Connect to NATS server using enats client
+connect_to_nats(Url, Config) ->
+    AuthConfig = maps:get(auth, Config, #{}),
+    TLSConfig = maps:get(tls, Config, #{}),
+
+    %% Build connection options
+    Options = #{
+        url => Url,
+        max_reconnect_attempts => application:get_env(beamline_router, nats_reconnect_attempts, 10),
+        reconnect_time_wait => application:get_env(beamline_router, nats_reconnect_delay_ms, 1000),
+        max_reconnect_time_wait => application:get_env(beamline_router, nats_max_reconnect_delay_ms, 30000)
+    },
+
+    %% Add authentication if configured
+    AuthOptions = case maps:get(auth_type, AuthConfig, none) of
+        username_password ->
+            Options#{
+                username => maps:get(username, AuthConfig, ""),
+                password => maps:get(password, AuthConfig, "")
+            };
+        jwt ->
+            Options#{jwt => maps:get(jwt, AuthConfig, "")};
+        nkey ->
+            Options#{nkey => maps:get(nkey, AuthConfig, "")};
+        none ->
+            Options
+    end,
+
+    %% Add TLS if enabled
+    FinalOptions = case maps:get(enabled, TLSConfig, false) of
+        true ->
+            AuthOptions#{
+                ssl => true,
+                certfile => maps:get(cert_file, TLSConfig, ""),
+                keyfile => maps:get(key_file, TLSConfig, "")
+            };
+        false ->
+            AuthOptions
+    end,
+
+    %% Attempt connection using nats module (from enats library)
+    case nats:start_link(FinalOptions) of
+        {ok, Pid} -> {ok, Pid};
+        {error, Reason} -> {error, Reason}
     end.
 
 %% @doc Validate NATS configuration
@@ -383,7 +497,7 @@ validate_nats_config() ->
     Cluster = application:get_env(beamline_router, nats_cluster, undefined),
     AuthConfig = get_nats_auth_config(),
     TLSConfig = get_nats_tls_config(),
-    
+
     %% Validate URL format if provided
     case Url of
         undefined ->
@@ -403,7 +517,8 @@ validate_nats_config() ->
                         cluster => Cluster,
                         auth => AuthConfig,
                         tls => TLSConfig,
-                        mode => stub  %% Will be 'real' when actual connection implemented
+                        %% Will be 'real' when actual connection implemented
+                        mode => stub
                     }};
                 {error, Reason} ->
                     {error, {invalid_url, Reason}}
@@ -420,11 +535,15 @@ parse_nats_url(UrlBin) when is_binary(UrlBin) ->
         UrlStr = binary_to_list(UrlBin),
         case uri_string:parse(UrlStr) of
             #{scheme := Scheme, host := Host} = Parsed ->
-                Port = maps:get(port, Parsed, case Scheme of
-                    <<"nats">> -> 4222;
-                    <<"tls">> -> 4222;
-                    _ -> 4222
-                end),
+                Port = maps:get(
+                    port,
+                    Parsed,
+                    case Scheme of
+                        <<"nats">> -> 4222;
+                        <<"tls">> -> 4222;
+                        _ -> 4222
+                    end
+                ),
                 UserInfo = maps:get(userinfo, Parsed, undefined),
                 {ok, #{
                     scheme => Scheme,
@@ -449,10 +568,11 @@ get_nats_auth_config() ->
     Password = application:get_env(beamline_router, nats_password, undefined),
     JWT = application:get_env(beamline_router, nats_jwt, undefined),
     NKey = application:get_env(beamline_router, nats_nkey, undefined),
-    
+
     #{
         username => Username,
-        password => undefined,  %% Never log password
+        %% Never log password
+        password => undefined,
         has_password => Password =/= undefined,
         jwt => JWT,
         nkey => NKey,
@@ -465,7 +585,9 @@ determine_auth_type(_Username, _Password, JWT, _NKey) when JWT =/= undefined ->
     jwt;
 determine_auth_type(_Username, _Password, _JWT, NKey) when NKey =/= undefined ->
     nkey;
-determine_auth_type(Username, Password, _JWT, _NKey) when Username =/= undefined, Password =/= undefined ->
+determine_auth_type(Username, Password, _JWT, _NKey) when
+    Username =/= undefined, Password =/= undefined
+->
     username_password;
 determine_auth_type(_Username, _Password, _JWT, _NKey) ->
     none.
@@ -479,7 +601,7 @@ get_nats_tls_config() ->
     TLSKeyFile = application:get_env(beamline_router, nats_tls_key_file, undefined),
     TLSCACertFile = application:get_env(beamline_router, nats_tls_ca_cert_file, undefined),
     TLSVerify = application:get_env(beamline_router, nats_tls_verify, true),
-    
+
     #{
         enabled => TLSEnabled,
         cert_file => TLSCertFile,
@@ -505,13 +627,17 @@ sanitize_url_for_logging(_) ->
 %% @doc Create stub connection process with configuration
 -spec create_stub_connection(map()) -> {ok, pid()}.
 create_stub_connection(Config) ->
-    StubPid = spawn_link(fun() -> stub_connection_loop(#{
-        created_at => erlang:system_time(millisecond),
-        message_count => 0,
-        last_activity => erlang:system_time(millisecond),
-        config => Config,
-        connection_id => generate_connection_id()
-    }) end),
+    StubPid = spawn_link(fun() -> 
+        %% Mark this process as a stub connection
+        erlang:put(stub_connection, true),
+        stub_connection_loop(#{
+            created_at => erlang:system_time(millisecond),
+            message_count => 0,
+            last_activity => erlang:system_time(millisecond),
+            config => Config,
+            connection_id => generate_connection_id()
+        })
+    end),
     {ok, StubPid}.
 
 %% @doc Generate unique connection ID for stub connection
@@ -519,7 +645,8 @@ create_stub_connection(Config) ->
 generate_connection_id() ->
     Timestamp = erlang:system_time(millisecond),
     Random = rand:uniform(1000000),
-    Id = <<"stub-", (integer_to_binary(Timestamp))/binary, "-", (integer_to_binary(Random))/binary>>,
+    Id =
+        <<"stub-", (integer_to_binary(Timestamp))/binary, "-", (integer_to_binary(Random))/binary>>,
     Id.
 
 %% @doc Stub connection process loop with state tracking
@@ -589,7 +716,9 @@ track_stub_message(Op, Subject, _Payload, State) ->
             ok;
         _Tid ->
             MessageId = generate_message_id(),
-            ets:insert(stub_nats_messages, {MessageId, Op, Subject, erlang:system_time(millisecond), State}),
+            ets:insert(
+                stub_nats_messages, {MessageId, Op, Subject, erlang:system_time(millisecond), State}
+            ),
             ok
     end.
 
@@ -613,20 +742,20 @@ handle_connection_lost(Reason, State) ->
     router_metrics:emit_metric(router_nats_connection_status, #{value => 0}, #{
         state => disconnected
     }),
-    
+
     %% Cancel any existing reconnect timer
     case State#state.reconnect_timer of
         undefined -> ok;
         Timer -> erlang:cancel_timer(Timer)
     end,
-    
+
     Now = erlang:system_time(millisecond),
     NewState = State#state{
         connection_state = ?CONN_STATE_DISCONNECTED,
         connection_pid = undefined,
         last_failure_time = Now
     },
-    
+
     %% Schedule reconnect if attempts remaining
     case State#state.reconnect_attempts < State#state.max_reconnect_attempts of
         true ->
@@ -654,16 +783,16 @@ handle_connection_restored(Pid, State) ->
     router_metrics:emit_metric(router_nats_connection_status, #{value => 1}, #{
         state => connected
     }),
-    
+
     %% Cancel reconnect timer
     case State#state.reconnect_timer of
         undefined -> ok;
         Timer -> erlang:cancel_timer(Timer)
     end,
-    
+
     %% Monitor new connection
     erlang:monitor(process, Pid),
-    
+
     Now = erlang:system_time(millisecond),
     FailOpenConfig = application:get_env(beamline_router, nats_fail_open_mode, false),
     NewState = State#state{
@@ -675,10 +804,10 @@ handle_connection_restored(Pid, State) ->
         last_connection_time = Now,
         connection_health_checks = 0
     },
-    
+
     %% Retry pending operations
     RetryState = retry_pending_operations(NewState),
-    
+
     %% Resubscribe to JetStream consumers
     resubscribe_jetstream_consumers(RetryState).
 
@@ -700,12 +829,12 @@ handle_reconnect(State) ->
             router_metrics:emit_metric(router_nats_connection_status, #{value => 0.5}, #{
                 state => reconnecting
             }),
-            
+
             NewState = State#state{
                 connection_state = ?CONN_STATE_RECONNECTING,
                 reconnect_attempts = State#state.reconnect_attempts + 1
             },
-            
+
             case attempt_connection() of
                 {ok, ConnectionPid} ->
                     erlang:monitor(process, ConnectionPid),
@@ -718,11 +847,13 @@ handle_reconnect(State) ->
                     %% Emit reconnect failure metric with labels
                     ReasonBin = error_to_reason(Reason),
                     Cluster = get_nats_cluster(),
-                    router_metrics:emit_metric(router_nats_reconnect_failures_total, #{count => 1}, #{
-                        reason => ReasonBin,
-                        cluster => Cluster,
-                        attempt => NewState#state.reconnect_attempts
-                    }),
+                    router_metrics:emit_metric(
+                        router_nats_reconnect_failures_total, #{count => 1}, #{
+                            reason => ReasonBin,
+                            cluster => Cluster,
+                            attempt => NewState#state.reconnect_attempts
+                        }
+                    ),
                     schedule_reconnect(NewState)
             end
     end.
@@ -738,8 +869,12 @@ schedule_reconnect(State) ->
 
 %% @doc Calculate reconnect delay with exponential backoff
 calculate_reconnect_delay(Attempt) ->
-    BaseDelay = application:get_env(beamline_router, nats_reconnect_delay_ms, ?DEFAULT_RECONNECT_DELAY_MS),
-    MaxDelay = application:get_env(beamline_router, nats_max_reconnect_delay_ms, ?DEFAULT_MAX_RECONNECT_DELAY_MS),
+    BaseDelay = application:get_env(
+        beamline_router, nats_reconnect_delay_ms, ?DEFAULT_RECONNECT_DELAY_MS
+    ),
+    MaxDelay = application:get_env(
+        beamline_router, nats_max_reconnect_delay_ms, ?DEFAULT_MAX_RECONNECT_DELAY_MS
+    ),
     Delay = min(BaseDelay * trunc(math:pow(2, Attempt)), MaxDelay),
     Delay.
 
@@ -752,20 +887,25 @@ do_publish(Subject, Payload, State) ->
             PublishFun = fun(S, P) -> do_publish_internal(S, P, State#state.connection_pid) end,
             MetricsFun = fun(Attempt, MaxAttempts) ->
                 %% Emit publish attempt metric with retry count
-                Status = case Attempt =:= MaxAttempts of
-                    true -> <<"error">>;
-                    false -> <<"success">>
-                end,
+                Status =
+                    case Attempt =:= MaxAttempts of
+                        true -> <<"error">>;
+                        false -> <<"success">>
+                    end,
                 router_metrics:emit_metric(router_nats_publish_attempts_total, #{count => 1}, #{
                     status => Status,
                     retry_count => integer_to_binary(Attempt - 1)
                 })
             end,
-            
+
             %% Use retry logic if configured, otherwise use simple publish
             case maps:get(<<"enabled">>, RetryConfig, false) of
                 true ->
-                    case router_nats_publish_retry:publish_with_retry(Subject, Payload, PublishFun, MetricsFun, State, RetryConfig) of
+                    case
+                        router_nats_publish_retry:publish_with_retry(
+                            Subject, Payload, PublishFun, MetricsFun, State, RetryConfig
+                        )
+                    of
                         {ok, _Attempts} ->
                             router_metrics:inc(router_nats_publish_total),
                             ok;
@@ -778,17 +918,21 @@ do_publish(Subject, Payload, State) ->
                             %% Emit publish failure metric with labels
                             ReasonBin = error_to_reason(Reason),
                             Stream = extract_stream_from_subject(Subject),
-                            router_metrics:emit_metric(router_nats_publish_failures_total, #{count => 1}, #{
-                                reason => ReasonBin,
-                                subject => Subject,
-                                stream => Stream,
-                                source => <<"publish">>
-                            }),
+                            router_metrics:emit_metric(
+                                router_nats_publish_failures_total, #{count => 1}, #{
+                                    reason => ReasonBin,
+                                    subject => Subject,
+                                    stream => Stream,
+                                    source => <<"publish">>
+                                }
+                            ),
                             %% Emit error type metric
                             ErrorType = classify_error_type(Reason),
-                            router_metrics:emit_metric(router_nats_publish_errors_total, #{count => 1}, #{
-                                error_type => ErrorType
-                            }),
+                            router_metrics:emit_metric(
+                                router_nats_publish_errors_total, #{count => 1}, #{
+                                    error_type => ErrorType
+                                }
+                            ),
                             %% In fail-open mode, return ok even on error
                             case State#state.fail_open_mode of
                                 true -> ok;
@@ -800,43 +944,62 @@ do_publish(Subject, Payload, State) ->
                     PublishStartTime = erlang:system_time(microsecond),
                     case do_publish_internal(Subject, Payload, State#state.connection_pid) of
                         ok ->
-                            PublishLatency = (erlang:system_time(microsecond) - PublishStartTime) / 1000.0,
+                            PublishLatency =
+                                (erlang:system_time(microsecond) - PublishStartTime) / 1000.0,
                             router_metrics:inc(router_nats_publish_total),
-                            router_metrics:emit_metric(router_nats_publish_attempts_total, #{count => 1}, #{
-                                status => <<"success">>,
-                                retry_count => <<"0">>
-                            }),
-                            router_metrics:emit_metric(router_nats_publish_latency_seconds, #{value => PublishLatency / 1000.0}, #{}),
+                            router_metrics:emit_metric(
+                                router_nats_publish_attempts_total, #{count => 1}, #{
+                                    status => <<"success">>,
+                                    retry_count => <<"0">>
+                                }
+                            ),
+                            router_metrics:emit_metric(
+                                router_nats_publish_latency_seconds,
+                                #{value => PublishLatency / 1000.0},
+                                #{}
+                            ),
                             ok;
                         {error, Reason} ->
-                            PublishLatency = (erlang:system_time(microsecond) - PublishStartTime) / 1000.0,
+                            PublishLatency =
+                                (erlang:system_time(microsecond) - PublishStartTime) / 1000.0,
                             router_logger:warn(<<"NATS publish failed">>, #{
                                 <<"subject">> => Subject,
                                 <<"reason">> => sanitize_error(Reason),
                                 <<"error_code">> => <<"NATS_PUBLISH_ERROR">>
                             }),
-                            router_metrics:emit_metric(router_nats_publish_attempts_total, #{count => 1}, #{
-                                status => <<"error">>,
-                                retry_count => <<"0">>
-                            }),
-                            router_metrics:emit_metric(router_nats_publish_latency_seconds, #{value => PublishLatency / 1000.0}, #{}),
+                            router_metrics:emit_metric(
+                                router_nats_publish_attempts_total, #{count => 1}, #{
+                                    status => <<"error">>,
+                                    retry_count => <<"0">>
+                                }
+                            ),
+                            router_metrics:emit_metric(
+                                router_nats_publish_latency_seconds,
+                                #{value => PublishLatency / 1000.0},
+                                #{}
+                            ),
                             %% Emit publish failure metric with labels
                             ReasonBin = error_to_reason(Reason),
                             Stream = extract_stream_from_subject(Subject),
-                            router_metrics:emit_metric(router_nats_publish_failures_total, #{count => 1}, #{
-                                reason => ReasonBin,
-                                subject => Subject,
-                                stream => Stream,
-                                source => <<"publish">>
-                            }),
+                            router_metrics:emit_metric(
+                                router_nats_publish_failures_total, #{count => 1}, #{
+                                    reason => ReasonBin,
+                                    subject => Subject,
+                                    stream => Stream,
+                                    source => <<"publish">>
+                                }
+                            ),
                             ErrorType = classify_error_type(Reason),
-                            router_metrics:emit_metric(router_nats_publish_errors_total, #{count => 1}, #{
-                                error_type => ErrorType
-                            }),
+                            router_metrics:emit_metric(
+                                router_nats_publish_errors_total, #{count => 1}, #{
+                                    error_type => ErrorType
+                                }
+                            ),
                             %% In fail-open mode, return ok even on error
                             case State#state.fail_open_mode of
-                                true -> ok;
-                                false -> 
+                                true ->
+                                    ok;
+                                false ->
                                     %% Return error (caller will handle queueing if needed)
                                     {error, Reason}
                             end
@@ -858,43 +1021,81 @@ do_publish(Subject, Payload, State) ->
                 source => <<"publish">>
             }),
             case State#state.fail_open_mode of
-                true -> 
-                    ok;  %% Fail-open: return ok, don't queue
-                false -> 
+                true ->
+                    %% Fail-open: return ok, don't queue
+                    ok;
+                false ->
                     %% Queue for retry after reconnect (caller will update state)
                     {error, not_connected}
             end
     end.
 
-%% @doc Do publish internal (stub implementation with fault injection)
+% %% @doc Do publish internal (stub implementation with fault injection)
+% do_publish_internal(Subject, Payload, ConnectionPid) ->
+%     %% Check for fault injection
+%     case code:is_loaded(router_nats_fault_injection) of
+%         {file, _} ->
+%             case
+%                 router_nats_fault_injection:should_fail(publish, #{
+%                     subject => Subject, payload => Payload
+%                 })
+%             of
+%                 {true, {error, Reason}} ->
+%                     {error, Reason};
+%                 {true, timeout} ->
+%                     %% Simulate timeout by sleeping longer than operation timeout
+%                     timer:sleep(10000),
+%                     {error, timeout};
+%                 {true, close_connection} when is_pid(ConnectionPid) ->
+%                     %% Close connection
+%                     exit(ConnectionPid, normal),
+%                     {error, connection_closed};
+%                 {true, {delay, Ms}} ->
+%                     timer:sleep(Ms),
+%                     ok;
+%                 false ->
+%                     ok
+%             end;
+%         false ->
+%             ok
+%     end.
+
+%% @doc Do publish internal (real NATS implementation)
 do_publish_internal(Subject, Payload, ConnectionPid) ->
-    %% Check for fault injection
-    case code:is_loaded(router_nats_fault_injection) of
-        {file, _} ->
-            case router_nats_fault_injection:should_fail(publish, #{subject => Subject, payload => Payload}) of
-                {true, {error, Reason}} ->
-                    {error, Reason};
-                {true, timeout} ->
-                    timer:sleep(10000),  %% Simulate timeout by sleeping longer than operation timeout
-                    {error, timeout};
-                {true, close_connection} when is_pid(ConnectionPid) ->
-                    exit(ConnectionPid, normal),  %% Close connection
-                    {error, connection_closed};
-                {true, {delay, Ms}} ->
-                    timer:sleep(Ms),
-                    ok;
-                false ->
-                    ok
+    %% Check if connection is a stub process
+    case is_pid(ConnectionPid) andalso is_process_alive(ConnectionPid) of
+        true ->
+            case process_info(ConnectionPid, dictionary) of
+                {dictionary, Dict} ->
+                    case lists:keyfind(stub_connection, 1, Dict) of
+                        {stub_connection, true} ->
+                            %% Stub mode - return success
+                            ok;
+                        _ ->
+                            %% Real NATS connection
+                            case nats:pub(ConnectionPid, Subject, Payload) of
+                                ok -> ok;
+                                {error, Reason} -> {error, Reason}
+                            end
+                    end;
+                undefined ->
+                    %% No dictionary info, try real NATS
+                    case nats:pub(ConnectionPid, Subject, Payload) of
+                        ok -> ok;
+                        {error, Reason} -> {error, Reason}
+                    end
             end;
         false ->
-            ok
+            {error, invalid_connection}
     end.
 
 %% @doc Do publish with ack (with fail-open support and queueing)
 do_publish_with_ack(Subject, Payload, Headers, State) ->
     case State#state.connection_state of
         ?CONN_STATE_CONNECTED ->
-            case do_publish_with_ack_internal(Subject, Payload, Headers, State#state.connection_pid) of
+            case
+                do_publish_with_ack_internal(Subject, Payload, Headers, State#state.connection_pid)
+            of
                 {ok, MsgId} ->
                     router_metrics:inc(router_nats_publish_with_ack_total),
                     {ok, MsgId};
@@ -907,15 +1108,19 @@ do_publish_with_ack(Subject, Payload, Headers, State) ->
                     %% Emit publish_with_ack failure metric with labels
                     ReasonBin = error_to_reason(Reason),
                     Stream = extract_stream_from_subject(Subject),
-                    router_metrics:emit_metric(router_nats_publish_with_ack_failures_total, #{count => 1}, #{
-                        reason => ReasonBin,
-                        subject => Subject,
-                        stream => Stream,
-                        source => <<"publish_with_ack">>
-                    }),
+                    router_metrics:emit_metric(
+                        router_nats_publish_with_ack_failures_total, #{count => 1}, #{
+                            reason => ReasonBin,
+                            subject => Subject,
+                            stream => Stream,
+                            source => <<"publish_with_ack">>
+                        }
+                    ),
                     case State#state.fail_open_mode of
-                        true -> {ok, <<"stub-msg-id">>};  %% Fail-open: return stub ID
-                        false -> 
+                        %% Fail-open: return stub ID
+                        true ->
+                            {ok, <<"stub-msg-id">>};
+                        false ->
                             %% Return error (caller will handle queueing if needed)
                             {error, Reason}
                     end
@@ -927,14 +1132,17 @@ do_publish_with_ack(Subject, Payload, Headers, State) ->
             }),
             %% Emit publish_with_ack failure metric with labels
             Stream = extract_stream_from_subject(Subject),
-            router_metrics:emit_metric(router_nats_publish_with_ack_failures_total, #{count => 1}, #{
-                reason => <<"not_connected">>,
-                subject => Subject,
-                stream => Stream,
-                source => <<"publish_with_ack">>
-            }),
+            router_metrics:emit_metric(
+                router_nats_publish_with_ack_failures_total, #{count => 1}, #{
+                    reason => <<"not_connected">>,
+                    subject => Subject,
+                    stream => Stream,
+                    source => <<"publish_with_ack">>
+                }
+            ),
             case State#state.fail_open_mode of
-                true -> {ok, <<"stub-msg-id">>};
+                true ->
+                    {ok, <<"stub-msg-id">>};
                 false ->
                     %% Queue for retry after reconnect (return error, caller will update state)
                     {error, not_connected}
@@ -942,27 +1150,68 @@ do_publish_with_ack(Subject, Payload, Headers, State) ->
     end.
 
 %% @doc Do publish with ack internal (stub with fault injection)
-do_publish_with_ack_internal(Subject, Payload, _Headers, ConnectionPid) ->
-    %% Check for fault injection
-    case code:is_loaded(router_nats_fault_injection) of
-        {file, _} ->
-            case router_nats_fault_injection:should_fail(publish_with_ack, #{subject => Subject, payload => Payload}) of
-                {true, {error, Reason}} ->
-                    {error, Reason};
-                {true, timeout} ->
-                    timer:sleep(10000),
-                    {error, timeout};
-                {true, close_connection} when is_pid(ConnectionPid) ->
-                    exit(ConnectionPid, normal),
-                    {error, connection_closed};
-                {true, {delay, Ms}} ->
-                    timer:sleep(Ms),
-                    {ok, <<"stub-msg-id">>};
-                false ->
-                    {ok, <<"stub-msg-id">>}
+% do_publish_with_ack_internal(Subject, Payload, _Headers, ConnectionPid) ->
+%     %% Check for fault injection
+%     case code:is_loaded(router_nats_fault_injection) of
+%         {file, _} ->
+%             case
+%                 router_nats_fault_injection:should_fail(publish_with_ack, #{
+%                     subject => Subject, payload => Payload
+%                 })
+%             of
+%                 {true, {error, Reason}} ->
+%                     {error, Reason};
+%                 {true, timeout} ->
+%                     timer:sleep(10000),
+%                     {error, timeout};
+%                 {true, close_connection} when is_pid(ConnectionPid) ->
+%                     exit(ConnectionPid, normal),
+%                     {error, connection_closed};
+%                 {true, {delay, Ms}} ->
+%                     timer:sleep(Ms),
+%                     {ok, <<"stub-msg-id">>};
+%                 false ->
+%                     {ok, <<"stub-msg-id">>}
+%             end;
+%         false ->
+%             {ok, <<"stub-msg-id">>}
+%     end.
+
+%% @doc Do publish with ack internal (real NATS implementation)
+do_publish_with_ack_internal(Subject, Payload, Headers, ConnectionPid) ->
+    %% Check if connection is a stub process
+    case is_pid(ConnectionPid) andalso is_process_alive(ConnectionPid) of
+        true ->
+            case process_info(ConnectionPid, dictionary) of
+                {dictionary, Dict} ->
+                    case lists:keyfind(stub_connection, 1, Dict) of
+                        {stub_connection, true} ->
+                            %% Stub mode - return stub message ID
+                            {ok, generate_message_id()};
+                        _ ->
+                            %% Real NATS connection
+                            NATSHeaders = case Headers of
+                                undefined -> #{};
+                                _ -> Headers
+                            end,
+                            case nats:pub(ConnectionPid, Subject, Payload, #{headers => NATSHeaders}) of
+                                ok -> {ok, generate_message_id()};
+                                {error, Reason} -> {error, Reason}
+                            end
+                    end;
+                undefined ->
+                    %% No dictionary info, try real NATS
+                    NATSHeaders = case Headers of
+                        undefined -> #{};
+                        _ -> Headers
+                    end,
+                    case nats:pub(ConnectionPid, Subject, Payload, #{headers => NATSHeaders}) of
+                        ok -> {ok, generate_message_id()};
+                        {error, Reason} -> {error, Reason}
+                    end
             end;
         false ->
-            {ok, <<"stub-msg-id">>}
+            {error, invalid_connection}
     end.
 
 %% @doc Do ack message
@@ -1111,7 +1360,11 @@ do_nak_message_internal(MsgId, _ConnectionPid) ->
 do_subscribe_jetstream(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, State) ->
     case State#state.connection_state of
         ?CONN_STATE_CONNECTED ->
-            case do_subscribe_jetstream_internal(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, State#state.connection_pid) of
+            case
+                do_subscribe_jetstream_internal(
+                    Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, State#state.connection_pid
+                )
+            of
                 {ok, ConsumerId} ->
                     router_logger:info(<<"JetStream subscription created">>, #{
                         <<"subject">> => Subject,
@@ -1120,7 +1373,9 @@ do_subscribe_jetstream(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, Sta
                     }),
                     router_metrics:inc(router_nats_subscribe_total),
                     %% Register consumer in state
-                    NewState = register_jetstream_consumer(ConsumerId, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, State),
+                    NewState = register_jetstream_consumer(
+                        ConsumerId, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, State
+                    ),
                     {ok, ConsumerId, NewState};
                 {error, Reason} ->
                     router_logger:error(<<"JetStream subscription failed">>, #{
@@ -1130,12 +1385,14 @@ do_subscribe_jetstream(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, Sta
                     %% Emit subscribe failure metric with labels
                     ReasonBin = error_to_reason(Reason),
                     Stream = extract_stream_from_subject(Subject),
-                    router_metrics:emit_metric(router_nats_subscribe_failures_total, #{count => 1}, #{
-                        reason => ReasonBin,
-                        subject => Subject,
-                        stream => Stream,
-                        consumer => DurableGroup
-                    }),
+                    router_metrics:emit_metric(
+                        router_nats_subscribe_failures_total, #{count => 1}, #{
+                            reason => ReasonBin,
+                            subject => Subject,
+                            stream => Stream,
+                            consumer => DurableGroup
+                        }
+                    ),
                     {error, Reason}
             end;
         _ ->
@@ -1154,11 +1411,17 @@ do_subscribe_jetstream(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, Sta
     end.
 
 %% @doc Do subscribe jetstream internal (stub with fault injection)
-do_subscribe_jetstream_internal(Subject, DurableGroup, _AckPolicy, _DeliverGroup, _Mode, ConnectionPid) ->
+do_subscribe_jetstream_internal(
+    Subject, DurableGroup, _AckPolicy, _DeliverGroup, _Mode, ConnectionPid
+) ->
     %% Check for fault injection
     case code:is_loaded(router_nats_fault_injection) of
         {file, _} ->
-            case router_nats_fault_injection:should_fail(subscribe, #{subject => Subject, durable => DurableGroup}) of
+            case
+                router_nats_fault_injection:should_fail(subscribe, #{
+                    subject => Subject, durable => DurableGroup
+                })
+            of
                 {true, {error, Reason}} ->
                     {error, Reason};
                 {true, timeout} ->
@@ -1183,19 +1446,25 @@ queue_operation(Operation, State) ->
     Pending = State#state.pending_operations,
     %% Limit queue size to prevent memory issues
     MaxPending = application:get_env(beamline_router, nats_max_pending_operations, 1000),
-    OperationTimeout = application:get_env(beamline_router, nats_pending_operation_timeout_ms, 60000),
+    OperationTimeout = application:get_env(
+        beamline_router, nats_pending_operation_timeout_ms, 60000
+    ),
     Now = erlang:system_time(millisecond),
-    
+
     %% Remove expired operations
-    ValidPending = lists:filter(fun(Op) ->
-        case Op of
-            {_OpType, _Args, Timestamp} when is_integer(Timestamp) ->
-                (Now - Timestamp) < OperationTimeout;
-            _ ->
-                true  %% Legacy format without timestamp
-        end
-    end, Pending),
-    
+    ValidPending = lists:filter(
+        fun(Op) ->
+            case Op of
+                {_OpType, _Args, Timestamp} when is_integer(Timestamp) ->
+                    (Now - Timestamp) < OperationTimeout;
+                _ ->
+                    %% Legacy format without timestamp
+                    true
+            end
+        end,
+        Pending
+    ),
+
     case length(ValidPending) >= MaxPending of
         true ->
             router_logger:warn(<<"NATS pending operations queue full, dropping oldest">>, #{
@@ -1210,7 +1479,9 @@ queue_operation(Operation, State) ->
             %% Add new operation with timestamp
             NewPending = [{Operation, Now} | ValidPending]
     end,
-    router_metrics:emit_metric(router_nats_pending_operations_count, #{value => length(NewPending)}, #{}),
+    router_metrics:emit_metric(
+        router_nats_pending_operations_count, #{value => length(NewPending)}, #{}
+    ),
     State#state{pending_operations = NewPending}.
 
 %% @doc Retry pending operations after reconnect
@@ -1222,47 +1493,61 @@ retry_pending_operations(State) ->
                 <<"count">> => PendingCount,
                 <<"error_code">> => <<"NATS_RETRY_PENDING">>
             }),
-            router_metrics:emit_metric(router_nats_pending_operations_retry, #{count => PendingCount}, #{}),
-            
+            router_metrics:emit_metric(
+                router_nats_pending_operations_retry, #{count => PendingCount}, #{}
+            ),
+
             %% Retry operations in reverse order (FIFO - oldest first)
             %% Extract operations from {Operation, Timestamp} tuples
-            Operations = lists:map(fun(Op) ->
-                case Op of
-                    {Operation, _Timestamp} -> Operation;
-                    Operation -> Operation  %% Legacy format
-                end
-            end, State#state.pending_operations),
+            Operations = lists:map(
+                fun(Op) ->
+                    case Op of
+                        {Operation, _Timestamp} -> Operation;
+                        %% Legacy format
+                        Operation -> Operation
+                    end
+                end,
+                State#state.pending_operations
+            ),
             ReversedOps = lists:reverse(Operations),
-            {Successful, Failed, NewStateAfter} = lists:foldl(fun(Operation, {Succ, Fail, AccState}) ->
-                case Operation of
-                    {publish, Subject, Payload} ->
-                        case do_publish(Subject, Payload, AccState) of
-                            ok -> {[Operation|Succ], Fail, AccState};
-                            _ -> {Succ, [Operation|Fail], AccState}
-                        end;
-                    {publish_with_ack, Subject, Payload, Headers} ->
-                        case do_publish_with_ack(Subject, Payload, Headers, AccState) of
-                            {ok, _} -> {[Operation|Succ], Fail, AccState};
-                            _ -> {Succ, [Operation|Fail], AccState}
-                        end;
-                    _ ->
-                        {Succ, [Operation|Fail], AccState}
-                end
-            end, {[], [], State}, ReversedOps),
-            
+            {Successful, Failed, NewStateAfter} = lists:foldl(
+                fun(Operation, {Succ, Fail, AccState}) ->
+                    case Operation of
+                        {publish, Subject, Payload} ->
+                            case do_publish(Subject, Payload, AccState) of
+                                ok -> {[Operation | Succ], Fail, AccState};
+                                _ -> {Succ, [Operation | Fail], AccState}
+                            end;
+                        {publish_with_ack, Subject, Payload, Headers} ->
+                            case do_publish_with_ack(Subject, Payload, Headers, AccState) of
+                                {ok, _} -> {[Operation | Succ], Fail, AccState};
+                                _ -> {Succ, [Operation | Fail], AccState}
+                            end;
+                        _ ->
+                            {Succ, [Operation | Fail], AccState}
+                    end
+                end,
+                {[], [], State},
+                ReversedOps
+            ),
+
             SuccessCount = length(Successful),
             FailCount = length(Failed),
-            
+
             router_logger:info(<<"Pending operations retry completed">>, #{
                 <<"total">> => PendingCount,
                 <<"successful">> => SuccessCount,
                 <<"failed">> => FailCount,
                 <<"error_code">> => <<"NATS_RETRY_COMPLETE">>
             }),
-            
-            router_metrics:emit_metric(router_nats_pending_operations_retry_success, #{count => SuccessCount}, #{}),
-            router_metrics:emit_metric(router_nats_pending_operations_retry_failed, #{count => FailCount}, #{}),
-            
+
+            router_metrics:emit_metric(
+                router_nats_pending_operations_retry_success, #{count => SuccessCount}, #{}
+            ),
+            router_metrics:emit_metric(
+                router_nats_pending_operations_retry_failed, #{count => FailCount}, #{}
+            ),
+
             %% Clear pending operations (even if some failed - they won't be retried again)
             NewStateAfter#state{pending_operations = []};
         false ->
@@ -1272,8 +1557,9 @@ retry_pending_operations(State) ->
 %% @doc Sanitize error for logging
 sanitize_error(Error) ->
     case is_binary(Error) of
-        true -> Error;
-        false -> 
+        true ->
+            Error;
+        false ->
             ErrorBin = iolist_to_binary(io_lib:format("~p", [Error])),
             %% Check for secrets
             case re:run(ErrorBin, "(?i)(api[_-]?key|secret|token|password)", [{capture, none}]) of
@@ -1284,16 +1570,16 @@ sanitize_error(Error) ->
 
 %% Internal: Build DLQ subject (same logic as router_jetstream)
 build_dlq_subject(Subject) ->
-  case application:get_env(beamline_router, dlq_subject_pattern, undefined) of
-    undefined ->
-      <<Subject/binary, ".dlq">>;
-    Pattern when is_binary(Pattern) ->
-      Pattern;
-    Pattern when is_list(Pattern) ->
-      list_to_binary(Pattern);
-    _ ->
-      <<Subject/binary, ".dlq">>
-  end.
+    case application:get_env(beamline_router, dlq_subject_pattern, undefined) of
+        undefined ->
+            <<Subject/binary, ".dlq">>;
+        Pattern when is_binary(Pattern) ->
+            Pattern;
+        Pattern when is_list(Pattern) ->
+            list_to_binary(Pattern);
+        _ ->
+            <<Subject/binary, ".dlq">>
+    end.
 
 %% @doc Convert error to reason label (binary)
 %% Normalizes various error types to standardized reason values
@@ -1330,13 +1616,27 @@ get_publish_retry_config() ->
             DefaultConfig = router_nats_publish_retry:get_default_config(),
             maps:merge(DefaultConfig, #{
                 <<"enabled">> => true,
-                <<"max_attempts">> => application:get_env(beamline_router, publish_retry_max_attempts, 3),
-                <<"backoff_strategy">> => application:get_env(beamline_router, publish_retry_backoff_strategy, exponential),
-                <<"backoff_base_ms">> => application:get_env(beamline_router, publish_retry_backoff_base_ms, 100),
-                <<"backoff_max_ms">> => application:get_env(beamline_router, publish_retry_backoff_max_ms, 5000),
-                <<"jitter_percent">> => application:get_env(beamline_router, publish_retry_jitter_percent, 20),
-                <<"timeout_per_attempt_ms">> => application:get_env(beamline_router, publish_retry_timeout_per_attempt_ms, 2000),
-                <<"total_deadline_ms">> => application:get_env(beamline_router, publish_retry_total_deadline_ms, 10000)
+                <<"max_attempts">> => application:get_env(
+                    beamline_router, publish_retry_max_attempts, 3
+                ),
+                <<"backoff_strategy">> => application:get_env(
+                    beamline_router, publish_retry_backoff_strategy, exponential
+                ),
+                <<"backoff_base_ms">> => application:get_env(
+                    beamline_router, publish_retry_backoff_base_ms, 100
+                ),
+                <<"backoff_max_ms">> => application:get_env(
+                    beamline_router, publish_retry_backoff_max_ms, 5000
+                ),
+                <<"jitter_percent">> => application:get_env(
+                    beamline_router, publish_retry_jitter_percent, 20
+                ),
+                <<"timeout_per_attempt_ms">> => application:get_env(
+                    beamline_router, publish_retry_timeout_per_attempt_ms, 2000
+                ),
+                <<"total_deadline_ms">> => application:get_env(
+                    beamline_router, publish_retry_total_deadline_ms, 10000
+                )
             });
         false ->
             #{<<"enabled">> => false}
@@ -1345,25 +1645,38 @@ get_publish_retry_config() ->
 %% @doc Classify error type for metrics
 classify_error_type(Reason) ->
     case Reason of
-        timeout -> <<"timeout">>;
-        connection_refused -> <<"connection">>;
-        connection_closed -> <<"connection">>;
-        nats_unavailable -> <<"connection">>;
-        not_connected -> <<"connection">>;
-        {error, timeout} -> <<"timeout">>;
-        {error, connection_refused} -> <<"connection">>;
-        {error, connection_closed} -> <<"connection">>;
-        {error, nats_unavailable} -> <<"connection">>;
-        {error, not_connected} -> <<"connection">>;
+        timeout ->
+            <<"timeout">>;
+        connection_refused ->
+            <<"connection">>;
+        connection_closed ->
+            <<"connection">>;
+        nats_unavailable ->
+            <<"connection">>;
+        not_connected ->
+            <<"connection">>;
+        {error, timeout} ->
+            <<"timeout">>;
+        {error, connection_refused} ->
+            <<"connection">>;
+        {error, connection_closed} ->
+            <<"connection">>;
+        {error, nats_unavailable} ->
+            <<"connection">>;
+        {error, not_connected} ->
+            <<"connection">>;
         _ ->
             ReasonBin = error_to_reason(Reason),
             case binary:match(ReasonBin, [<<"nack">>, <<"NAK">>]) of
                 nomatch ->
-                    case binary:match(ReasonBin, [<<"5">>, <<"server_error">>, <<"unavailable">>]) of
+                    case
+                        binary:match(ReasonBin, [<<"5">>, <<"server_error">>, <<"unavailable">>])
+                    of
                         nomatch -> <<"unknown">>;
                         _ -> <<"broker_error">>
                     end;
-                _ -> <<"nack">>
+                _ ->
+                    <<"nack">>
             end
     end.
 
@@ -1508,7 +1821,9 @@ perform_health_check(State) ->
     end.
 
 %% @doc Register JetStream consumer in state
-register_jetstream_consumer(ConsumerId, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, State) ->
+register_jetstream_consumer(
+    ConsumerId, Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, State
+) ->
     Now = erlang:system_time(millisecond),
     Consumer = #jetstream_consumer{
         consumer_id = ConsumerId,
@@ -1534,30 +1849,38 @@ unregister_jetstream_consumer(ConsumerId, State) ->
 %% @doc Resubscribe to all JetStream consumers after reconnection
 resubscribe_jetstream_consumers(State) ->
     Consumers = maps:values(State#state.jetstream_consumers),
-    lists:foldl(fun(Consumer, AccState) ->
-        #jetstream_consumer{
-            consumer_id = ConsumerId,
-            subject = Subject,
-            durable_group = DurableGroup,
-            ack_policy = AckPolicy,
-            deliver_group = DeliverGroup,
-            mode = Mode
-        } = Consumer,
-        %% Attempt to resubscribe
-        case do_subscribe_jetstream(Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, AccState) of
-            {ok, NewConsumerId, NewState} ->
-                router_logger:info(<<"JetStream consumer resubscribed after reconnection">>, #{
-                    <<"old_consumer_id">> => ConsumerId,
-                    <<"new_consumer_id">> => NewConsumerId,
-                    <<"subject">> => Subject
-                }),
-                NewState;
-            {error, Reason} ->
-                router_logger:warn(<<"JetStream consumer resubscription failed">>, #{
-                    <<"consumer_id">> => ConsumerId,
-                    <<"subject">> => Subject,
-                    <<"reason">> => sanitize_error(Reason)
-                }),
-                AccState
-        end
-    end, State, Consumers).
+    lists:foldl(
+        fun(Consumer, AccState) ->
+            #jetstream_consumer{
+                consumer_id = ConsumerId,
+                subject = Subject,
+                durable_group = DurableGroup,
+                ack_policy = AckPolicy,
+                deliver_group = DeliverGroup,
+                mode = Mode
+            } = Consumer,
+            %% Attempt to resubscribe
+            case
+                do_subscribe_jetstream(
+                    Subject, DurableGroup, AckPolicy, DeliverGroup, Mode, AccState
+                )
+            of
+                {ok, NewConsumerId, NewState} ->
+                    router_logger:info(<<"JetStream consumer resubscribed after reconnection">>, #{
+                        <<"old_consumer_id">> => ConsumerId,
+                        <<"new_consumer_id">> => NewConsumerId,
+                        <<"subject">> => Subject
+                    }),
+                    NewState;
+                {error, Reason} ->
+                    router_logger:warn(<<"JetStream consumer resubscription failed">>, #{
+                        <<"consumer_id">> => ConsumerId,
+                        <<"subject">> => Subject,
+                        <<"reason">> => sanitize_error(Reason)
+                    }),
+                    AccState
+            end
+        end,
+        State,
+        Consumers
+    ).

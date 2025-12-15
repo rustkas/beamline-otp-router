@@ -1,19 +1,21 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Heavy/Nightly Test Run
-# Runs all tests including soak/stress/chaos
-# For nightly or manual runs only
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+project_dir="$(dirname "$script_dir")"
 
-echo "=== Starting Heavy/Nightly Test Run ==="
 echo "Mode: ROUTER_TEST_LEVEL=heavy"
 echo "WARNING: This may take several hours!"
 echo ""
 
 export ROUTER_TEST_LEVEL=heavy
 
-# Run all suites with heavy level
-rebar3 ct
+:
+
+cd "$project_dir"
+
+# Use the test profile so test-only helpers (erlc_paths) are consistently available.
+rebar3 as test ct --dir test --readable=true
 
 echo ""
 echo "=== Heavy/Nightly Complete ==="

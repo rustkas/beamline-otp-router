@@ -1,0 +1,7 @@
+test/router_nats_publish_fail_open_SUITE.erl
+test/router_nats_publish_queueing_SUITE.erl
+test/router_nats_publish_metrics_SUITE.erl
+test/router_nats_publish_retry_SUITE.erl
+test/router_nats_conn_failure_basic_SUITE.erl
+test/router_nats_conn_failure_recovery_SUITE.erl
+test/router_nats_connection_failure_SUITE.erl

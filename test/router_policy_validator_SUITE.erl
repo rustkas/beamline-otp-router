@@ -39,12 +39,7 @@
 
 
 all() ->
-    case os:getenv("ROUTER_ENABLE_META") of
-        "1" -> meta_all();
-        "true" -> meta_all();
-        "on" -> meta_all();
-        _ -> []
-    end.
+    router_ct_groups:all_selection(?MODULE, [{group, unit_tests}]).
 
 meta_all() ->
     [].
@@ -56,6 +51,9 @@ groups_for_level(_) -> %% fast
     [{group, unit_tests}].
 
 groups() ->
+    router_ct_groups:groups_definitions(?MODULE, base_groups()).
+
+base_groups() ->
     [
         {unit_tests, [parallel], [
             test_empty_weights,
@@ -259,4 +257,3 @@ test_valid_policy(_Config) ->
     ?assertEqual(ok, Result),
     
     ok.
-

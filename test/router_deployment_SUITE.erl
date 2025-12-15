@@ -62,18 +62,16 @@ groups() -> [{deployment_tests, [sequence], [
 ]}].
 
 init_per_suite(Config) ->
-    ok = router_suite_helpers:start_router_suite(),
-    Config.
+    router_test_bootstrap:init_per_suite(Config, #{}).
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
 init_per_testcase(_TestCase, Config) ->
-    Config.
+    router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}).
 
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+end_per_testcase(_TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 %% @doc Test: Validate deployment
 test_validate_deployment(_Config) ->

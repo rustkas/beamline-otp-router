@@ -112,6 +112,18 @@ calculate_distribution(Results, Providers) ->
         maps:put(Provider, Count, Acc)
     end, #{}, Providers).
 
+aggregate_weights(Providers, Normalized) ->
+    lists:foldl(
+        fun({Provider, Weight}, Acc) ->
+            case maps:find(Provider, Acc) of
+                {ok, Prev} -> maps:put(Provider, Prev + Weight, Acc);
+                error -> maps:put(Provider, Weight, Acc)
+            end
+        end,
+        #{},
+        lists:zip(Providers, Normalized)
+    ).
+
 %% Property tests
 
 %% @doc Test: Weighted distribution matches expected weights
@@ -122,34 +134,27 @@ test_weighted_distribution(_Config) ->
         _ ->
             ?assert(proper:quickcheck(
                 ?FORALL(
-                    {Providers, Weights},
-                    {
-                        ?LET(
-                            N,
-                            integer(2, 5),
-                            vector(N, provider_id())
-                        ),
+                    NormalizedWeights,
+                    ?LET(
+                        NumProviders,
+                        integer(2, 5),
                         ?LET(
                             Providers,
-                            ?LET(
-                                N,
-                                integer(2, 5),
-                                vector(N, provider_id())
-                            ),
+                            vector(NumProviders, provider_id()),
                             begin
                                 RawWeights = [rand_float(0.0, 1.0) || _ <- Providers],
                                 Sum = lists:sum(RawWeights),
                                 Normalized = [W / Sum || W <- RawWeights],
-                                maps:from_list(lists:zip(Providers, Normalized))
+                                aggregate_weights(Providers, Normalized)
                             end
                         )
-                    },
+                    ),
                     begin
                         Policy = #policy{
                             tenant_id = <<"test_tenant">>,
                             policy_id = <<"test_policy">>,
                             version = <<"1.0">>,
-                            weights = Weights,
+                            weights = NormalizedWeights,
                             defaults = #{},
                             escalate_on = [],
                             fallback = undefined,
@@ -171,14 +176,14 @@ test_weighted_distribution(_Config) ->
                             Decision#route_decision.provider_id
                         end || _ <- lists:seq(1, NumSamples)],
                         %% Calculate distribution
-                        Distribution = calculate_distribution(Results, Providers),
+                        UniqueProviders = maps:keys(NormalizedWeights),
+                        Distribution = calculate_distribution(Results, UniqueProviders),
                         %% Verify distribution is close to expected weights
                         %% With fewer samples, allow 20% variance instead of 10%
-                        lists:all(fun(Provider) ->
-                            Expected = maps:get(Provider, Weights, 0.0),
+                        lists:all(fun({Provider, Expected}) ->
                             Actual = maps:get(Provider, Distribution, 0) / NumSamples,
                             abs(Expected - Actual) < 0.2
-                        end, Providers)
+                        end, maps:to_list(NormalizedWeights))
                     end
                 ),
                 [{numtests, 10}]
@@ -193,31 +198,23 @@ test_fallback_behavior(_Config) ->
         _ ->
             ?assert(proper:quickcheck(
                 ?FORALL(
-                    {PrimaryProvider, FallbackProvider},
-                    {provider_id(), provider_id()},
+                    FallbackProvider,
+                    provider_id(),
                     begin
                         Policy = #policy{
                             tenant_id = <<"test_tenant">>,
                             policy_id = <<"test_policy">>,
                             version = <<"1.0">>,
-                            weights = #{PrimaryProvider => 1.0},
+                            weights = #{},
                             defaults = #{},
                             escalate_on = [],
                             fallback = #{
-                                <<"provider_id">> => FallbackProvider,
+                                <<"provider">> => FallbackProvider,
                                 <<"reason">> => <<"fallback">>
                             },
                             sticky = undefined,
                             metadata = #{}
                         },
-                        %% Mock primary provider failure
-                        meck:new(router_provider, [non_strict]),
-                        meck:expect(router_provider, check_health, fun(P) ->
-                            case P =:= PrimaryProvider of
-                                true -> {error, unavailable};
-                                false -> {ok, healthy}
-                            end
-                        end),
                         {ok, Decision} = router_decider:decide(
                             #route_request{
                                 message = #{<<"test">> => <<"message">>},
@@ -227,7 +224,6 @@ test_fallback_behavior(_Config) ->
                             Policy,
                             #{}
                         ),
-                        meck:unload(router_provider),
                         Decision#route_decision.provider_id =:= FallbackProvider
                     end
                 ),

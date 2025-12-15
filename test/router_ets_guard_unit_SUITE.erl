@@ -135,15 +135,14 @@ test_validate_spec(_Config) ->
 test_ensure_table_valid(_Config) ->
     %% Create a test table
     TableName = ets_guard_test_table,
-    catch ets:delete(TableName),
-    ets:new(TableName, [set, named_table, {keypos, 1}, {read_concurrency, true}]),
+    router_test_init:ensure_ets_table(TableName, [set, named_table, {keypos, 1}, {read_concurrency, true}]),
     
     try
         Spec = #{type => set, keypos => 1, read_concurrency => true},
         Result = router_ets_guard:ensure_table(TableName, Spec),
         ?assertMatch({ok, #{checked := true}}, Result)
     after
-        ets:delete(TableName)
+        router_test_init:delete_ets_table(TableName)
     end,
     ok.
 
@@ -153,8 +152,7 @@ test_ensure_table_valid(_Config) ->
 
 test_ensure_table_invalid_spec(_Config) ->
     TableName = ets_guard_test_invalid,
-    catch ets:delete(TableName),
-    ets:new(TableName, [set, named_table]),
+    router_test_init:ensure_ets_table(TableName, [set, named_table]),
     
     try
         %% Invalid spec key
@@ -162,7 +160,7 @@ test_ensure_table_invalid_spec(_Config) ->
         Result = router_ets_guard:ensure_table(TableName, Spec),
         ?assertMatch({error, _}, Result)
     after
-        ets:delete(TableName)
+        router_test_init:delete_ets_table(TableName)
     end,
     ok.
 
@@ -172,15 +170,14 @@ test_ensure_table_invalid_spec(_Config) ->
 
 test_verify_table_valid(_Config) ->
     TableName = ets_guard_verify_table,
-    catch ets:delete(TableName),
-    ets:new(TableName, [ordered_set, named_table, {keypos, 2}]),
+    router_test_init:ensure_ets_table(TableName, [ordered_set, named_table, {keypos, 2}]),
     
     try
         Spec = #{type => ordered_set, keypos => 2},
         Result = router_ets_guard:verify_table(TableName, Spec),
         ?assertEqual(ok, Result)
     after
-        ets:delete(TableName)
+        router_test_init:delete_ets_table(TableName)
     end,
     ok.
 
@@ -190,8 +187,7 @@ test_verify_table_valid(_Config) ->
 
 test_verify_table_violations(_Config) ->
     TableName = ets_guard_verify_violations,
-    catch ets:delete(TableName),
-    ets:new(TableName, [set, named_table, {keypos, 1}]),
+    router_test_init:ensure_ets_table(TableName, [set, named_table, {keypos, 1}]),
     
     try
         %% Expect different type
@@ -199,6 +195,6 @@ test_verify_table_violations(_Config) ->
         Result = router_ets_guard:verify_table(TableName, Spec),
         ?assertMatch({error, _}, Result)
     after
-        ets:delete(TableName)
+        router_test_init:delete_ets_table(TableName)
     end,
     ok.

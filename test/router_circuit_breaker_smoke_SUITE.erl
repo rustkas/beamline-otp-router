@@ -23,31 +23,26 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    %% Minimal setup - just start application
-    _ = application:load(beamline_router),
-    
-    %% Set minimal test environment
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, false),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    ok = application:set_env(beamline_router, tracing_enabled, false),
-    ok = application:set_env(beamline_router, disable_heir, true),
-    ok = application:set_env(beamline_router, telemetry_enabled, true),
-    ok = application:set_env(beamline_router, metrics_export_enabled, false),
-    
-    case application:ensure_all_started(beamline_router) of
-        {ok, Started} ->
-            ct:pal("beamline_router started, apps: ~p", [Started]),
-            %% Wait a bit for supervisor to start children
-            timer:sleep(500),
-            Config;
-        Error ->
-            ct:fail({cannot_start_beamline_router, Error})
-    end.
+    Base = router_test_bootstrap:init_per_suite(Config, #{
+        start => ensure_all_started,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock,
+            tracing_enabled => false,
+            disable_heir => true,
+            telemetry_enabled => true,
+            metrics_export_enabled => false
+        }
+    }),
+    timer:sleep(500),
+    Base.
 
-end_per_suite(_Config) ->
-    _ = application:stop(beamline_router),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => ensure_all_started,
+        stop => stop_app
+    }).
 
 init_per_testcase(_TestCase, Config) ->
     Config.

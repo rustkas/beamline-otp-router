@@ -184,8 +184,7 @@ table_name(_) ->
     <<"tid">>.
 
 %% @doc Format value for logging
-format_value(V) when is_atom(V) -> atom_to_binary(V, utf8);
 format_value(V) when is_boolean(V) -> atom_to_binary(V, utf8);
+format_value(V) when is_atom(V) -> atom_to_binary(V, utf8);
 format_value(V) when is_integer(V) -> integer_to_binary(V);
 format_value(V) -> iolist_to_binary(io_lib:format("~p", [V])).
-

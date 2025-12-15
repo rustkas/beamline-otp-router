@@ -44,27 +44,33 @@ groups() ->
     ]}].
 
 init_per_suite(Config) ->
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, false),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    ok = application:set_env(beamline_router, tracing_enabled, false),
     router_nats_fault_injection:clear_all_faults(),
-    ok = router_suite_helpers:start_router_suite(),
-    Config.
+    Base = router_test_bootstrap:init_per_suite(Config, #{
+        start => router_suite,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock,
+            tracing_enabled => false
+        }
+    }),
+    router_metrics:ensure(),
+    Base.
 
 end_per_suite(Config) ->
     router_nats_fault_injection:clear_all_faults(),
-    router_suite_helpers:stop_router_suite(),
-    Config.
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => router_suite,
+        stop => router_suite
+    }).
 
 init_per_testcase(_TestCase, Config) ->
     router_nats_fault_injection:clear_all_faults(),
-    Config.
+    router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}).
 
-end_per_testcase(_TestCase, _Config) ->
+end_per_testcase(_TestCase, Config) ->
     router_nats_fault_injection:clear_all_faults(),
-    ok.
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 %% ============================================================================
 %% TEST CASES

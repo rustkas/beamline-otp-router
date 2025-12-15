@@ -1,286 +1,118 @@
-﻿# Router Core (Erlang/OTP)  CP1
+# Beamline Router
 
-Minimal implementation of the routing core for CP1 with gRPC and ABI support.
+[![Build Status](https://ci.beamline.example.com/api/badges/beamline/router/status.svg)](https://ci.beamline.example.com/beamline/router)
+[![Coverage Status](https://coveralls.io/repos/github/beamline/router/badge.svg?branch=main)](https://coveralls.io/github/beamline/router?branch=main)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-## Description
+Core routing component of the Beamline platform, responsible for efficient message routing with support for complex routing policies, circuit breaking, and observability.
 
-Router Core processes message routing requests, applies routing policies (static/rule-set for CP1), and returns provider selection decisions in an ABIcompatible format.
+## 📚 Documentation
 
-## Architecture
+For comprehensive documentation, please refer to the main project documentation:
 
-### OTP Process Tree
+- [Routing Policy](https://github.com/beamline/beamline/blob/main/docs/ROUTING_POLICY.md) - Detailed documentation on routing policies and configuration
+- [Architecture](https://github.com/beamline/beamline/blob/main/docs/ARCHITECTURE.md) - System architecture and component interactions
+- [API Contracts](https://github.com/beamline/beamline/blob/main/docs/API_CONTRACTS.md) - gRPC API specifications
+- [Observability](https://github.com/beamline/beamline/blob/main/docs/OBSERVABILITY.md) - Metrics, logging, and tracing
 
+## 🏗️ Architecture Overview
+
+```mermaid
+graph TD
+    A[gRPC Client] -->|Request| B[Router gRPC Service]
+    B --> C[Router Core]
+    C --> D[Policy Engine]
+    D --> E[Provider Selection]
+    E --> F[NATS Adapter]
+    F --> G[Downstream Services]
 ```
-beamline_router_sup (supervisor)
-  router_policy_store (gen_server)  ETS cache of policies, loaded from fixtures
-  router_grpc_sup (supervisor)  gRPC server
-```
 
-### Core Modules
+### Core Components
 
-- `router_core.erl`  decision interface, minimal algorithm stub
-- `router_decider.erl`  minimal algorithm implementation (weights/sticky/fallback)
-- `router_policy_store.erl`  in-memory ETS policy cache, loading from fixtures
-- `router_grpc.erl`  gRPC server (grpcbox), implements Router.Decide
-- `router_nats_adapter.erl`  NATS interface (mock/stub for CP1)
+| Component | Description |
+|-----------|-------------|
+| `router_core.erl` | Main routing logic and request processing |
+| `router_decider.erl` | Provider selection algorithm |
+| `router_policy_store.erl` | Policy management and caching |
+| `router_grpc.erl` | gRPC server implementation |
+| `router_nats_adapter.erl` | NATS messaging integration |
 
-## Requirements
+## 🚀 Quick Start
+
+### Prerequisites
 
 - Erlang/OTP 26+
 - rebar3
-- grpcbox (pulled automatically via rebar3)
-- jsx (pulled automatically via rebar3)
+- NATS Server (for production)
 
-## Project Structure
-
-```
-apps/otp/router/
-  src/                          # Source code
-    router_core.erl            # Decision interface
-    router_decider.erl         # Minimal algorithm stub
-    router_policy_store.erl    # ETS cache, load from fixtures
-    router_grpc.erl            # gRPC Router.Decide service
-    router_nats_adapter.erl    # NATS interface (mock)
-    ...
-  include/                      # Header files
-    beamline_router.hrl
-  priv/
-    fixtures/
-      policies/                # Policy fixtures
-  test/                         # Tests
-    router_core_SUITE.erl      # Common Test suite
-    router_grpc_smoke.erl      # gRPC smoke test
-  rebar.config                  # rebar3 configuration
-  README.md                     # This file
-```
-
-## Operational Readiness (CP1)
-
-### Status
-
-- **Compilation**: ✅ Successful
-- **Tests**: ✅ New integration tests added and compile
-- **Dialyzer**: ✅ Warnings addressed (dependencies updated, targeted nowarn)
-- **Configuration**: ✅ Finalized (NATS TLS, timeouts, reconnects)
-- **Documentation**: ✅ Updated across `CONFIG.md`, `API_CONTRACTS.md`, `ROUTER_CAF_GATING_CHECK_REPORT.md`
-
-### Key Artifacts
-
-- **`OPERATIONAL_GUIDE.md`**: Pre-production checklist, configuration guidance, smoke tests, gradual rollout strategy, emergency procedures, monitoring recommendations
-- **New Integration Tests**: 
-  - `test_payload_size_limit/1`: Validates NATS payload size limit
-  - `test_version_validation_missing/1`: Validates missing version rejection
-  - `test_version_validation_unsupported/1`: Validates unsupported version rejection
-- **Updated Documentation**:
-  - `ROUTER_CAF_GATING_CHECK_REPORT.md`: Dialyzer warnings details and resolution
-  - `CONFIG.md`: NATS configuration (TLS, limits, timeouts)
-  - `API_CONTRACTS.md`: Schema version validation rules
-
-### Staging Rollout Checklist
-
-Before deploying to staging, ensure:
-
-1. **Pre-Production Checklist**: Follow checklist in `OPERATIONAL_GUIDE.md`
-2. **NATS Payload Size Limit**: Validate payload size limit before JSON parsing
-3. **Schema Version Validation**: Confirm validation for missing/unsupported versions
-4. **Retry Parameters**: Set `caf_max_retries` and `caf_retry_base_ms` per SLA/latency guidance
-5. **Smoke Tests**: Run 5 smoke tests from `OPERATIONAL_GUIDE.md` and monitor telemetry counters/spans
-6. **Kill-Switch and Allowlist**: Keep `caf_push_assignment_enabled` and `caf_push_assignment_allowed_tenants` aligned with access policies
-
-See `docs/OPERATIONAL_GUIDE.md` for detailed staging rollout plan.
-
-### Training Videos Quickstart
-
-**Recommended Topics** (for future video series):
-
-1. **Architecture Overview**: Router ↔ CAF modules, configuration, message flow
-2. **Quickstart with NATS TLS**: Setup, connection, verification
-3. **DecideRequest Validation**: Schema version rules and tests
-4. **ExecAssignment Publishing**: `push_assignment` flag and subject configuration
-5. **Deadlines**: `deadline_ms` calculation and overrides
-6. **Retry Logic**: Exponential backoff with jitter and counters
-7. **Publication Controls**: Kill-switch and tenant allowlist
-8. **Observability**: Telemetry counters and spans
-9. **Error Handling**: NATS limits, routing errors, schema versions
-10. **Smoke Tests & Dashboard**: Staging validation and monitoring
-
-## CP1 Limitations
-
-- No telemetry: Prometheus/OTel excluded from dependencies
-- Minimal algorithm: stub logic (weights/sticky/fallback)
-
-## Capabilities
-
-- Inmemory policy caching: ETS-backed cache for policies loaded from JSON fixtures (fast lookup of requests/responses).
-- gRPC service: `Router.Decide` implemented in `router_grpc.erl` with full Protobuf serialization/deserialization.
-- API documentation: see [docs/GRPC_API.md](docs/GRPC_API.md) for call examples, response schema, and error codes.
-  - [Retryability and error handling](docs/GRPC_API.md#retryability-unavailable-vs-resource_exhausted)
-  - [Canonical reasons](docs/GRPC_API.md#canonical-reasons-summary)
-  - [Playbook: diagnostics and correlation](docs/GRPC_API.md#playbook-diagnostics-and-correlation)
-
-## Libraries
-
-- `grpcbox`  gRPC for Erlang: server/client, Protobuf handling, ABI at wire-protocol level.
-- `jsx`  JSON parser for simple serialization/deserialization and helper tasks.
-
-## Sample Policy (JSON)
-
-```json
-{
-  "policy_id": "default",
-  "providers": [
-    {"id": "openai", "weight": 0.7},
-    {"id": "anthropic", "weight": 0.3}
-  ],
-  "rules": [
-    {"when": {"message_type": "chat"}, "prefer": ["openai"]},
-    {"when": {"all_providers_failed": true}, "fallback": "anthropic"}
-  ],
-  "sticky": true
-}
-```
-
-## Commands for Verification
+### Building
 
 ```bash
-# Generate Protobuf (after changing flow.proto)
-# Important: proto files must be under apps/otp/router/proto/
-rebar3 clean
-rebar3 protobuf compile
+# Clone the repository
+git clone https://github.com/beamline/beamline.git
+cd beamline/apps/otp/router
+
+# Install dependencies
+rebar3 deps get
 
 # Compile
 rebar3 compile
+```
 
-# Tests
+### Running Tests
+
+```bash
+# Run all tests
+rebar3 ct
+
+# Run with coverage
+rebar3 cover
+
+# Run specific test suite
 rebar3 ct --suite test/router_core_SUITE
-rebar3 ct --suite test/router_grpc_SUITE
-
-# Concurrency test for RouterAdmin
-rebar3 ct --suite test/router_admin_grpc_concurrency_SUITE
-
-# Property-based tests (PropEr)
-rebar3 as test ct --suite test/router_policy_store_prop_SUITE
-rebar3 as test ct --suite test/router_options_merge_prop_SUITE
-rebar3 as test ct --suite test/router_normalize_boolean_prop_SUITE
-rebar3 as test ct --suite test/router_decider_prop_SUITE
-
-# Parallel test execution (recommended for faster runs)
-rebar3 ct -j 4
-
-# Dialyzer
-rebar3 dialyzer
-
-# Full check
-rebar3 check
 ```
 
-Note: all tests use ephemeral ports (0 = OS assigns an available port) to isolate runs, allowing parallel execution without port conflicts. Use `rebar3 ct -j 4` to run tests in parallel with 4 workers for faster execution.
+### 🧹 Mock discipline lint
 
-**Property-based tests**: All property-based tests use PropEr and include `proper.hrl` in test profile. PropEr is available in test profile (`rebar3 as test`). Runtime check for PropEr availability is done in `prop_*` functions, with skip fallbacks when PropEr is not available. See [docs/PROPERTY_TESTING.md](docs/PROPERTY_TESTING.md) for detailed documentation.
+- `scripts/lint/check_router_mock_discipline.sh` — ensures `meck:new(..., [passthrough])` usages only coincide with direct `gen_server:call(router_nats, ...)` inside the approved helpers (`router_nats_test_helper`, `router_mock_helpers`). The check ignores `_data/` and `fixtures/` directories, `*.skip*` artifacts, and comment-only lines to avoid false positives.
+- `scripts/lint/verify_router_mock_discipline.sh` — temporarily emits `test/router_mock_discipline_violation_SUITE.erl`, runs the lint to assert it fails, then cleans up so the failure can be reproduced without lingering files.
+- `./scripts/ct-full.sh` — run the full tier after the mock-discipline lint passes to confirm the quality gate is clean.
 
-**Testing recommendations**: See [docs/TESTING_RECOMMENDATIONS.md](docs/TESTING_RECOMMENDATIONS.md) for best practices, performance optimization, and CI/CD integration guidelines.
-
-## RouterAdmin API
-
-RouterAdmin provides a gRPC API to manage routing policies without restarting the service.
-
-### Setup
-
-```erlang
-application:set_env(beamline_router, admin_api_key, <<"your-secret-key">>).
-```
-
-Default: `<<"dev-admin-key">>` (development only).
-
-### Usage
-
-```erlang
-%% Create an authorized context
-Ctx = #{metadata => [{<<"x-api-key">>, <<"dev-admin-key">>}]}.
-
-%% Create a policy
-AdminPolicyPb = #'AdminPolicy'{
-    policy_id = <<"my_policy">>,
-    providers = [
-        #'AdminProvider'{id = <<"openai">>, weight = 0.7},
-        #'AdminProvider'{id = <<"anthropic">>, weight = 0.3}
-    ],
-    sticky = false,
-    rules = []
-},
-
-RequestPb = #'UpsertPolicyRequest'{
-    tenant_id = <<"my_tenant">>,
-    policy = AdminPolicyPb
-},
-
-Request = flow_pb:encode_msg(RequestPb, 'UpsertPolicyRequest'),
-{ok, Response, _} = router_admin_grpc:upsert_policy(Ctx, Request).
-```
-
-### grpcurl Examples
+## Everyday tasks
 
 ```bash
-# UpsertPolicy
-grpcurl -plaintext \
-  -H "x-api-key: dev-admin-key" \
-  -d '{
-    "tenant_id": "my_tenant",
-    "policy": {
-      "policy_id": "my_policy",
-      "providers": [
-        {"id": "openai", "weight": 0.7},
-        {"id": "anthropic", "weight": 0.3}
-      ],
-      "sticky": false
-    }
-  }' \
-  localhost:9000 beamline.flow.v1.RouterAdmin/UpsertPolicy
-
-# GetPolicy
-grpcurl -plaintext \
-  -H "x-api-key: dev-admin-key" \
-  -d '{"tenant_id": "my_tenant", "policy_id": "my_policy"}' \
-  localhost:9000 beamline.flow.v1.RouterAdmin/GetPolicy
-
-# ListPolicies
-grpcurl -plaintext \
-  -H "x-api-key: dev-admin-key" \
-  -d '{"tenant_id": "my_tenant"}' \
-  localhost:9000 beamline.flow.v1.RouterAdmin/ListPolicies
-
-# DeletePolicy
-grpcurl -plaintext \
-  -H "x-api-key: dev-admin-key" \
-  -d '{"tenant_id": "my_tenant", "policy_id": "my_policy"}' \
-  localhost:9000 beamline.flow.v1.RouterAdmin/DeletePolicy
+cd /apps/otp/router && ROUTER_TEST_LEVEL=heavy bash scripts/ct-heavy.sh
+cd /apps/otp/router && bash scripts/lint/check_quarantine_guardrails.sh
 ```
 
-Detailed API docs: [docs/GRPC_API.md](docs/GRPC_API.md)
+## 📦 Dependencies
 
-Key sections:
-- Retryability and error handling: [docs/GRPC_API.md#retryability-unavailable-vs-resource_exhausted](docs/GRPC_API.md#retryability-unavailable-vs-resource_exhausted)
-- Canonical reasons: [docs/GRPC_API.md#canonical-reasons-summary](docs/GRPC_API.md#canonical-reasons-summary)
-- Playbook: diagnostics and correlation: [docs/GRPC_API.md#playbook-diagnostics-and-correlation](docs/GRPC_API.md#playbook-diagnostics-and-correlation)
+- [grpcbox](https://github.com/tsloughter/grpcbox) - gRPC server implementation
+- [jsx](https://github.com/talentdeficit/jsx) - JSON processing
+- [nats_msg](https://github.com/nats-io/nats.erl) - NATS client
 
-## Windows/WSL Notes
+## 🔍 Additional Resources
 
-When working in WSL, avoid UNC paths (`\\wsl.localhost\...`) for `rebar3` commands. Use local paths inside WSL:
+### Operational Documentation
 
-```bash
-# Correct (inside WSL)
-cd /home/rustkas/aigroup/apps/otp/router
-rebar3 compile
+For detailed operational guidance, including deployment, monitoring, and troubleshooting, please refer to the main project's [Operational Guide](https://github.com/beamline/beamline/blob/main/docs/OPERATIONS_GUIDE_RU.md).
 
-# Incorrect (UNC path)
-cd \\wsl.localhost\Ubuntu\home\rustkas\aigroup\apps\otp\router
-rebar3 compile  # May not work
-```
+### API Documentation
 
-## Glossary
+- [gRPC API Reference](https://github.com/beamline/beamline/blob/main/docs/API_CONTRACTS.md)
+- [Error Codes](https://github.com/beamline/beamline/blob/main/docs/GRPC_ERROR_CODES.md)
+- [API Contracts](https://github.com/beamline/beamline/blob/main/docs/API_CONTRACTS.md)
 
-- CP1  first checkpoint of Router Core development (minimum: core, tests, gRPC stubs, basic ABI).
-- gRPC  RPC over HTTP/2; baseline integration via `Router.Decide`.
-- ABI  Application Binary Interface: formal interaction contracts (Protobuf messages).
-- NATS  message broker (pub/sub, req/rep) for future integration.
-- Smoke Test  simple liveness check (call `Router.Decide`).
+### Performance and Observability
+
+- [Performance Tuning](https://github.com/beamline/beamline/blob/main/docs/PERFORMANCE.md)
+- [Observability Guide](https://github.com/beamline/beamline/blob/main/docs/OBSERVABILITY.md)
+- [Metrics and Monitoring](https://github.com/beamline/beamline/blob/main/docs/OBSERVABILITY_METRICS_MONITORING_GUIDE.md)
+
+## 🤝 Contributing
+
+Please see the main project's [Contributing Guide](https://github.com/beamline/beamline/CONTRIBUTING.md) for details on how to contribute to this project.
+
+## 📄 License
+
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.

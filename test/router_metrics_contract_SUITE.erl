@@ -29,9 +29,12 @@
 suite() -> [{timetrap, {minutes, 5}}].
 
 all() ->
-    [].
+    router_ct_groups:all_selection(?MODULE, [{group, contract_tests}]).
 
 groups() ->
+    router_ct_groups:groups_definitions(?MODULE, base_groups()).
+
+base_groups() ->
     [{contract_tests, [sequence], [
         test_base_metrics_contract,
         test_jetstream_metrics,

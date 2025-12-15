@@ -42,11 +42,11 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    %% Start Router application
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, sticky_store_enabled, true),
-    ok = router_suite_helpers:start_router_suite(),
-    
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{
+        common_env => false,
+        app_env => #{sticky_store_enabled => true}
+    }),
+
     %% Create test policy
     TenantId = <<"test_tenant_provider">>,
     PolicyId = <<"test_policy_provider">>,
@@ -69,22 +69,21 @@ init_per_suite(Config) ->
         metadata = #{}
     },
     {ok, _} = router_policy_store:upsert_policy(TenantId, Policy),
-    
-    [{tenant_id, TenantId}, {policy_id, PolicyId} | Config].
+
+    [{tenant_id, TenantId}, {policy_id, PolicyId} | Config1].
 
 end_per_suite(Config) ->
     %% Cleanup
     TenantId = proplists:get_value(tenant_id, Config),
     PolicyId = proplists:get_value(policy_id, Config),
     router_policy_store:delete_policy(TenantId, PolicyId),
-    router_suite_helpers:stop_router_suite(),
-    ok.
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
 init_per_testcase(_TestCase, Config) ->
-    Config.
+    router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}).
 
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+end_per_testcase(_TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 %% @doc Test: Provider selection based on weights
 test_provider_selection(Config) ->

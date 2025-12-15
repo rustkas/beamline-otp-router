@@ -47,53 +47,51 @@ all() ->
     ].
 
 init_per_suite(Config) ->
-    %% Ensure application is stopped so we can set env vars that are read at startup
-    _ = application:stop(beamline_router),
-    _ = application:unload(beamline_router),
-    _ = application:load(beamline_router),
-    
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, false),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    ok = application:set_env(beamline_router, nats_reconnect_attempts, 5),
-    ok = application:set_env(beamline_router, nats_reconnect_delay_ms, 500),
-    ok = application:set_env(beamline_router, nats_max_reconnect_delay_ms, 2000),
-    ok = application:set_env(beamline_router, nats_fail_open_mode, false),
-    ok = application:set_env(beamline_router, nats_max_pending_operations, 1000),
-    
-    %% Setup mock with fail_open_mode=false BEFORE starting app
     ok = router_mock_helpers:setup_router_nats_mock(#{
-        get_connection_status => fun() -> 
-            {ok, #{state => connected, fail_open_mode => false}} 
+        get_connection_status => fun() ->
+            {ok, #{state => connected, fail_open_mode => false}}
         end
     }),
-    
-    %% Start app manually (not via start_router_suite which would override mock)
-    {ok, _} = application:ensure_all_started(beamline_router),
-    
+    router_test_bootstrap:init_per_suite(Config, #{
+        reset_app => true,
+        start => ensure_all_started,
+        common_env => false,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock,
+            nats_reconnect_attempts => 5,
+            nats_reconnect_delay_ms => 500,
+            nats_max_reconnect_delay_ms => 2000,
+            nats_fail_open_mode => false,
+            nats_max_pending_operations => 1000
+        }
+    }),
     test_helpers:wait_for_app_start(router_nats, 2000),
-    
-    %% Verify fail_open_mode is actually disabled
     {ok, Status} = router_nats:get_connection_status(),
     false = maps:get(fail_open_mode, Status),
-    
+    ok = router_test_utils:ensure_router_nats_alive(),
     Config.
 
 end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
+    router_test_bootstrap:end_per_suite([], #{
+        start => ensure_all_started,
+        stop => stop_app
+    }),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
-    router_nats_fault_injection:clear_all_faults(),
+    Base = router_test_bootstrap:init_per_testcase(_TestCase, Config, #{
+        clear_faults => true
+    }),
     router_test_utils:ensure_router_nats_alive(),
-    %% Simplified - don't check connection status (mock handles this)
-    %% Setup shared metrics capture harness
     router_metrics_test_helper:setup(),
-    Config.
+    Base.
 
 end_per_testcase(_TestCase, _Config) ->
     router_nats_fault_injection:clear_all_faults(),
     router_metrics_test_helper:teardown(),
+    router_test_bootstrap:end_per_testcase(_TestCase, [], #{}),
     ok.
 
 %% @doc Test: publish returns error in queueing mode

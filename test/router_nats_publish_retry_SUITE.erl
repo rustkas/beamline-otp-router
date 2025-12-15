@@ -27,32 +27,30 @@
     test_non_retryable_errors/1
 ]).
 
--export([groups_for_level/1]).
+%% No tier branching in suite
 
 all() ->
-    case os:getenv("ROUTER_ENABLE_META") of
-        "1" -> meta_all();
-        "true" -> meta_all();
-        "on" -> meta_all();
-        _ -> []
-    end.
+    [
+        {group, smoke_tests},
+        {group, retry_tests},
+        {group, quarantine}
+    ].
 
 meta_all() ->
-    Level = case os:getenv("ROUTER_TEST_LEVEL") of
-        "sanity" -> sanity;
-        "heavy" -> heavy;
-        "full" -> full;
-        _ -> fast
-    end,
-    groups_for_level(Level).
+    all().
 
 %% @doc Retry logic tests -> Full
-groups_for_level(sanity) -> [];
-groups_for_level(fast) -> [{group, smoke_tests}];
-groups_for_level(full) -> [{group, retry_tests}];
-groups_for_level(heavy) -> [{group, retry_tests}].
+%% No groups_for_level branching
 
 groups() ->
+    Base = base_groups(),
+    Quarantine = [{quarantine, [sequence], [
+        test_retry_module_smoke,
+        test_exponential_backoff_calculation
+    ]}],
+    router_ct_groups:groups_definitions(?MODULE, Base ++ Quarantine).
+
+base_groups() ->
     [
         {smoke_tests, [parallel], [
             test_retry_module_smoke

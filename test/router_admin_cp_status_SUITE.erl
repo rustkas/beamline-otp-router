@@ -57,14 +57,21 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, admin_api_key, <<"test-admin-key">>),
-    ok = application:set_env(beamline_router, rate_limits, #{default_requests_per_minute => 100}),
-    Config.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => none,
+        common_env => false,
+        app_env => #{
+            grpc_port => 0,
+            admin_api_key => <<"test-admin-key">>,
+            rate_limits => #{default_requests_per_minute => 100}
+        }
+    }).
 
 end_per_suite(Config) ->
-    Config.
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => none,
+        stop => none
+    }).
 
 init_per_testcase(_TestCase, Config) ->
     Config.

@@ -102,7 +102,7 @@ run_multi_fault_soak(Faults) ->
     
     receive {load_done, LoadPid} -> ok after DurationMs + 5000 -> ok end,
     lists:foreach(fun(Pid) ->
-        receive {fault_done, Pid} -> ok after 1000 -> ok end
+        receive {fault_done, Pid} -> ok after router_test_timeouts:short_wait() -> ok end
     end, FaultPids),
     
     TestResult = router_stress_soak_helper:evaluate_test_results(ResourceMonitor, PerfMonitor, Baseline),

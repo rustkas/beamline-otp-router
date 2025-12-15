@@ -37,21 +37,20 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    ok = router_suite_helpers:start_router_suite(),
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{}),
     ok = router_test_utils:ensure_circuit_breaker_alive(),
     %% Prune old test metrics before property tests
     {ok, _PrunedCount} = router_r10_metrics:prune_old_test_metrics(5),
-    Config.
+    Config1.
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
-init_per_testcase(_TestCase, Config) ->
-    Config.
+init_per_testcase(TestCase, Config) ->
+    router_test_bootstrap:init_per_testcase(TestCase, Config, #{}).
 
-end_per_testcase(_TestCase, Config) ->
-    Config.
+end_per_testcase(TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(TestCase, Config, #{}).
 
 %%--------------------------------------------------------------------
 %% @doc

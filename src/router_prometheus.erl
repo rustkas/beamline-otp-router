@@ -57,7 +57,7 @@ group_metrics_by_name(Metrics) ->
     ({Name, Val}, Acc) when is_atom(Name) ->
       Key = {Name, no_labels},
       case maps:get(Key, Acc, undefined) of
-        undefined -> maps:put(Key, [{no_labels, Val}], Acc);
+        undefined -> maps:put(Key, [Val], Acc);
         Existing -> maps:put(Key, [{no_labels, Val} | Existing], Acc)
       end;
     %% Metric with labels: {{Name, LabelsKey}, Val}

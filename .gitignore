@@ -12,6 +12,7 @@ bin/
 .windsurf/
 .agent/
 *.beam.dump
+.ai
 
 ### Erlang runtime dumps
 erl_crash.dump
@@ -44,3 +45,5 @@ test_results/
 stress/
 reports/
 
+
+nats-server-v2.10.7-linux-amd64

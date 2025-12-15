@@ -65,11 +65,10 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    %% Start Router application
-    ok = router_suite_helpers:start_router_suite(),
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{}),
     _ = router_test_init:ensure_ets_table(router_jetstream_pending_cache, [named_table, set, public]),
     _ = router_test_init:ensure_ets_table(router_intake_latency_cache, [named_table, set, public]),
-    
+
     %% Create test policy
     TenantId = <<"test_tenant_gateway">>,
     PolicyId = <<"test_policy_gateway">>,
@@ -88,25 +87,24 @@ init_per_suite(Config) ->
         metadata = #{}
     },
     {ok, _} = router_policy_store:upsert_policy(TenantId, Policy),
-    
-    [{tenant_id, TenantId}, {policy_id, PolicyId} | Config].
+
+    [{tenant_id, TenantId}, {policy_id, PolicyId} | Config1].
 
 end_per_suite(Config) ->
     %% Cleanup
     TenantId = proplists:get_value(tenant_id, Config),
     PolicyId = proplists:get_value(policy_id, Config),
     router_policy_store:delete_policy(TenantId, PolicyId),
-    router_suite_helpers:stop_router_suite(),
-    ok.
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
 init_per_testcase(_TestCase, Config) ->
-    %% Ensure tables exist before clearing (idempotent)
+    Config1 = router_test_bootstrap:init_per_testcase(_TestCase, Config, #{}),
     _ = router_test_init:ensure_ets_table(router_jetstream_pending_cache, [named_table, set, public]),
     _ = router_test_init:ensure_ets_table(router_intake_latency_cache, [named_table, set, public]),
-    Config.
+    Config1.
 
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+end_per_testcase(_TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(_TestCase, Config, #{}).
 
 %% @doc Test: Gateway → Router Decide request
 test_gateway_to_router_decide(Config) ->

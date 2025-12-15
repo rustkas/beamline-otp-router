@@ -190,7 +190,7 @@ prop_concurrent_upserts_no_loss(_Config) ->
     end, PolicyIds),
     
     %% Wait for all
-    Results = [receive {done, Pid, R} -> R after 5000 -> timeout end || Pid <- Pids],
+    Results = [receive {done, Pid, R} -> R after router_test_timeouts:long_wait() -> timeout end || Pid <- Pids],
     
     %% All should succeed
     AllOk = lists:all(fun(R) -> element(1, R) =:= ok end, Results),
@@ -228,7 +228,7 @@ prop_concurrent_deletes_idempotent(_Config) ->
     end, lists:seq(1, NumDeletes)),
     
     %% Wait for all
-    Results = [receive {done, Pid, R} -> R after 5000 -> timeout end || Pid <- Pids],
+    Results = [receive {done, Pid, R} -> R after router_test_timeouts:long_wait() -> timeout end || Pid <- Pids],
     
     %% Exactly one should succeed with `ok`, rest with `{error, not_found}` or `ok`
     OkCount = length([R || R <- Results, R =:= ok]),

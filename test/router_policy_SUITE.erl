@@ -80,23 +80,21 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    %% Start application with ephemeral port
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, false),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    case application:ensure_all_started(beamline_router) of
-        {ok, _} ->
-            %% Wait for policy store to initialize
-            test_helpers:wait_for_app_start(router_policy_store, 1000),
-            Config;
-        Error ->
-            ct:fail("Failed to start beamline_router: ~p", [Error])
-    end.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => ensure_all_started,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock
+        },
+        wait_for_app_start => [{router_policy_store, 1000}]
+    }).
 
 end_per_suite(Config) ->
-    application:stop(beamline_router),
-    Config.
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => ensure_all_started,
+        stop => stop_app
+    }).
 
 init_per_testcase(_TestCase, Config) ->
     Config.

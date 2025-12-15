@@ -52,41 +52,43 @@ groups() ->
     ]}].
 
 init_per_suite(Config) ->
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, false),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    ok = application:set_env(beamline_router, decide_subject, <<"beamline.router.v1.decide">>),
-    ok = application:set_env(beamline_router, tracing_enabled, false),
-    %% CRITICAL: Mock router_nats BEFORE starting app to avoid undef on start_link/0
-    ok = router_mock_helpers:setup_router_nats_mock(),
     meck:new(router_rate_limiter, [passthrough]),
     meck:expect(router_rate_limiter, start_link, fun() -> {ok, spawn(fun() -> receive after infinity -> ok end end)} end),
-    ok = router_suite_helpers:start_router_suite(),
-    Config.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => router_suite,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock,
+            decide_subject => <<"beamline.router.v1.decide">>,
+            tracing_enabled => false
+        }
+    }).
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
+end_per_suite(Config) ->
+    Base = router_test_bootstrap:end_per_suite(Config, #{
+        start => router_suite,
+        stop => router_suite
+    }),
     catch meck:unload(router_rate_limiter),
-    ok.
+    Base.
 
-init_per_testcase(_TestCase, Config) ->
-    router_suite_helpers:ensure_no_faults(),
-    %% NOTE: router_nats is fully mocked, don't check for live process
-    %% ok = router_test_utils:ensure_router_nats_alive(),
+init_per_testcase(TestCase, Config) ->
+    Base = router_test_bootstrap:init_per_testcase(TestCase, Config, #{
+        clear_faults => true
+    }),
     router_metrics:ensure(),
-    %% Ensure router_nats mock is setup (may have been unloaded by previous test)
     case meck:validate(router_nats) of
         true -> ok;
         false -> ok = router_mock_helpers:setup_router_nats_mock()
     end,
-    Config.
+    Base.
 
-end_per_testcase(_TestCase, _Config) ->
-    %% Only unload test-specific mocks, NOT router_nats which is suite-level
+end_per_testcase(_TestCase, Config) ->
+    Base = router_test_bootstrap:end_per_testcase(_TestCase, Config, #{cleanup_mocks => false}),
     catch meck:unload(router_logger),
     catch meck:unload(router_policy_store),
-    ok.
+    Base.
 
 %% ============================================================================
 %% HELPER FUNCTIONS

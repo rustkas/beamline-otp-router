@@ -29,6 +29,46 @@ export PATH="$(pwd)/bin:$PATH"
 
 export ROUTER_TEST_LEVEL=full
 
+trim() {
+    local var="$*"
+    var="${var#"${var%%[![:space:]]*}"}"
+    var="${var%"${var##*[![:space:]]}"}"
+    printf '%s' "$var"
+}
+
+contains_element() {
+    local target="$1"
+    shift
+    for item in "$@"; do
+        [[ "$item" == "$target" ]] && return 0
+    done
+    return 1
+}
+
+load_quarantined_suites() {
+    if [[ ! -f "$QUARANTINE_METADATA_FILE" ]]; then
+        return
+    fi
+
+    while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+        local line="$raw_line"
+        line="${line#"${line%%[![:space:]]*}"}"
+        [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
+        IFS='|' read -r raw_suite raw_owner raw_reason <<< "$line"
+        local suite owner reason
+        suite="$(trim "${raw_suite:-}")"
+        owner="$(trim "${raw_owner:-}")"
+        reason="$(trim "${raw_reason:-}")"
+        [[ -z "$suite" ]] && continue
+        [[ -z "$owner" ]] && owner="unknown"
+        [[ -z "$reason" ]] && reason="no reason provided"
+        contains_element "$suite" "${QUARANTINED_SUITES[@]}" && continue
+        QUARANTINED_SUITES+=("$suite")
+        QUARANTINE_OWNERS["$suite"]="$owner"
+        QUARANTINE_REASONS["$suite"]="$reason"
+    done < "$QUARANTINE_METADATA_FILE"
+}
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -160,7 +200,15 @@ EXCLUDED_SUITES=(
     router_circuit_breaker_prop_SUITE
 )
 
+:
+
 show_help() {
+    local running_suite_count=0
+    for suite in "${FULL_SUITES[@]}"; do
+
+        ((running_suite_count++))
+    done
+
     cat <<EOF
 Full Tier Test Runner
 
@@ -172,7 +220,7 @@ OPTIONS:
   --list       List suites that would be run (dry run)
   --help       Show this help message
 
-SUITES INCLUDED: ${#FULL_SUITES[@]}
+SUITES INCLUDED: ${running_suite_count}
 SUITES EXCLUDED: ${#EXCLUDED_SUITES[@]} (heavy/soak/stress/chaos/load/prop)
 
 TARGET RUNTIME: < 15 minutes
@@ -180,8 +228,14 @@ EOF
 }
 
 list_suites() {
-    echo -e "${GREEN}Suites to be run (${#FULL_SUITES[@]}):${NC}"
+    local running_suites=()
     for suite in "${FULL_SUITES[@]}"; do
+
+        running_suites+=("$suite")
+    done
+
+    echo -e "${GREEN}Suites to be run (${#running_suites[@]}):${NC}"
+    for suite in "${running_suites[@]}"; do
         echo "  ✓ ${suite}"
     done
     echo ""
@@ -189,8 +243,10 @@ list_suites() {
     for suite in "${EXCLUDED_SUITES[@]}"; do
         echo "  ✗ ${suite}"
     done
+    :
 }
 
+# Full tier group allow-list (CT-native way to avoid quarantine group)
 # Parse arguments
 if [[ "${1:-}" == "--help" ]]; then
     show_help
@@ -240,7 +296,7 @@ if [[ "${1:-}" == "--profile" ]]; then
         fi
         
         SUITE_START=$(date +%s)
-        echo -n "Testing $suite... "
+        echo -n "Testing $suite (full tier)... "
         if rebar3 ct --suite "test/${suite}" 2>&1 | tail -3; then
             SUITE_END=$(date +%s)
             SUITE_TIME=$((SUITE_END - SUITE_START))
@@ -303,6 +359,7 @@ else
     # Record start time for baseline
     START_TIME=$(date +%s)
 
+    # Run all suites; no quarantine filtering at runner-level
     if time rebar3 ct --suite "$SUITE_LIST"; then
         echo ""
         echo -e "${GREEN}✓ All full tier tests executed${NC}"

@@ -42,40 +42,44 @@ all_tests() ->
     ].
 
 init_per_suite(Config) ->
-    %% Ensure application is stopped so we can set env vars that are read at startup
-    _ = application:stop(beamline_router),
-    _ = application:unload(beamline_router),
-    _ = application:load(beamline_router),
-    
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, false),
-    %% Use mock mode with fault injection support
-    %% The mock now checks router_nats_fault_injection before returning
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    ok = application:set_env(beamline_router, nats_reconnect_attempts, 5),
-    ok = application:set_env(beamline_router, nats_reconnect_delay_ms, 500),
-    ok = application:set_env(beamline_router, nats_max_reconnect_delay_ms, 2000),
-    ok = application:set_env(beamline_router, nats_fail_open_mode, false),
-    ok = application:set_env(beamline_router, nats_max_pending_operations, 1000),
-    
-    router_suite_helpers:start_router_suite(),
-    Config.
+    router_test_bootstrap:init_per_suite(Config, #{
+        reset_app => true,
+        start => router_suite,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            %% Use mock mode with fault injection support
+            %% The mock now checks router_nats_fault_injection before returning
+            nats_mode => mock,
+            nats_reconnect_attempts => 5,
+            nats_reconnect_delay_ms => 500,
+            nats_max_reconnect_delay_ms => 2000,
+            nats_fail_open_mode => false,
+            nats_max_pending_operations => 1000
+        }
+    }).
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
+end_per_suite(Config) ->
+    _ = router_test_bootstrap:end_per_suite(Config, #{
+        start => router_suite,
+        stop => router_suite
+    }),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
-    router_nats_fault_injection:clear_all_faults(),
-    router_test_utils:ensure_router_nats_alive(),
     %% Simplified - don't check connection status (mock handles this)
     %% Setup shared metrics capture harness
-    router_metrics_test_helper:setup(),
-    Config.
+    router_test_bootstrap:init_per_testcase(_TestCase, Config, #{
+        clear_faults => true,
+        ensure_router_nats_alive => true,
+        metrics_test_helper => setup
+    }).
 
-end_per_testcase(_TestCase, _Config) ->
-    router_nats_fault_injection:clear_all_faults(),
-    router_metrics_test_helper:teardown(),
+end_per_testcase(TestCase, Config) ->
+    _ = router_test_bootstrap:end_per_testcase(TestCase, Config, #{
+        clear_faults => true,
+        metrics_test_helper => teardown
+    }),
     ok.
 
 %% @doc Test: router_nats_publish_failures_total incremented correctly

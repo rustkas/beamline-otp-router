@@ -61,21 +61,21 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    ok = router_suite_helpers:start_router_suite(),
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{}),
     ok = router_r10_metrics:clear_metrics(),
-    Config.
+    Config1.
 
-end_per_suite(_Config) ->
-    router_suite_helpers:stop_router_suite(),
-    ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
-init_per_testcase(_TestCase, Config) ->
+init_per_testcase(TestCase, Config) ->
+    Config1 = router_test_bootstrap:init_per_testcase(TestCase, Config, #{}),
     ok = router_test_utils:ensure_circuit_breaker_alive(),
     ok = router_r10_metrics:clear_metrics(),
-    Config.
+    Config1.
 
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+end_per_testcase(TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(TestCase, Config, #{}).
 
 %% @doc Test R10 dashboard configuration
 test_r10_dashboard_config(_Config) ->

@@ -279,13 +279,15 @@ check_grpc_services() ->
 
 %% Check if service is available
 check_service_available(router_decide) ->
-    %% Check if router_grpc:decide/2 is exported
+    %% Ensure module is loaded before checking export
+    _ = code:ensure_loaded(router_grpc),
     case erlang:function_exported(router_grpc, decide, 2) of
         true -> available;
         false -> unavailable
     end;
 check_service_available(router_admin) ->
-    %% Check if router_admin_grpc functions are exported
+    %% Ensure module is loaded before checking export
+    _ = code:ensure_loaded(router_admin_grpc),
     case erlang:function_exported(router_admin_grpc, upsert_policy, 2) of
         true -> available;
         false -> unavailable
@@ -524,4 +526,3 @@ get_route_decision_fields() ->
         expected_cost,
         metadata
     ].
-

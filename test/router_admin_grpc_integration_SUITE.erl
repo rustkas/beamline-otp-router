@@ -72,39 +72,34 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    ct:pal("### init_per_suite: setting up test environment", []),
-    
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, true),
-    ok = application:set_env(beamline_router, admin_grpc_enabled, true),
-    ok = application:set_env(beamline_router, cp2_plus_allowed, true),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    %% Enable test mode: bypasses RBAC permission checks in router_permissions
-    ok = application:set_env(beamline_router, rbac_test_mode, true),
-    AdminKey = <<"test-admin-key">>,
-    ok = application:set_env(beamline_router, admin_api_key, AdminKey),
-    case application:ensure_all_started(beamline_router) of
-        {ok, _} ->
-            [{admin_api_key, AdminKey} | Config];
-        Error ->
-            ct:fail("Failed to start beamline_router: ~p", [Error])
-    end.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => ensure_all_started,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => true,
+            admin_grpc_enabled => true,
+            cp2_plus_allowed => true,
+            nats_mode => mock,
+            rbac_test_mode => true,
+            admin_api_key => <<"test-admin-key">>
+        }
+    }).
 
-end_per_suite(_Config) ->
-    application:stop(beamline_router),
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => ensure_all_started,
+        stop => stop_app
+    }),
     ok.
 
 init_per_testcase(_Case, Config) ->
-    %% Reset policy store for clean test state
+    BaseConfig = router_test_bootstrap:init_per_testcase(_Case, Config, #{}),
     ok = router_policy_store:reset(),
-    
-    %% NOTE: With rbac_test_mode=true, RBAC permission checks are bypassed.
-    %% We only need a test user ID for the context metadata.
     TestUserId = <<"test-user">>,
-    [{test_user_id, TestUserId} | Config].
+    [{test_user_id, TestUserId} | BaseConfig].
 
 end_per_testcase(_Case, _Config) ->
+    router_test_bootstrap:end_per_testcase(_Case, [], #{}),
     ok.
 
 %% @doc Create context with authentication and user ID

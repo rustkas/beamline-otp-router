@@ -23,13 +23,7 @@
 
 
 all() ->
-    Level = case os:getenv("ROUTER_TEST_LEVEL") of
-        "heavy" -> heavy;
-        "full"  -> full;
-        "sanity" -> sanity;
-        _       -> fast
-    end,
-    groups_for_level(Level).
+    router_ct_groups:all_selection(?MODULE, [{group, unit_tests}]).
 
 groups_for_level(heavy) ->
     [];
@@ -39,6 +33,9 @@ groups_for_level(_) -> %% full, sanity
     [{group, unit_tests}].
 
 groups() ->
+    router_ct_groups:groups_definitions(?MODULE, base_groups()).
+
+base_groups() ->
     [
         {unit_tests, [parallel], [
             test_route_returns_tuple_with_metadata,
@@ -49,19 +46,23 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, false),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    ok = application:set_env(beamline_router, telemetry_enabled, true),
-    _ = application:ensure_all_started(telemetry),
-    router_suite_helpers:start_router_suite(),
-    test_helpers:wait_for_app_start(router_policy_store, 1000),
-    Config.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => router_suite,
+        ensure_apps => [telemetry],
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock,
+            telemetry_enabled => true
+        },
+        wait_for_app_start => [{router_policy_store, 1000}]
+    }).
 
 end_per_suite(Config) ->
-    router_suite_helpers:stop_router_suite(),
-    Config.
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => router_suite,
+        stop => router_suite
+    }).
 
 init_per_testcase(_TestCase, Config) ->
     Config.

@@ -22,13 +22,12 @@
 suite() -> [{timetrap, {minutes, 2}}].
 
 all() ->
-    case os:getenv("ROUTER_TEST_LEVEL") of
-        "heavy" -> [{group, basic_tests}];
-        "full" -> [{group, basic_tests}];
-        _ -> [{group, basic_tests}]
-    end.
+    router_ct_groups:all_selection(?MODULE, [{group, basic_tests}]).
 
 groups() ->
+    router_ct_groups:groups_definitions(?MODULE, base_groups()).
+
+base_groups() ->
     [{basic_tests, [sequence], [
         test_app_start,
         test_supervisor_running,
@@ -38,22 +37,27 @@ groups() ->
     ]}].
 
 init_per_suite(Config) ->
-    _ = application:load(beamline_router),
-    ok = application:set_env(beamline_router, grpc_port, 0),
-    ok = application:set_env(beamline_router, grpc_enabled, false),
-    ok = application:set_env(beamline_router, nats_mode, mock),
-    case application:ensure_all_started(beamline_router) of
-        {ok, _} -> Config;
-        Error -> ct:fail("Failed to start: ~p", [Error])
-    end.
+    router_test_bootstrap:init_per_suite(Config, #{
+        start => ensure_all_started,
+        app_env => #{
+            grpc_port => 0,
+            grpc_enabled => false,
+            nats_mode => mock
+        }
+    }).
 
-end_per_suite(_Config) -> application:stop(beamline_router), ok.
+end_per_suite(Config) ->
+    router_test_bootstrap:end_per_suite(Config, #{
+        start => ensure_all_started,
+        stop => stop_app
+    }).
 
-init_per_testcase(_TC, Config) -> Config.
-end_per_testcase(_TC, _Config) -> 
+init_per_testcase(_TC, Config) ->
+    Config.
+
+end_per_testcase(TC, Config) ->
     %% Task 3: no stray mocks - use cleanup_and_verify
-    router_mock_helpers:cleanup_and_verify(),
-    ok.
+    router_test_bootstrap:end_per_testcase(TC, Config, #{cleanup_mocks => true}).
 
 %% ============================================================================
 %% TEST CASES
@@ -150,4 +154,3 @@ test_policy_store_bad_input(_Config) ->
     ?assertNotEqual(undefined, whereis(router_policy_store)),
     
     ok.
-

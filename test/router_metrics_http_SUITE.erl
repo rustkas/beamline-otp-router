@@ -37,23 +37,22 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
+    Config1 = router_test_bootstrap:init_per_suite(Config, #{}),
     ok = router_metrics:ensure(),
-    ok = router_suite_helpers:start_router_suite(),
     ok = router_metrics:inc(router_jetstream_ack_total),
     meck:new(mod_esi, [passthrough]),
     meck:expect(mod_esi, deliver, fun(Sess, Part) -> self() ! {deliver, Sess, Part}, ok end),
-    Config.
+    Config1.
 
-end_per_suite(_Config) ->
+end_per_suite(Config) ->
     catch meck:unload(mod_esi),
-    router_suite_helpers:stop_router_suite(),
-    ok.
+    router_test_bootstrap:end_per_suite(Config, #{}).
 
-init_per_testcase(_TestCase, Config) ->
-    Config.
+init_per_testcase(TestCase, Config) ->
+    router_test_bootstrap:init_per_testcase(TestCase, Config, #{}).
 
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+end_per_testcase(TestCase, Config) ->
+    router_test_bootstrap:end_per_testcase(TestCase, Config, #{}).
 
 metrics_http_serves_prometheus(_Config) ->
     %% ensure metric value exists
@@ -67,6 +66,6 @@ collect_delivered(Acc) ->
     receive
         {deliver, _Sess, Part} ->
             collect_delivered([Acc, Part])
-    after 200 ->
+    after router_test_timeouts:very_short_wait() ->
         Acc
     end.

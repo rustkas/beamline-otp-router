@@ -120,7 +120,7 @@ test_concurrent_operations(_Config) ->
     
     lists:foreach(fun(Pid) ->
         MRef = monitor(process, Pid),
-        receive {'DOWN', MRef, process, Pid, _} -> ok after 5000 -> ok end
+        receive {'DOWN', MRef, process, Pid, _} -> ok after router_test_timeouts:long_wait() -> ok end
     end, Pids),
     ok.
 
