@@ -22,7 +22,9 @@
 suite() -> [{timetrap, {minutes, 2}}].
 
 all() ->
-    router_ct_groups:all_selection(?MODULE, [{group, basic_tests}]).
+    [
+        {group, basic_tests}
+    ].
 
 groups() ->
     router_ct_groups:groups_definitions(?MODULE, base_groups()).

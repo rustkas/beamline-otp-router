@@ -260,6 +260,10 @@ fi
 
 # Static suite linter before running tests (MANDATORY - quality gate)
 echo -e "${BLUE}Running suite linter (quality gate)...${NC}"
+if ! bash "$SCRIPT_DIR/lint/check_ct_quarantine_consistency.sh"; then
+    echo -e "${RED}✗ Quarantine consistency lint failed${NC}"
+    exit 1
+fi
 if ! erl -noshell -pa test -pa test_support -eval 'case compile:file("test_support/router_suite_linter", [report, {outdir, "test_support"}]) of {ok, _} -> ok; Error -> io:format("router_suite_linter compile failed: ~p~n", [Error]), halt(1) end, case router_suite_linter:run() of ok -> halt(0); {error, Issues} -> io:format("router_suite_linter failed (~p issues)~n", [length(Issues)]), halt(1) end.' 2>&1; then
     echo -e "${RED}✗ Suite linter failed - quality gate blocked${NC}"
     echo "  Fix linter issues before running full tier tests."

@@ -26,18 +26,10 @@
 
 
 all() ->
-    Level = case os:getenv("ROUTER_TEST_LEVEL") of
-        "heavy" -> heavy;
-        "full"  -> full;
-        _       -> fast
-    end,
-    groups_for_level(Level).
+    [{group, performance_tests}].
 
 %% Performance tests only run in heavy tier
-groups_for_level(heavy) ->
-    [{group, performance_tests}];
-groups_for_level(_) -> %% fast, full, sanity
-    [].
+%% no tier branching
 
 groups() ->
     [

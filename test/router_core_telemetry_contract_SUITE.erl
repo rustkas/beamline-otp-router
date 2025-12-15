@@ -13,7 +13,7 @@
 %% Export test functions
 -export([all/0, groups/0]).
 -export([init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
--export([groups_for_level/1]).
+%% no groups_for_level in CT-native model
 -export([
     test_route_returns_tuple_with_metadata/1,
     test_route_telemetry_stop_event_no_exception/1,
@@ -23,17 +23,12 @@
 
 
 all() ->
-    router_ct_groups:all_selection(?MODULE, [{group, unit_tests}]).
-
-groups_for_level(heavy) ->
-    [];
-groups_for_level(fast) ->
-    [{group, unit_tests}];  %% Enabled - telemetry is properly started in init_per_suite
-groups_for_level(_) -> %% full, sanity
     [{group, unit_tests}].
 
+%% no tier branching
+
 groups() ->
-    router_ct_groups:groups_definitions(?MODULE, base_groups()).
+    base_groups().
 
 base_groups() ->
     [

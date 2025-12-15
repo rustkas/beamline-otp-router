@@ -57,17 +57,12 @@
 %% Test suite callbacks
 
 all() ->
-    router_ct_groups:all_selection(?MODULE, [
+    [
         {group, unit_tests},
         {group, telemetry_tests}
-    ]).
+    ].
 
-groups_for_level(heavy) ->
-    [{group, unit_tests}, {group, telemetry_tests}];
-groups_for_level(full) ->
-    [{group, unit_tests}, {group, telemetry_tests}];
-groups_for_level(_) -> %% fast
-    [{group, unit_tests}].
+%% no tier branching
 
 groups() ->
     router_ct_groups:groups_definitions(?MODULE, base_groups()).

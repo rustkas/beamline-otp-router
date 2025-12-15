@@ -9,3 +9,8 @@
 
 ## Source of truth
 - `config/quarantine/quarantined_suites.txt`
+
+RULES:
+- QUARANTINED_SUITES.TXT — GOVERNANCE ONLY.
+- EXECUTION TRUTH = COMMON TEST GROUPS.
+- CONSISTENCY ENFORCED BY LINT.

@@ -15,6 +15,10 @@ export ROUTER_TEST_LEVEL=heavy
 cd "$project_dir"
 
 # Use the test profile so test-only helpers (erlc_paths) are consistently available.
+if ! bash "$script_dir/lint/check_ct_quarantine_consistency.sh"; then
+  echo "✗ Quarantine consistency lint failed" >&2
+  exit 1
+fi
 rebar3 as test ct --dir test --readable=true
 
 echo ""
