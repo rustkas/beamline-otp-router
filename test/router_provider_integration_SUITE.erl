@@ -20,17 +20,9 @@ suite() ->
     ].
 
 all() ->
-    Level = case os:getenv("ROUTER_TEST_LEVEL") of
-        "heavy" -> heavy;
-        "full"  -> full;
-        _       -> fast
-    end,
-    groups_for_level(Level).
-
-groups_for_level(fast) ->
-    [];
-groups_for_level(_) -> %% full, heavy
     [{group, provider_integration_tests}].
+
+%% no tier branching
 
 groups() ->
     [
