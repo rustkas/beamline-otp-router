@@ -259,6 +259,11 @@ if [[ "${1:-}" == "--list" ]]; then
 fi
 
 # Static suite linter before running tests (MANDATORY - quality gate)
+echo -e "${BLUE}Running CTS suite structure guard...${NC}"
+if ! bash "$SCRIPT_DIR/lint/check_ct_suite_structure.sh"; then
+    echo -e "${RED}✗ CTS suite structure guard failed${NC}"
+    exit 1
+fi
 echo -e "${BLUE}Running suite linter (quality gate)...${NC}"
 if ! bash "$SCRIPT_DIR/lint/check_ct_quarantine_consistency.sh"; then
     echo -e "${RED}✗ Quarantine consistency lint failed${NC}"

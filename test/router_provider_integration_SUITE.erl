@@ -11,7 +11,7 @@
 -include_lib("stdlib/include/assert.hrl").
 -include("beamline_router.hrl").
 
--export([groups/0, suite/0]).
+-export([all/0, groups/0, suite/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 -compile([export_all, nowarn_export_all]).
 
 suite() ->

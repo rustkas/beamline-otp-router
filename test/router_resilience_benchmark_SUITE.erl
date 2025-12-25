@@ -21,7 +21,7 @@
 
 -compile({nowarn_unused_function, [all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]}).
 
--export([all/0, groups/0]).
+-export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 
 %% Export test functions for Common Test
 -export([
@@ -450,4 +450,3 @@ calculate_p95(Latencies) ->
     Sorted = lists:sort(Latencies),
     Index = erlang:trunc(length(Sorted) * 0.95),
     lists:nth(min(Index + 1, length(Sorted)), Sorted).
-

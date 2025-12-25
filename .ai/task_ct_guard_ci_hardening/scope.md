@@ -1,0 +1,3 @@
+- Ensure every CT invocation (scripts/ct-full.sh, other runners, and `rebar3 ct`) runs `scripts/lint/check_ct_suite_structure.sh` before executing suites.
+- Explicitly define the scan scope (at least `apps/otp/router/test/*_SUITE.erl`) and document it.
+- Add quick guard tests that cover missing callback/exports scenarios without running actual suites.
