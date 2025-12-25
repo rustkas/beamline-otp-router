@@ -73,7 +73,7 @@ end.
 Dependencies = router_license_compliance:get_dependency_licenses(),
 
 %% Check specific license
-IsCompliant = router_license_compliance:is_license_compliant(<<"Apache-2.0">>),
+IsCompliant = router_license_compliance:is_license_compliant(~"Apache-2.0"),
 
 %% Get license requirements
 Requirements = router_license_compliance:get_license_requirements().
@@ -131,9 +131,9 @@ Example:
 ```erlang
 %% PII filtering in logs
 Context = #{
-    <<"email">> => <<"user@example.com">>,
-    <<"password">> => <<"secret">>,
-    <<"normal_field">> => <<"value">>
+    ~"email" => ~"user@example.com",
+    ~"password" => ~"secret",
+    ~"normal_field" => ~"value"
 },
 Filtered = router_logger:filter_pii(Context),
 %% Result: email and password are replaced with "[REDACTED]"
@@ -195,9 +195,9 @@ The Router provides data anonymization functions:
 ```erlang
 %% Anonymize PII in data
 Data = #{
-    <<"user_id">> => <<"user123">>,
-    <<"email">> => <<"test@example.com">>,
-    <<"normal_field">> => <<"value">>
+    ~"user_id" => ~"user123",
+    ~"email" => ~"test@example.com",
+    ~"normal_field" => ~"value"
 },
 Anonymized = router_data_privacy:anonymize_pii(Data),
 %% Result: user_id and email are replaced with "[ANONYMIZED]"
@@ -233,7 +233,7 @@ Policies = router_data_privacy:get_data_retention_policies(),
 
 %% Check data retention
 {ok, ShouldRetain} = router_data_privacy:check_data_retention(
-    <<"audit_logs">>,
+    ~"audit_logs",
     Timestamp
 ).
 ```

@@ -343,7 +343,7 @@ For request-reply subjects (e.g., `beamline.router.v1.decide`), Router sends err
 %% In validator
 ErrorCode = schema_validation_failed,
 ErrorMessage = router_intake_error_codes:error_code_message(ErrorCode, #{
-    <<"reason">> => <<"protobuf_decode_failed">>
+    ~"reason" => ~"protobuf_decode_failed"
 }),
 {error, {ErrorCode, ErrorMessage, Context}}
 ```
@@ -369,8 +369,8 @@ end
 ```erlang
 Severity = router_intake_error_codes:error_code_severity(ErrorCode),
 case Severity of
-    error -> router_logger:error(<<"Validation failed">>, AuditEntry);
-    warn -> router_logger:warn(<<"Validation failed">>, AuditEntry)
+    error -> router_logger:error(~"Validation failed", AuditEntry);
+    warn -> router_logger:warn(~"Validation failed", AuditEntry)
 end
 ```
 

@@ -20,7 +20,7 @@ When gen_servers with ETS tables participate in Common Test suites, we face seve
 **Pattern**: Wrap initialization logic in `do_init/1` to catch errors safely.
 
 ```erlang
-%% @doc Initialize gen_server (safe wrapper)
+-doc "Initialize gen_server (safe wrapper)".
 init(Args) ->
     process_flag(trap_exit, true),
     try
@@ -34,7 +34,7 @@ init(Args) ->
             {stop, {init_failed, Class, Reason}}
     end.
 
-%% @doc Internal initialization logic (safe, with error handling)
+-doc "Internal initialization logic (safe, with error handling)".
 %% All initialization logic is here to avoid crashes in init/1
 -spec do_init(list()) -> {ok, #state{}} | {stop, term()}.
 do_init(_Args) ->
@@ -58,7 +58,7 @@ do_init(_Args) ->
 **Pattern**: Check for existing table, delete if exists, then create fresh.
 
 ```erlang
-%% @doc Safely ensure ETS table exists
+-doc "Safely ensure ETS table exists".
 %% Handles existing table cleanup and creation
 -spec ensure_ets_table(atom()) -> atom().
 ensure_ets_table(Name) when is_atom(Name) ->
@@ -103,16 +103,16 @@ handle_call(reset_all, _From, State = #state{table = Table}) ->
     case ets:info(Table) of
         undefined ->
             %% Table lost - log warning but continue
-            router_logger:warn(<<"~p reset_all: ETS table undefined">>, #{
-                <<"module">> => atom_to_binary(?MODULE, utf8),
-                <<"event">> => <<"reset_all">>
+            router_logger:warn(~"~p reset_all: ETS table undefined", #{
+                ~"module" => atom_to_binary(?MODULE, utf8),
+                ~"event" => ~"reset_all"
             }),
             {reply, ok, State};
         _ ->
             ets:delete_all_objects(Table),
-            router_logger:info(<<"~p reset_all: table cleared">>, #{
-                <<"module">> => atom_to_binary(?MODULE, utf8),
-                <<"event">> => <<"reset_all">>
+            router_logger:info(~"~p reset_all: table cleared", #{
+                ~"module" => atom_to_binary(?MODULE, utf8),
+                ~"event" => ~"reset_all"
             }),
             {reply, ok, State}
     end;
@@ -128,7 +128,7 @@ handle_call(reset_all, _From, State = #state{table = Table}) ->
 **Pattern**: Provide standardized helpers for test lifecycle management.
 
 ```erlang
-%% @doc Ensure <module> process is alive
+-doc "Ensure <module> process is alive".
 %% Fails immediately if process is not running (no fallback start)
 -spec ensure_<module>_alive() -> ok.
 ensure_<module>_alive() ->
@@ -164,7 +164,7 @@ ensure_<module>_alive(Retries) ->
             end
     end.
 
-%% @doc Reset <module> state (safe, via gen_server:call)
+-doc "Reset <module> state (safe, via gen_server:call)".
 -spec reset_<module>() -> ok.
 reset_<module>() ->
     case whereis(<module>) of

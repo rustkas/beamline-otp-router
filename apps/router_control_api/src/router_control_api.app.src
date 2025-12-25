@@ -1,0 +1,12 @@
+{application, router_control_api,
+ [{description, "Router Control API - external control surface over NATS"},
+  {vsn, "1.0.0"},
+  {registered, [router_control_sup]},
+  {applications, [kernel, stdlib, beamline_router, jsx]},
+  {mod, {router_control_api_app, []}},
+  {env, [
+      {control_mode, false},
+      {control_tenant_id, <<"local">>},
+      {control_token, undefined}
+  ]}
+ ]}.

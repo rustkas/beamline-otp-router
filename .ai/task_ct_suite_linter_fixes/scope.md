@@ -1,0 +1,3 @@
+- router_jetstream_recovery_ext_SUITE.erl: add init/end per suite/testcase callbacks (all four) as identity handlers.
+- router_caf_adapter_SUITE.erl: add init/end per testcase callbacks.
+- Do not change test logic, add sleeps, or external dependencies.

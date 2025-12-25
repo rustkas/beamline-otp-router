@@ -248,6 +248,6 @@ This document explicitly defines invariants for Router rate limiting implementat
 - `apps/otp/router/src/router_policy_store.erl` - Policy parsing
 - `apps/otp/router/src/router_policy_applier.erl` - Rate limit check integration
 - `apps/otp/router/test/router_rate_limit_store_SUITE.erl` - Test suite
-- `docs/dev/RATE_LIMIT_POLICY_DSL_DESIGN.md` - Design document
+- `docs/archive/dev/RATE_LIMIT_POLICY_DSL_DESIGN.md` - Design document
 - `docs/ROUTING_POLICY.md` - Policy DSL specification
 

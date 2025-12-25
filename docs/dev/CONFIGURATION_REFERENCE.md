@@ -17,7 +17,7 @@ Router configuration is managed via Erlang application environment variables.
 | `grpc_enabled` | boolean | false | Enable gRPC server |
 | `nats_mode` | atom | mock | NATS mode: `mock` or `real` |
 | `nats_url` | string | undefined | NATS server URL |
-| `nats_cluster` | string | <<"default">> | NATS cluster name |
+| `nats_cluster` | string | ~"default" | NATS cluster name |
 
 ### CP2+ Features
 
@@ -107,7 +107,7 @@ Router configuration is managed via Erlang application environment variables.
     {grpc_port, 9090},
     {nats_mode, real},
     {nats_url, "nats://localhost:4222"},
-    {nats_cluster, <<"production">>},
+    {nats_cluster, ~"production"},
     {cp2_plus_allowed, true},
     {ack_enabled, true},
     {idempotency_enabled, true},

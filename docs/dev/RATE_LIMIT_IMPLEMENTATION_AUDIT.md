@@ -53,9 +53,9 @@ This document audits the Router rate limiting implementation against the Policy 
 | Requirement | Implementation | Status |
 |-------------|----------------|--------|
 | rate_limit block parsing | ✅ Implemented (parse_rate_limit/1, lines 1094-1116) | ✅ MATCH |
-| enabled field | ✅ Implemented (line 1099: maps:get(<<"enabled">>, ...)) | ✅ MATCH |
-| requests_per_second field | ✅ Implemented (line 1104: maps:get(<<"requests_per_second">>, ...)) | ✅ MATCH |
-| burst field | ✅ Implemented (line 1105: maps:get(<<"burst">>, ...)) | ✅ MATCH |
+| enabled field | ✅ Implemented (line 1099: maps:get(~"enabled", ...)) | ✅ MATCH |
+| requests_per_second field | ✅ Implemented (line 1104: maps:get(~"requests_per_second", ...)) | ✅ MATCH |
+| burst field | ✅ Implemented (line 1105: maps:get(~"burst", ...)) | ✅ MATCH |
 | Validation | ✅ Implemented (lines 1108-1109: min/max validation) | ✅ MATCH |
 | Default values | ✅ Implemented (RPS: 100, Burst: 50) | ✅ MATCH |
 | Disabled returns undefined | ✅ Implemented (lines 1101-1102: enabled=false → undefined) | ✅ MATCH |
@@ -176,7 +176,7 @@ This document audits the Router rate limiting implementation against the Policy 
 - `apps/otp/router/src/router_policy_store.erl` - Policy parsing
 - `apps/otp/router/src/router_policy_applier.erl` - Integration
 - `docs/ROUTING_POLICY.md` - Policy DSL specification
-- `docs/dev/RATE_LIMIT_POLICY_DSL_DESIGN.md` - Design document
-- `docs/dev/RATE_LIMIT_BOUNDARIES_ROUTER_VS_GATEWAY.md` - Boundaries document
+- `docs/archive/dev/RATE_LIMIT_POLICY_DSL_DESIGN.md` - Design document
+- `docs/archive/dev/RATE_LIMIT_BOUNDARIES_ROUTER_VS_GATEWAY.md` - Boundaries document
 - `docs/CP2_CHECKLIST.md` - CP2 checklist (needs rate limiting section)
 

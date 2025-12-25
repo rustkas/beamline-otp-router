@@ -14,7 +14,7 @@
 
 **Action**: Replaced all occurrences of `2025-01-27` with `2025-11-30` in:
 - All `R12_*.md` files in `test/` directory
-- `docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
+- `docs/archive/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
 
 **Command Used**:
 ```bash
@@ -34,7 +34,7 @@ All R12 documentation files now use correct date `2025-11-30`:
 - `R12_ALL_TASKS_COMPLETE.md`
 - `R12_COMPLETION_CHECKLIST.md`
 - `R12_RESULTS_REPORT_20250127.md` (filename contains date, but content updated)
-- `docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
+- `docs/archive/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
 
 ## Prevention
 

@@ -621,6 +621,6 @@ Tests are integrated into CI/CD pipelines:
 - **Test Suite**: `router_network_partition_SUITE.erl`
 - **Network Partition Manager**: `router_network_partition.erl`
 - **Quick Start Guide**: `README_NETWORK_PARTITION.md`
-- **Complete Guide**: `docs/dev/NETWORK_PARTITION_TESTING.md`
-- **Fault Injection Tests**: `docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
+- **Complete Guide**: `docs/archive/dev/NETWORK_PARTITION_TESTING.md`
+- **Fault Injection Tests**: `docs/archive/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
 

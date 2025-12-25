@@ -155,7 +155,7 @@ nats pub beamline.router.v1.decide '{"version":"1","request_id":"test-123"}'
 **Description**: Repeated request with `idempotency_key` does not create duplicates  
 **Checklist**: ☐
 
-**Note**: Idempotency: CP2+ feature. CP1: no duplicate assignment on re-delivery (if stated in CP1 requirements). See `docs/dev/ROUTER_CP1_IDEMPOTENCY_SCOPE.md`.
+**Note**: Idempotency: CP2+ feature. CP1: no duplicate assignment on re-delivery (if stated in CP1 requirements). See `docs/archive/dev/ROUTER_CP1_IDEMPOTENCY_SCOPE.md`.
 
 **How to Run**:
 ```bash
@@ -173,7 +173,7 @@ nats pub beamline.router.v1.decide '{"version":"1","request_id":"test-123","tena
 - Log entry indicates idempotency handling (if applicable)
 
 **Tests**: `apps/otp/router/test/router_idempotency_SUITE.erl` (if exists)  
-**Reference**: `docs/dev/ROUTER_CP1_IDEMPOTENCY_SCOPE.md` - CP1 idempotency scope  
+**Reference**: `docs/archive/dev/ROUTER_CP1_IDEMPOTENCY_SCOPE.md` - CP1 idempotency scope  
 **Verification**: `grep -r "router_idempotency_SUITE" apps/otp/router/test/ || echo "Suite not found"`
 
 ## Observability CP1
@@ -245,7 +245,7 @@ tail -n 100 logs/router_$(date -u +"%Y-%m-%d").jsonl | jq .
 1. **Before CP Transition**:
    - Run all checklist items
    - Verify all ☑ marks
-   - Document any failures in `docs/dev/ROUTER_CP1_GAP_ANALYSIS.md`
+   - Document any failures in `docs/archive/dev/ROUTER_CP1_GAP_ANALYSIS.md`
 
 2. **After CP Transition**:
    - Update `.trae/state.json` with new `current_cp`
@@ -255,7 +255,7 @@ tail -n 100 logs/router_$(date -u +"%Y-%m-%d").jsonl | jq .
 **References**:
 - `.trae/state.json` - Current project state
 - `docs/CP1_ACCEPTANCE_REPORT.md` - CP1 acceptance criteria
-- `docs/dev/ROUTER_CP1_COMPLETE_IMPLEMENTATION_REPORT.md` - CP1 implementation report
+- `docs/archive/dev/ROUTER_CP1_COMPLETE_IMPLEMENTATION_REPORT.md` - CP1 implementation report
 - `.windsurf/reports/*` - Related reports
 
 ## Acceptance Criteria

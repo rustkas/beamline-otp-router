@@ -65,7 +65,7 @@ CAF requests routing decision with `push_assignment: true`, Router responds and 
 {beamline_router, [
     {nats_url, "nats://localhost:4222"},
     {nats_mode, real},  %% or mock
-    {nats_subject, <<"beamline.router.v1.decide">>},
+    {nats_subject, ~"beamline.router.v1.decide"},
     {nats_timeout_ms, 5000}
 ]}
 ```

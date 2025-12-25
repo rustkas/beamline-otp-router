@@ -120,7 +120,7 @@ Provides helper functions for gRPC tests:
 **Usage**:
 ```erlang
 %% Create authenticated context
-AdminKey = <<"test-admin-key">>,
+AdminKey = ~"test-admin-key",
 Ctx = router_grpc_test_helper:create_context_with_auth(AdminKey),
 
 %% Create unauthenticated context
@@ -137,7 +137,7 @@ All RouterAdmin RPC methods require authentication via API key in gRPC metadata:
 ```erlang
 Ctx = #{
     metadata => [
-        {<<"x-api-key">>, <<"test-admin-key">>}
+        {~"x-api-key", ~"test-admin-key"}
     ]
 },
 {ok, Response, _} = router_admin_grpc:upsert_policy(Ctx, Request).
@@ -174,14 +174,14 @@ end.
 **Required Environment Variables**:
 - `admin_grpc_enabled`: Must be `true` (default: `true` in CP2+)
 - `cp2_plus_allowed`: Must be `true` (default: `false`, set to `true` for CP2+ tests)
-- `admin_api_key`: Admin API key for authentication (default: `<<"test-admin-key">>` in tests)
+- `admin_api_key`: Admin API key for authentication (default: `~"test-admin-key"` in tests)
 
 **Test Setup**:
 ```erlang
 init_per_suite(Config) ->
     ok = application:set_env(beamline_router, admin_grpc_enabled, true),
     ok = application:set_env(beamline_router, cp2_plus_allowed, true),
-    ok = application:set_env(beamline_router, admin_api_key, <<"test-admin-key">>),
+    ok = application:set_env(beamline_router, admin_api_key, ~"test-admin-key"),
     {ok, _} = application:ensure_all_started(beamline_router),
     Config.
 ```

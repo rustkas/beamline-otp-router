@@ -107,7 +107,7 @@ input_generator() ->
     ?LET(
         {Value1, Value2},
         {generator1(), generator2()},
-        #{<<"key1">> => Value1, <<"key2">> => Value2}
+        #{~"key1" => Value1, ~"key2" => Value2}
     ).
 
 generator1() ->

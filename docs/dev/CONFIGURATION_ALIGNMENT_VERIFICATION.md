@@ -27,7 +27,7 @@ MaxDeliver = application:get_env(beamline_router, nats_js_max_deliver, 3),
 
 **JetStream Consumer Config** (`router_nats.erl:495`):
 ```erlang
-<<"max_deliver">> => MaxDeliver,
+~"max_deliver" => MaxDeliver,
 ```
 
 **Status**: ✅ **Aligned** - Default value `3` matches code usage
@@ -46,7 +46,7 @@ AckWaitSeconds = application:get_env(beamline_router, nats_js_ack_wait_seconds, 
 
 **JetStream Consumer Config** (`router_nats.erl:496`):
 ```erlang
-<<"ack_wait">> => AckWaitSeconds * 1000000000,  %% Convert to nanoseconds
+~"ack_wait" => AckWaitSeconds * 1000000000,  %% Convert to nanoseconds
 ```
 
 **Status**: ✅ **Aligned** - Default value `30` seconds matches code usage, converted to nanoseconds
@@ -65,7 +65,7 @@ BackoffSeconds = application:get_env(beamline_router, nats_js_backoff_seconds, [
 
 **JetStream Consumer Config** (`router_nats.erl:497`):
 ```erlang
-<<"backoff">> => [B * 1000000000 || B <- BackoffSeconds]  %% Convert to nanoseconds
+~"backoff" => [B * 1000000000 || B <- BackoffSeconds]  %% Convert to nanoseconds
 ```
 
 **Status**: ✅ **Aligned** - Default value `[1, 2, 4]` matches code usage, converted to nanoseconds
@@ -74,7 +74,7 @@ BackoffSeconds = application:get_env(beamline_router, nats_js_backoff_seconds, [
 
 **Configuration** (`beamline_router.app.src:42`):
 ```erlang
-{nats_js_deliver_group_results, <<"router-results-group">>}
+{nats_js_deliver_group_results, ~"router-results-group"}
 ```
 
 **Usage** (`router_result_consumer.erl:86`):
@@ -87,13 +87,13 @@ DeliverGroup = application:get_env(beamline_router, nats_js_deliver_group_result
 router_nats:subscribe_jetstream(Subject, DurableGroup, explicit, DeliverGroup, push)
 ```
 
-**Status**: ✅ **Aligned** - Default value `<<"router-results-group">>` used in result consumer
+**Status**: ✅ **Aligned** - Default value `~"router-results-group"` used in result consumer
 
 ### 5. Deliver Group for ACKs
 
 **Configuration** (`beamline_router.app.src:43`):
 ```erlang
-{nats_js_deliver_group_acks, <<"router-acks-group">>}
+{nats_js_deliver_group_acks, ~"router-acks-group"}
 ```
 
 **Usage** (`router_ack_consumer.erl:85`):
@@ -106,7 +106,7 @@ DeliverGroup = application:get_env(beamline_router, nats_js_deliver_group_acks, 
 router_nats:subscribe_jetstream(Subject, DurableGroup, explicit, DeliverGroup, push)
 ```
 
-**Status**: ✅ **Aligned** - Default value `<<"router-acks-group">>` used in ACK consumer
+**Status**: ✅ **Aligned** - Default value `~"router-acks-group"` used in ACK consumer
 
 ### 6. Idempotency TTL
 
@@ -156,8 +156,8 @@ router_result_consumer:subscribe_to_results/2
 | `nats_js_max_deliver` | `3` | `router_nats.erl:487` | ✅ Aligned |
 | `nats_js_ack_wait_seconds` | `30` | `router_nats.erl:488` | ✅ Aligned |
 | `nats_js_backoff_seconds` | `[1, 2, 4]` | `router_nats.erl:489` | ✅ Aligned |
-| `nats_js_deliver_group_results` | `<<"router-results-group">>` | `router_result_consumer.erl:86` | ✅ Aligned |
-| `nats_js_deliver_group_acks` | `<<"router-acks-group">>` | `router_ack_consumer.erl:85` | ✅ Aligned |
+| `nats_js_deliver_group_results` | `~"router-results-group"` | `router_result_consumer.erl:86` | ✅ Aligned |
+| `nats_js_deliver_group_acks` | `~"router-acks-group"` | `router_ack_consumer.erl:85` | ✅ Aligned |
 | `idempotency_ttl_seconds` | `3600` | `router_idempotency.erl:43` | ✅ Aligned |
 
 ## Configuration Usage Details

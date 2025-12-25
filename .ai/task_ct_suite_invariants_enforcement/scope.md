@@ -1,0 +1,3 @@
+- Document the required CT suite lifecycle callbacks, exports, and semantics in `docs/dev/CT_SUITE_CONVENTIONS.md`.
+- Add a quick guard script that checks every `test/*_SUITE.erl` for those callbacks and exports.
+- Invoke the guard before `./scripts/ct-full.sh` runs the suite linter.

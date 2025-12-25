@@ -44,7 +44,7 @@ publish_attempts_total{status="success|error", retry_count="0|1|2|..."}
 ```erlang
 %% In router_nats.erl or new router_nats_publish_retry.erl
 router_metrics:emit_metric(router_nats_publish_attempts_total, #{count => 1}, #{
-    status => <<"success">>,  % or <<"error">>
+    status => ~"success",  % or ~"error"
     retry_count => RetryCount  % 0, 1, 2, ...
 }),
 ```
@@ -205,10 +205,10 @@ circuit_breaker_trigger_reason{reason="consecutive_failures|error_rate|latency"}
 ```erlang
 %% In router_circuit_breaker.erl
 Reason = if
-    FailureCount >= FailureThreshold -> <<"consecutive_failures">>;
-    SlidingErrorRate >= ErrorRateThreshold -> <<"error_rate">>;
-    LatencyExceeded -> <<"latency">>;  % When latency trigger is implemented
-    true -> <<"unknown">>
+    FailureCount >= FailureThreshold -> ~"consecutive_failures";
+    SlidingErrorRate >= ErrorRateThreshold -> ~"error_rate";
+    LatencyExceeded -> ~"latency";  % When latency trigger is implemented
+    true -> ~"unknown"
 end,
 router_metrics:emit_metric(router_circuit_breaker_trigger_reason, #{value => 1}, #{
     tenant_id => TenantId,

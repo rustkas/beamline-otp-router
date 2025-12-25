@@ -21,7 +21,7 @@
 
 - [ ] Read `docs/RELIABILITY_FAULT_TOLERANCE.md` to understand reliability guarantees
 - [ ] Review `test/CONCURRENT_FAULTS_TEST_DOCUMENTATION.md` for concurrent fault scenarios
-- [ ] Check `docs/dev/METRICS_CONTRACT_SPECIFICATION.md` if changing metrics
+- [ ] Check `docs/archive/dev/METRICS_CONTRACT_SPECIFICATION.md` if changing metrics
 - [ ] Review `test/FAULT_INJECTION_TEST_SCENARIOS.md` for general fault scenarios
 
 ### 2. Identify Affected Tests
@@ -51,10 +51,10 @@
 **If changing metrics**:
 - [ ] Update `router_metrics_contract_helpers.erl` FIRST (single source of truth)
 - [ ] Update tests to use new contract
-- [ ] Update `docs/dev/METRICS_CONTRACT_SPECIFICATION.md` LAST
+- [ ] Update `docs/archive/dev/METRICS_CONTRACT_SPECIFICATION.md` LAST
 - [ ] Verify metric labels match contract (required/optional, types, formats)
 
-**See**: `docs/dev/METRICS_CONTRACT_MAINTENANCE.md` for detailed process.
+**See**: `docs/archive/dev/METRICS_CONTRACT_MAINTENANCE.md` for detailed process.
 
 ### 5. Maintain Reliability Guarantees
 
@@ -104,7 +104,7 @@ rebar3 ct --suite apps/otp/router/test/router_concurrent_faults_stress_SUITE
 - [ ] Update `test/FAULT_INJECTION_TEST_SCENARIOS.md` if adding new fault scenarios
 - [ ] Update `docs/RELIABILITY_FAULT_TOLERANCE.md` if changing reliability guarantees
 - [ ] Update `docs/PROMETHEUS_ALERTS.md` if changing metrics or alerts
-- [ ] Update `docs/dev/METRICS_CONTRACT_SPECIFICATION.md` if changing metric contracts
+- [ ] Update `docs/archive/dev/METRICS_CONTRACT_SPECIFICATION.md` if changing metric contracts
 
 ### 8. Verify Observability
 
@@ -160,11 +160,11 @@ rebar3 ct --suite apps/otp/router/test/router_concurrent_faults_stress_SUITE
 - [ ] Follow 3-step process: Code → Tests → Documentation
 - [ ] Update `router_metrics_contract_helpers.erl` FIRST
 - [ ] Update all tests using affected metrics
-- [ ] Update `docs/dev/METRICS_CONTRACT_SPECIFICATION.md` LAST
+- [ ] Update `docs/archive/dev/METRICS_CONTRACT_SPECIFICATION.md` LAST
 - [ ] Verify Prometheus exports (if applicable)
 - [ ] Update alerts/dashboards if needed
 
-**See**: `docs/dev/METRICS_CONTRACT_MAINTENANCE.md` for detailed process.
+**See**: `docs/archive/dev/METRICS_CONTRACT_MAINTENANCE.md` for detailed process.
 
 ### Scenario D: Changing Error Handling
 
@@ -235,8 +235,8 @@ rebar3 ct --suite apps/otp/router/test/router_concurrent_faults_stress_SUITE
 - **Test Documentation**: 
   - `test/CONCURRENT_FAULTS_TEST_DOCUMENTATION.md`
   - `test/FAULT_INJECTION_TEST_SCENARIOS.md`
-- **Metrics Contract**: `docs/dev/METRICS_CONTRACT_SPECIFICATION.md`
-- **Metrics Maintenance**: `docs/dev/METRICS_CONTRACT_MAINTENANCE.md`
+- **Metrics Contract**: `docs/archive/dev/METRICS_CONTRACT_SPECIFICATION.md`
+- **Metrics Maintenance**: `docs/archive/dev/METRICS_CONTRACT_MAINTENANCE.md`
 - **CI Stability**: `test/CONCURRENT_FAULTS_CI_STABILITY.md`
 - **Test Stability**: `test/FAULT_INJECTION_TEST_STABILITY.md`
 

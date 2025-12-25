@@ -44,13 +44,13 @@ is_process_alive(whereis(router_circuit_breaker)).
 ```erlang
 %% Check circuit breaker state
 router_r10_metrics:get_metric_value(router_circuit_breaker_state, #{
-    tenant_id => <<"tenant-123">>,
-    provider_id => <<"provider-1">>,
-    state => <<"open">>
+    tenant_id => ~"tenant-123",
+    provider_id => ~"provider-1",
+    state => ~"open"
 }).
 
 %% Check trigger reason
-router_r10_metrics:get_latest_trigger_reason(<<"tenant-123">>, <<"provider-1">>).
+router_r10_metrics:get_latest_trigger_reason(~"tenant-123", ~"provider-1").
 ```
 
 **Resolution**:
@@ -105,7 +105,7 @@ router_metrics:get_metric_value(router_nats_connection_lost_total, #{}).
 **Diagnosis**:
 ```erlang
 %% Check policy store
-router_policy_store:list_policies(<<"tenant-123">>).
+router_policy_store:list_policies(~"tenant-123").
 ```
 
 **Resolution**:
@@ -144,8 +144,8 @@ router_r10_metrics:dump_metrics().
 
 %% Check specific metric
 router_r10_metrics:get_metric_value(router_circuit_breaker_state, #{
-    tenant_id => <<"tenant-123">>,
-    provider_id => <<"provider-1">>
+    tenant_id => ~"tenant-123",
+    provider_id => ~"provider-1"
 }).
 ```
 

@@ -164,7 +164,7 @@ check_ci_duration() {
     
     if (( $(echo "${avg_minutes} > ${threshold_minutes}" | bc -l) )); then
         echo -e "${YELLOW}Warning: Tests exceed ${threshold_minutes} minute threshold${NC}"
-        echo "Consider creating separate CI job (see docs/dev/FAULT_INJECTION_CI_JOB_GUIDE.md)"
+        echo "Consider creating separate CI job (see docs/archive/dev/FAULT_INJECTION_CI_JOB_GUIDE.md)"
         return 1
     else
         echo -e "${GREEN}Duration within acceptable range${NC}"

@@ -1,0 +1,43 @@
+{
+  "apps": [
+    {
+      "name": "beamline_router",
+      "dir": "/home/rustkas/aigroup/apps/otp/router",
+      "src_dirs": [
+        "src",
+        "test",
+        "test_support"
+      ],
+      "extra_src_dirs": [
+        "test",
+        "test_support"
+      ],
+      "include_dirs": [
+        "/home/rustkas/aigroup/apps/otp/router/include",
+        "/home/rustkas/aigroup/apps/otp/router/_build/default/plugins/gpb/include",
+        "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/grpcbox/include",
+        "/home/rustkas/aigroup/apps/otp/router/src"
+      ],
+      "macros": {}
+    }
+  ],
+  "deps": [
+    "/usr/lib/erlang/lib/stdlib-6.2.2.2",
+    "/usr/lib/erlang/lib/kernel-10.2.7.2",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/hpack",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/enats_msg",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/gproc",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/opentelemetry_api",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/enats",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/jsx",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/grpcbox",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/telemetry",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/chatterbox",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/ctx",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/acceptor_pool",
+    "/home/rustkas/aigroup/apps/otp/router/_build/default/lib/jesse",
+    "/home/rustkas/aigroup/apps/otp/router/_build/test/lib/meck",
+    "/home/rustkas/aigroup/apps/otp/router/_build/test/lib/proper"
+  ],
+  "otp_root": "/usr/lib/erlang"
+}

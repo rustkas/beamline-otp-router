@@ -933,7 +933,7 @@ annotations:
 
 ### JetStream Specifications
 
-- **CP2 Router Specification**: `docs/dev/CP2_ROUTER_GATEWAY_SPEC.md`
+- **CP2 Router Specification**: `docs/archive/dev/CP2_ROUTER_GATEWAY_SPEC.md`
 - **JetStream Fault Injection Tests**: `apps/otp/router/docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
 - **ADR-011 JetStream E2E**: `docs/ADR/ADR-011-jetstream-e2e.md`
 

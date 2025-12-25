@@ -313,7 +313,7 @@ R13 tests can be run as nightly tests (longer duration):
 
 - **Specification**: `R13_METRICS_UNDER_FAULTS_SPEC.md`
 - **Test Suite**: `router_metrics_under_faults_SUITE.erl`
-- **Metrics Contracts**: `docs/dev/METRICS_CONTRACT_SPECIFICATION.md`
+- **Metrics Contracts**: `docs/archive/dev/METRICS_CONTRACT_SPECIFICATION.md`
 - **Fault Injection**: `router_nats_fault_injection` module
 - **Metrics Storage**: `router_metrics.erl`
 - **Prometheus Export**: `router_prometheus.erl`

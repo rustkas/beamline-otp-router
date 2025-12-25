@@ -127,21 +127,21 @@ Found X PromQL queries
 
 **Test `extract_assignment_id/1`**:
 ```erlang
-1> router_jetstream:extract_assignment_id(<<"beamline.router.v1.decide">>).
-<<"decide">>
+1> router_jetstream:extract_assignment_id(~"beamline.router.v1.decide").
+~"decide"
 ```
 
 **Test `extract_tenant_id/1`**:
 ```erlang
-2> Msg = #{headers => #{<<"tenant_id">> => <<"tenant-123">>}}.
+2> Msg = #{headers => #{~"tenant_id" => ~"tenant-123"}}.
 3> router_jetstream:extract_tenant_id(Msg).
-<<"tenant-123">>
+~"tenant-123"
 ```
 
 **Test `error_to_reason/1`**:
 ```erlang
 4> router_nats:error_to_reason(timeout).
-<<"timeout">>
+~"timeout"
 ```
 
 ### 2. Test Metric Emission
@@ -149,16 +149,16 @@ Found X PromQL queries
 **Test DLQ metric with labels**:
 ```erlang
 5> router_metrics:emit_metric(router_dlq_total, #{count => 1}, #{
-    assignment_id => <<"decide">>,
-    reason => <<"maxdeliver_exhausted">>,
-    tenant_id => <<"tenant-123">>
+    assignment_id => ~"decide",
+    reason => ~"maxdeliver_exhausted",
+    tenant_id => ~"tenant-123"
 }).
 ok
 
 6> ets:tab2list(router_metrics).
-[{{router_dlq_total, [{assignment_id,<<"decide">>},
-                      {reason,<<"maxdeliver_exhausted">>},
-                      {tenant_id,<<"tenant-123">>}]}, 1}]
+[{{router_dlq_total, [{assignment_id,~"decide"},
+                      {reason,~"maxdeliver_exhausted"},
+                      {tenant_id,~"tenant-123"}]}, 1}]
 ```
 
 ### 3. Test Dashboard Queries

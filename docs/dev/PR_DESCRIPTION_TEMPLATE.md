@@ -46,7 +46,7 @@ Complete implementation of `router_jetstream_redelivery_total` metric with full 
 
 - ✅ Static validation: PASSED
 - ✅ Runtime validation: PASSED
-- ✅ Staging validation: Guide provided (`docs/dev/STAGING_VALIDATION_GUIDE.md`)
+- ✅ Staging validation: Guide provided (`docs/archive/dev/STAGING_VALIDATION_GUIDE.md`)
 
 ## Testing
 

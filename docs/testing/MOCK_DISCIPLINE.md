@@ -37,7 +37,7 @@ meck:new(router_nats, [passthrough]),  %% Упадёт если meck не уст
 ```erlang
 %% ПРАВИЛЬНО: passthrough сохраняет оригинальное поведение
 meck:new(router_nats, [passthrough]),
-meck:expect(router_nats, publish_with_ack, fun(_, _, _) -> {ok, <<"ack">>} end),
+meck:expect(router_nats, publish_with_ack, fun(_, _, _) -> {ok, ~"ack"} end),
 
 %% НЕПРАВИЛЬНО: Без passthrough все функции undefined
 meck:new(router_nats),  %% router_nats:other_function() будет падать

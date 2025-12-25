@@ -247,8 +247,8 @@ router_nats_fault_injection:disable_fault(publish),
 **Status**: ⚠️ **PARTIAL IMPLEMENTATION**
 
 **Existing Logs** (from `router_circuit_breaker.erl`):
-- ✅ Circuit breaker opened: `router_logger:warn(<<"Circuit breaker opened for provider">>, ...)`
-- ✅ Circuit breaker closed: `router_logger:info(<<"Circuit breaker closed for provider">>, ...)`
+- ✅ Circuit breaker opened: `router_logger:warn(~"Circuit breaker opened for provider", ...)`
+- ✅ Circuit breaker closed: `router_logger:info(~"Circuit breaker closed for provider", ...)`
 - ⚠️ **Missing**: Explicit "half-open" log message
 - ⚠️ **Missing**: Retry attempt logs
 - ⚠️ **Missing**: Deadline exceeded logs

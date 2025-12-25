@@ -1,2 +1,10 @@
-# Suite | Owner | Reason
-router_nats_publish_retry_SUITE | qa_team | retried publish retries are nondeterministic in CI
+# Quarantined Suites Registry
+# Format: Suite | Owner | Date (ISO-8601) | Reason
+# Date is when the suite was quarantined; used for TTL enforcement.
+# Lines starting with # are comments.
+#
+# Example:
+# router_example_SUITE | team_name | 2025-12-01 | Suite is flaky due to timing issues
+#
+router_nats_publish_retry_SUITE | qa_team | 2025-12-10 | retried publish retries are nondeterministic in CI
+router_alerts_test_SUITE | qa_team | 2025-12-10 | quarantined alert tests run only in heavy tier

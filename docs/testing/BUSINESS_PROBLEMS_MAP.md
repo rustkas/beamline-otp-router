@@ -322,9 +322,9 @@ curl -s http://localhost:9090/api/v1/alerts | jq '.data.alerts[] | select(.label
 %% В тесте:
 %% 1. Эмитировать метрику
 router_metrics:emit_metric(router_circuit_breaker_trigger_reason, #{count => 1}, #{
-    tenant_id => <<"test">>,
-    provider_id => <<"openai">>,
-    reason => <<"latency_threshold_exceeded">>
+    tenant_id => ~"test",
+    provider_id => ~"openai",
+    reason => ~"latency_threshold_exceeded"
 }),
 
 %% 2. Вызвать evaluate_all_rules

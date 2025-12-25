@@ -1,0 +1,21 @@
+{
+    "timestamp": "2025-12-22T03:00:00Z",
+    "git": {
+        "commit": "baseline_placeholder"
+    },
+    "env": {
+        "otp_release": "27",
+        "cpu_count": 8,
+        "kernel": "Linux 6.8.0",
+        "runner": "local-baseline",
+        "nats_mode": "real"
+    },
+    "metrics": {
+        "rps": 62,
+        "latency_p95_ms": 99,
+        "latency_p99_ms": 200,
+        "errors_total": 0,
+        "backpressure_active_total": 0,
+        "mem_mb_total_erlang": 94
+    }
+}

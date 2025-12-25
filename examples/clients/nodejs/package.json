@@ -1,0 +1,31 @@
+{
+  "name": "beamline-router-nodejs-clients",
+  "version": "1.0.0",
+  "description": "Node.js clients for Beamline Router (gRPC and HTTP)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "grpc-example": "node grpc_client.js",
+    "http-example": "node http_client.js"
+  },
+  "keywords": [
+    "beamline",
+    "router",
+    "grpc",
+    "http",
+    "client"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@grpc/grpc-js": "^1.9.0",
+    "@grpc/proto-loader": "^0.7.10",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

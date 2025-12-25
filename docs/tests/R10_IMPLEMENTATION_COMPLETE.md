@@ -79,7 +79,7 @@ router_nats_publish_retry:publish_with_retry(Subject, Payload, PublishFun, Metri
 
 **Configuration**:
 ```erlang
-#{<<"latency_threshold_ms">> => 5000}  % Default for R10
+#{~"latency_threshold_ms" => 5000}  % Default for R10
 ```
 
 ### 5. Publish Latency Metrics ✅
@@ -162,13 +162,13 @@ Add to `apps/otp/router/config/sys.config` or equivalent:
 
 ```erlang
 Config = #{
-    <<"failure_threshold">> => 5,
-    <<"error_rate_threshold">> => 0.5,
-    <<"error_rate_window_seconds">> => 30,
-    <<"latency_threshold_ms">> => 5000,  % NEW for R10
-    <<"timeout_ms">> => 30000,
-    <<"half_open_max_calls">> => 3,
-    <<"success_threshold">> => 2
+    ~"failure_threshold" => 5,
+    ~"error_rate_threshold" => 0.5,
+    ~"error_rate_window_seconds" => 30,
+    ~"latency_threshold_ms" => 5000,  % NEW for R10
+    ~"timeout_ms" => 30000,
+    ~"half_open_max_calls" => 3,
+    ~"success_threshold" => 2
 },
 router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config).
 ```
@@ -244,7 +244,7 @@ application:set_env(beamline_router, publish_retry_enabled, true),
 router_nats_fault_injection:enable_fault(publish, {error, nats_unavailable}),
 
 %% Publish (should retry)
-router_nats:publish(<<"test.subject">>, <<"payload">>),
+router_nats:publish(~"test.subject", ~"payload"),
 
 %% Check metrics
 curl http://localhost:9001/metrics | grep router_nats_publish

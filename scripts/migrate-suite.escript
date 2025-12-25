@@ -2,7 +2,7 @@
 %% -*- erlang -*-
 %%! -pa _build/default/lib/*/ebin
 
-%% @doc Migrate a test suite to groups_for_level pattern
+-doc "Migrate a test suite to groups_for_level pattern".
 %% Usage: ./scripts/migrate-suite.escript <suite_file> <tier>
 %% Tier: fast | full | heavy
 

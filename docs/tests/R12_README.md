@@ -202,8 +202,8 @@ chmod +x test/scripts/r12_network_partition_fault_injection.sh
 
 - **Complete Specification**: `R12_NETWORK_PARTITION_SCENARIOS.md`
 - **Logs and Metrics**: `R12_LOGS_AND_METRICS.md`
-- **Network Partition Testing Guide**: `docs/dev/NETWORK_PARTITION_TESTING.md`
-- **Fault Injection Tests**: `docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
+- **Network Partition Testing Guide**: `docs/archive/dev/NETWORK_PARTITION_TESTING.md`
+- **Fault Injection Tests**: `docs/archive/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
 
 ## CI/CD Integration
 

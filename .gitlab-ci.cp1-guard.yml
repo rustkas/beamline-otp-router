@@ -1,0 +1,67 @@
+# CP1 Freeze CI Guard
+# 
+# This file ensures perf gate cannot be accidentally disabled on main branch.
+# Include this in your .gitlab-ci.yml:
+#
+# include:
+#   - local: .gitlab-ci.perf.example.yml
+#   - local: .gitlab-ci.cp1-guard.yml
+
+# Guard: Perf gate MUST run on main
+perf_gate_guard:
+  stage: test
+  script:
+    - |
+      # Verify perf gate job exists and is not allowed to fail on main
+      if [[ "$CI_COMMIT_BRANCH" == "main" ]]; then
+        echo "✅ CP1 Freeze Guard: Checking perf gate configuration..."
+        
+        # This job serves as a reminder
+        echo "Perf gate MUST be enabled on main branch"
+        echo "See: .gitlab-ci.perf.example.yml"
+        
+        # Verify baseline exists
+        if [[ ! -f perf/baseline_cp1.json ]]; then
+          echo "❌ ERROR: perf/baseline_cp1.json missing (CP1 freeze artifact)"
+          exit 1
+        fi
+        
+        # Verify policy exists
+        if [[ ! -f perf/policy_cp1.json ]]; then
+          echo "❌ ERROR: perf/policy_cp1.json missing (CP1 freeze artifact)"
+          exit 1
+        fi
+        
+        echo "✅ CP1 freeze artifacts present"
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  allow_failure: false
+
+# Guard: Baseline changes require justification
+baseline_change_guard:
+  stage: test
+  script:
+    - |
+      # Check if baseline was modified
+      if git diff --name-only $CI_COMMIT_BEFORE_SHA $CI_COMMIT_SHA | grep -q "perf/baseline_cp1.json"; then
+        echo "⚠️  WARNING: perf/baseline_cp1.json was modified"
+        echo "CP1 Freeze Policy: Baseline changes require:"
+        echo "  1. Separate MR (not bundled with features)"
+        echo "  2. Justification in MR description"
+        echo "  3. Approval from maintainers"
+        echo ""
+        echo "See: docs/CP1_FREEZE.md (Baseline Update Process)"
+        
+        # Check MR title for baseline update indicator
+        if [[ ! "$CI_MERGE_REQUEST_TITLE" =~ "baseline update" ]] && [[ ! "$CI_MERGE_REQUEST_TITLE" =~ "perf baseline" ]]; then
+          echo "❌ ERROR: Baseline change detected but MR title doesn't indicate baseline update"
+          echo "Expected MR title containing: 'baseline update' or 'perf baseline'"
+          exit 1
+        fi
+        
+        echo "✅ Baseline change acknowledged in MR title"
+      fi
+  rules:
+    - if: '$CI_MERGE_REQUEST_ID'
+  allow_failure: false

@@ -21,7 +21,7 @@ Centralized helper for mocking `router_nats` across all test suites.
 ```erlang
 init_per_suite(Config) ->
     ok = application:set_env(beamline_router, nats_mode, mock),
-    case router_nats_test_helper:setup_mock(#{publish_response => {ok, <<"ack">>}}) of
+    case router_nats_test_helper:setup_mock(#{publish_response => {ok, ~"ack"}}) of
         {skip, Reason} -> {skip, Reason};
         ok -> Config
     end.
@@ -338,8 +338,8 @@ router_nats_test_helper:check_corner_case_coverage_strict()
 
 %% Verify specific arguments were passed to publish:
 router_nats_test_helper:verify_publish_called_with(#{
-    subject => <<"caf.exec.assign.v1">>,
-    payload_contains => <<"tenant_id">>
+    subject => ~"caf.exec.assign.v1",
+    payload_contains => ~"tenant_id"
 })
 ```
 

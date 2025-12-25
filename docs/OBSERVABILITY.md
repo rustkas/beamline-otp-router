@@ -2,7 +2,7 @@
 
 This document describes the observability features for Router in CP1, including structured JSON logging and health endpoints.
 
-CP2/Pre‑release extends Router observability with full OpenTelemetry tracing (OTLP export), Prometheus `/metrics` (HTTP, port 9001), and Grafana dashboards using CP1 correlation fields as filters. See `docs/dev/CP2_OBSERVABILITY_PLAN.md` and `docs/OBSERVABILITY_CP2_TEST_PROFILE.md`.
+CP2/Pre‑release extends Router observability with full OpenTelemetry tracing (OTLP export), Prometheus `/metrics` (HTTP, port 9001), and Grafana dashboards using CP1 correlation fields as filters. See `docs/archive/dev/CP2_OBSERVABILITY_PLAN.md` and `docs/OBSERVABILITY_CP2_TEST_PROFILE.md`.
 
 ## Structured JSON Logging
 
@@ -93,34 +93,34 @@ Log files are written to:
 #### Basic Logging
 
 ```erlang
-router_logger:info(<<"Request received">>, #{
-    <<"tenant_id">> => <<"tenant_123">>,
-    <<"subject">> => <<"beamline.router.v1.decide">>
+router_logger:info(~"Request received", #{
+    ~"tenant_id" => ~"tenant_123",
+    ~"subject" => ~"beamline.router.v1.decide"
 }).
 ```
 
 #### Logging with Correlation
 
 ```erlang
-router_logger:info(<<"Routing decision made">>, #{
-    <<"tenant_id">> => <<"tenant_123">>,
-    <<"trace_id">> => <<"trace_abc123">>,
-    <<"run_id">> => <<"run_789">>,
-    <<"flow_id">> => <<"flow_456">>,
-    <<"step_id">> => <<"step_123">>,
-    <<"policy_id">> => <<"policy_456">>
+router_logger:info(~"Routing decision made", #{
+    ~"tenant_id" => ~"tenant_123",
+    ~"trace_id" => ~"trace_abc123",
+    ~"run_id" => ~"run_789",
+    ~"flow_id" => ~"flow_456",
+    ~"step_id" => ~"step_123",
+    ~"policy_id" => ~"policy_456"
 }).
 ```
 
 #### Logging Errors with Error Code and Latency
 
 ```erlang
-router_logger:error(<<"NATS connection failed">>, #{
-    <<"tenant_id">> => <<"tenant_123">>,
-    <<"trace_id">> => <<"trace_abc123">>,
-    <<"error_code">> => <<"NATS_CONNECTION_FAILED">>,
-    <<"latency_ms">> => 5000,
-    <<"subject">> => <<"beamline.router.v1.decide">>
+router_logger:error(~"NATS connection failed", #{
+    ~"tenant_id" => ~"tenant_123",
+    ~"trace_id" => ~"trace_abc123",
+    ~"error_code" => ~"NATS_CONNECTION_FAILED",
+    ~"latency_ms" => 5000,
+    ~"subject" => ~"beamline.router.v1.decide"
 }).
 ```
 
@@ -278,7 +278,7 @@ grpcurl -plaintext -H "x-api-key: test_key" \
 - ❌ Distributed tracing (OpenTelemetry)
 - ❌ Alertmanager integration
 
-**CP2 Implementation**: See `docs/dev/OBSERVABILITY_METRICS_SPEC_CP2.md` for CP2 Prometheus metrics specification.
+**CP2 Implementation**: See `docs/archive/dev/OBSERVABILITY_METRICS_SPEC_CP2.md` for CP2 Prometheus metrics specification.
 
 ## Prometheus Metrics (CP2)
 
@@ -338,7 +338,7 @@ curl http://localhost:9001/metrics
 - `router_acl_allowed_total` (counter) - Total ACL allowed decisions
 - `router_acl_denied_total` (counter) - Total ACL denied decisions
 
-**Reference**: See `docs/dev/OBSERVABILITY_METRICS_SPEC_CP2.md` for complete metrics specification.
+**Reference**: See `docs/archive/dev/OBSERVABILITY_METRICS_SPEC_CP2.md` for complete metrics specification.
 
 ## Testing
 
@@ -356,7 +356,7 @@ bash scripts/observability/test_router_observability.sh
 - `grpc_health_probe` or `grpcurl` installed
 - `jq` (optional, for JSON parsing)
 
-**See**: `docs/dev/ROUTER_OBSERVABILITY_TEST.md` for detailed testing instructions.
+**See**: `docs/archive/dev/ROUTER_OBSERVABILITY_TEST.md` for detailed testing instructions.
 
 ### Unit Tests
 
@@ -523,9 +523,9 @@ bash scripts/generate_coverage.sh
 **Solutions**:
 1. Verify context is being passed to logger:
    ```erlang
-   router_logger:info(<<"Message">>, #{
-       <<"tenant_id">> => <<"tenant_123">>,
-       <<"trace_id">> => <<"trace_abc">>
+   router_logger:info(~"Message", #{
+       ~"tenant_id" => ~"tenant_123",
+       ~"trace_id" => ~"trace_abc"
    }).
    ```
 2. Check that context is available in the calling code
@@ -788,15 +788,15 @@ output {
 
 **Example**:
 ```erlang
-router_logger:info(<<"Routing decision made">>, #{
-    <<"tenant_id">> => <<"tenant_123">>,
-    <<"trace_id">> => <<"trace_abc123">>,
-    <<"run_id">> => <<"run_789">>,
-    <<"flow_id">> => <<"flow_456">>,
-    <<"subject">> => <<"beamline.router.v1.decide">>,
-    <<"policy_id">> => <<"policy_456">>,
-    <<"provider">> => <<"openai">>,
-    <<"decision_reason">> => <<"weighted_selection">>
+router_logger:info(~"Routing decision made", #{
+    ~"tenant_id" => ~"tenant_123",
+    ~"trace_id" => ~"trace_abc123",
+    ~"run_id" => ~"run_789",
+    ~"flow_id" => ~"flow_456",
+    ~"subject" => ~"beamline.router.v1.decide",
+    ~"policy_id" => ~"policy_456",
+    ~"provider" => ~"openai",
+    ~"decision_reason" => ~"weighted_selection"
 }).
 ```
 
@@ -828,7 +828,7 @@ router_logger:info(<<"Routing decision made">>, #{
 ```erlang
 %% Filter PII before logging (if needed)
 FilteredContext = router_logger:filter_pii(Context),
-router_logger:info(<<"Message">>, FilteredContext).
+router_logger:info(~"Message", FilteredContext).
 ```
 
 ### Performance Considerations
@@ -947,9 +947,9 @@ Timestamp = router_logger:get_timestamp().  %% Returns ISO 8601 format
 ```erlang
 %% Old: CP1 fields in correlation object (deprecated)
 LogEntry = #{
-    <<"correlation">> => #{
-        <<"tenant_id">> => <<"tenant_123">>,
-        <<"trace_id">> => <<"trace_abc">>
+    ~"correlation" => #{
+        ~"tenant_id" => ~"tenant_123",
+        ~"trace_id" => ~"trace_abc"
     }
 }.
 ```
@@ -957,9 +957,9 @@ LogEntry = #{
 **After** (top-level CP1 fields):
 ```erlang
 %% New: CP1 fields at top level
-router_logger:info(<<"Message">>, #{
-    <<"tenant_id">> => <<"tenant_123">>,
-    <<"trace_id">> => <<"trace_abc">>
+router_logger:info(~"Message", #{
+    ~"tenant_id" => ~"tenant_123",
+    ~"trace_id" => ~"trace_abc"
 }).
 
 %% CP1 fields are automatically placed at top level
@@ -983,9 +983,9 @@ log(FilteredContext).
 **After** (automatic filtering):
 ```erlang
 %% New: Automatic PII filtering
-router_logger:info(<<"Message">>, #{
-    <<"api_key">> => <<"sk-123456">>,  %% Automatically filtered
-    <<"password">> => <<"secret">>     %% Automatically filtered
+router_logger:info(~"Message", #{
+    ~"api_key" => ~"sk-123456",  %% Automatically filtered
+    ~"password" => ~"secret"     %% Automatically filtered
 }).
 
 %% Log entry:
@@ -1031,12 +1031,12 @@ cat router_2025-11-30.jsonl | jq -r '.timestamp' | date -f -
 **Solution**: Verify field names match filtered patterns (case-insensitive):
 ```erlang
 %% These will be filtered (case-insensitive):
-<<"api_key">> => <<"sk-123">>,      %% Filtered
-<<"API_KEY">> => <<"sk-123">>,      %% Filtered
-<<"password">> => <<"secret">>,     %% Filtered
-<<"PASSWORD">> => <<"secret">>,     %% Filtered
-<<"x-api-key">> => <<"key">>,       %% Filtered (NATS header)
-<<"X-Api-Key">> => <<"key">>,       %% Filtered (NATS header)
+~"api_key" => ~"sk-123",      %% Filtered
+~"API_KEY" => ~"sk-123",      %% Filtered
+~"password" => ~"secret",     %% Filtered
+~"PASSWORD" => ~"secret",     %% Filtered
+~"x-api-key" => ~"key",       %% Filtered (NATS header)
+~"X-Api-Key" => ~"key",       %% Filtered (NATS header)
 ```
 
 ### Testing Migration
@@ -1091,12 +1091,12 @@ Log an error message with context.
 
 **Example**:
 ```erlang
-router_logger:error(<<"NATS connection failed">>, #{
-    <<"tenant_id">> => <<"tenant_123">>,
-    <<"trace_id">> => <<"trace_abc123">>,
-    <<"error_code">> => <<"NATS_CONNECTION_FAILED">>,
-    <<"latency_ms">> => 5000,
-    <<"subject">> => <<"beamline.router.v1.decide">>
+router_logger:error(~"NATS connection failed", #{
+    ~"tenant_id" => ~"tenant_123",
+    ~"trace_id" => ~"trace_abc123",
+    ~"error_code" => ~"NATS_CONNECTION_FAILED",
+    ~"latency_ms" => 5000,
+    ~"subject" => ~"beamline.router.v1.decide"
 }).
 ```
 
@@ -1134,11 +1134,11 @@ Log a warning message with context.
 
 **Example**:
 ```erlang
-router_logger:warn(<<"Rate limit approaching">>, #{
-    <<"tenant_id">> => <<"tenant_123">>,
-    <<"trace_id">> => <<"trace_abc123">>,
-    <<"rate_limit">> => 90,
-    <<"threshold">> => 80
+router_logger:warn(~"Rate limit approaching", #{
+    ~"tenant_id" => ~"tenant_123",
+    ~"trace_id" => ~"trace_abc123",
+    ~"rate_limit" => 90,
+    ~"threshold" => 80
 }).
 ```
 
@@ -1159,14 +1159,14 @@ Log an informational message with context.
 
 **Example**:
 ```erlang
-router_logger:info(<<"Routing decision made">>, #{
-    <<"tenant_id">> => <<"tenant_123">>,
-    <<"trace_id">> => <<"trace_abc123">>,
-    <<"run_id">> => <<"run_789">>,
-    <<"flow_id">> => <<"flow_456">>,
-    <<"policy_id">> => <<"policy_456">>,
-    <<"provider">> => <<"openai">>,
-    <<"latency_ms">> => 45
+router_logger:info(~"Routing decision made", #{
+    ~"tenant_id" => ~"tenant_123",
+    ~"trace_id" => ~"trace_abc123",
+    ~"run_id" => ~"run_789",
+    ~"flow_id" => ~"flow_456",
+    ~"policy_id" => ~"policy_456",
+    ~"provider" => ~"openai",
+    ~"latency_ms" => 45
 }).
 ```
 
@@ -1187,12 +1187,12 @@ Log a debug message with context.
 
 **Example**:
 ```erlang
-router_logger:debug(<<"Policy evaluation details">>, #{
-    <<"tenant_id">> => <<"tenant_123">>,
-    <<"trace_id">> => <<"trace_abc123">>,
-    <<"policy_id">> => <<"policy_456">>,
-    <<"evaluation_steps">> => 5,
-    <<"cache_hit">> => true
+router_logger:debug(~"Policy evaluation details", #{
+    ~"tenant_id" => ~"tenant_123",
+    ~"trace_id" => ~"trace_abc123",
+    ~"policy_id" => ~"policy_456",
+    ~"evaluation_steps" => 5,
+    ~"cache_hit" => true
 }).
 ```
 
@@ -1215,7 +1215,7 @@ Check if logging is enabled.
 ```erlang
 case router_logger:is_enabled() of
     true ->
-        router_logger:info(<<"Message">>, #{});
+        router_logger:info(~"Message", #{});
     false ->
         ok
 end.
@@ -1240,19 +1240,19 @@ Filter PII from a context map (exported for testing).
 **Example**:
 ```erlang
 Context = #{
-    <<"api_key">> => <<"sk-123456">>,
-    <<"password">> => <<"secret">>,
-    <<"nested">> => #{
-        <<"token">> => <<"bearer_token">>
+    ~"api_key" => ~"sk-123456",
+    ~"password" => ~"secret",
+    ~"nested" => #{
+        ~"token" => ~"bearer_token"
     }
 },
 FilteredContext = router_logger:filter_pii(Context),
 %% Result:
 %% #{
-%%     <<"api_key">> => <<"[REDACTED]">>,
-%%     <<"password">> => <<"[REDACTED]">>,
-%%     <<"nested">> => #{
-%%         <<"token">> => <<"[REDACTED]">>
+%%     ~"api_key" => ~"[REDACTED]",
+%%     ~"password" => ~"[REDACTED]",
+%%     ~"nested" => #{
+%%         ~"token" => ~"[REDACTED]"
 %%     }
 %% }
 ```
@@ -1432,7 +1432,7 @@ ets:delete_all_objects(router_idem).
 - `test/router_observability_SUITE.erl` - Observability unit tests
 - `test/router_health_integration_SUITE.erl` - Health endpoint integration tests
 - `scripts/observability/test_router_observability.sh` - E2E test script
-- `docs/dev/ROUTER_OBSERVABILITY_TEST.md` - Test script documentation
-- `docs/dev/METRICS_MODULE_TEMPLATE.md` - Metrics module template
+- `docs/archive/dev/ROUTER_OBSERVABILITY_TEST.md` - Test script documentation
+- `docs/archive/dev/METRICS_MODULE_TEMPLATE.md` - Metrics module template
 - `docs/OPERATIONAL_GUIDE.md` - Operational procedures
 - `docs/PRODUCTION_LOGGING.md` - Production logging guide (log rotation, aggregation)

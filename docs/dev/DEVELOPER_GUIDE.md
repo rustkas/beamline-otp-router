@@ -58,7 +58,7 @@ Before starting development on the router project, ensure you have:
 - **EUnit**: Unit testing framework (included with OTP)
 - **Common Test**: Integration testing framework (included with OTP)
 
-#### IDE Configuration
+#### Editor Configuration
 
 **VS Code**:
 - Install "Erlang" extension
@@ -232,7 +232,7 @@ See `TESTING_GUIDE.md` for detailed testing procedures.
 All public functions must have `@doc` comments:
 
 ```erlang
-%% @doc Brief description
+-doc "Brief description".
 %% @param Param1 Description
 %% @param Param2 Description
 %% @returns Description
@@ -254,9 +254,9 @@ function_name(Param1, Param2) ->
 - Use `router_logger` for all logging (production code)
 - Use structured logging with maps:
   ```erlang
-  router_logger:info(<<"Event description">>, #{
-      <<"key1">> => Value1,
-      <<"key2">> => Value2
+  router_logger:info(~"Event description", #{
+      ~"key1" => Value1,
+      ~"key2" => Value2
   }).
   ```
 - Never use `io:format` in production code
@@ -422,4 +422,3 @@ apps/otp/router/
 
 **Last Updated**: 2025-01-27  
 **Maintainer**: Router Team
-

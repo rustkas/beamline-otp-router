@@ -62,7 +62,7 @@ all() ->
     end,
     groups_for_level(Level).
 
-%% @doc Heavy-only suite
+-doc "Heavy-only suite".
 groups_for_level(sanity) -> [];
 groups_for_level(fast) -> [];
 groups_for_level(full) -> [];
@@ -83,7 +83,7 @@ all() ->
     end,
     groups_for_level(Level).
 
-%% @doc Integration suite - runs in full tier
+-doc "Integration suite - runs in full tier".
 groups_for_level(sanity) -> [];
 groups_for_level(fast) -> [];
 groups_for_level(full) -> [{group, integration_tests}];
@@ -104,7 +104,7 @@ all() ->
     end,
     groups_for_level(Level).
 
-%% @doc Unit tests run in fast tier
+-doc "Unit tests run in fast tier".
 groups_for_level(sanity) -> [];
 groups_for_level(fast) -> [{group, unit_tests}];
 groups_for_level(full) -> [{group, unit_tests}];

@@ -769,3 +769,85 @@ Router intake validation layer uses standardized error codes that map to HTTP st
 - **Core Routing**: `apps/otp/router/src/router_core.erl`
 - **Error Mapping**: `apps/otp/router/src/router_error.erl`
 
+## Gateway Backpressure Protocol (T-DOCS-01)
+
+This protocol allows Gateway (NestJS) to proactively detect Router overload and throttle traffic before it reaches JetStream.
+
+### Invariants
+
+Router **guarantees**:
+- Backpressure status query **always** returns the current state for a specific subject.
+- `status` field indicates the level of backpressure, NOT the overall health of the router itself.
+- `retry_after_seconds` is **always** present when backpressure is detected (`active` or `warning`) within the `policy` object.
+
+### Backpressure Status Query
+
+**NATS Subject**: `beamline.router.v1.status.backpressure` (Request-Reply)
+
+**Request Payload**:
+```json
+{
+  "subject": "beamline.router.v1.decide"
+}
+```
+
+**Response Payload**:
+```json
+{
+  "success": true,
+  "data": {
+    "subject": "string",
+    "status": "active" | "warning" | "inactive" | "unknown",
+    "metrics": {
+      "pending_messages": 1200,
+      "latency_p95_ms": 5500,
+      "inflight_messages": 450
+    },
+    "thresholds": {
+      "queue_overload": 1000,
+      "latency_overload_ms": 5000,
+      "inflight_overload": 500
+    },
+    "policy": {
+      "retry_after_seconds": 30,
+      "max_retry_attempts": 3
+    },
+    "timestamp": 1706371200000
+  }
+}
+```
+
+### Protocol Fields
+
+- `status`:
+    - `"active"`: Critical overload. Gateway **MUST** reject requests with HTTP 429 / gRPC RESOURCE_EXHAUSTED.
+    - `"warning"`: Approaching overload. Gateway **SHOULD** apply background throttling or prioritize critical traffic.
+    - `"inactive"`: Normal operation.
+- `metrics.pending_messages`: Current number of messages waiting in the JetStream consumer.
+- `metrics.latency_p95_ms`: 95th percentile of processing time for the last 1000 messages.
+- `metrics.inflight_messages`: Number of messages currently being processed by Router workers.
+- `policy.retry_after_seconds`: Recommended wait time before retrying.
+
+### Status and Error Mapping
+
+When Gateway receives an overload signal (either via proactive query or 429 response), it MUST map it as follows:
+
+| Router State | HTTP Status | gRPC Status | Gateway Action |
+|--------------|-------------|-------------|----------------|
+| `active`     | 429 Too Many Requests | 8 RESOURCE_EXHAUSTED | Immediate rejection, include `Retry-After` header |
+| `warning`    | 200 OK (with Warning) | 0 OK | Continue, but log warning and monitor metrics |
+
+**Response Header**: `Retry-After: <retry_after_seconds>`
+
+### Gateway Implementation Recommendations
+
+1.  **Proactive Monitoring**: Gateways should query `beamline.router.v1.status.backpressure` every 5-10 seconds for high-traffic subjects.
+2.  **Local Cache**: Cache the backpressure status for 5 seconds to avoid excessive status queries.
+3.  **Graceful Degradation**:
+    - If `active`, stop sending new requests immediately for the duration of `retry_after_seconds`.
+    - If `warning`, stop sending low-priority background requests (e.g., telemetry cleanup, pre-fetching).
+4.  **Circuit Breaker Integration**: If status remains `active` for > 3 consecutive checks (15-30s), Gateway should open its own circuit breaker to the Router.
+
+**Implementation**: `router_gateway_backpressure.erl`, `router_intake_backpressure.erl`  
+**Tests**: `router_gateway_integration_SUITE.erl`
+

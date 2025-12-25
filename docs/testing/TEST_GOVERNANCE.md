@@ -1,7 +1,7 @@
 # Test Governance & Standards
 
 > Router Project Test Infrastructure Governance Document
-> Version: 1.1 | Last Updated: 2025-12-13
+> Version: 1.2 | Last Updated: 2025-12-16
 
 ---
 
@@ -50,17 +50,90 @@ See [QUALITY_GATES.md](./QUALITY_GATES.md) for detailed documentation.
 
 ### 1.4 Quarantine Policy
 
-- A quarantined suite is a documented exception: add it to `config/quarantine/quarantined_suites.txt` via the format `suite_name | owner | short_reason`. Skip empty lines and lines starting with `#` to keep the file human-readable.
+- A quarantined suite is a documented exception: add it to `config/quarantine/quarantined_suites.txt` using the format:
+  ```
+  suite_name | owner | date (ISO-8601) | reason
+  ```
+  Example: `router_nats_publish_retry_SUITE | qa_team | 2025-12-10 | nondeterministic in CI`
+- Skip empty lines and lines starting with `#` to keep the file human-readable.
 - `scripts/ct-full.sh` loads that metadata, omits each quarantined suite from the full-tier execution plan, and prints a dedicated “Quarantined suites” block when `--list` is used so reviewers see the owner/reason without digging into code.
-- The nightly/heavy runner (`scripts/ct-heavy.sh`) does not filter these suites but does log `Heavy tier includes quarantined suites: ...`, so teams still get signal on resolved flakes.
+- The nightly/heavy runner (`scripts/ct-heavy.sh`) does not filter these suites but does log `CT quarantine group: INCLUDED`, so teams still get signal on resolved flakes.
 - Add a suite to quarantine only after repeated nondeterministic failures in `ROUTER_TEST_LEVEL=full` runs and follow up with the heavy tier when fixing. Remove the entry once the suite has passed several heavy runs and the owner confirms stability.
 
-### 1.5 Quarantine lifecycle
+#### 1.4.0 Policy Enforcement
+
+Quarantine policy is enforced by `scripts/check_quarantine_policy.sh` which validates:
+- **Required metadata**: every entry must have suite, owner, date (ISO-8601 format), and reason
+- **TTL enforcement**: quarantine entries older than configurable TTL (default: 30 days) trigger warnings
+- **CT group consistency**: every listed suite must define a CT-native `quarantine` group
+
+**Environment variables:**
+- `QUARANTINE_TTL_DAYS` - days before quarantine is considered stale (default: 30)
+- `QUARANTINE_STRICT` - if "true", stale quarantine becomes a hard error (default: false)
+
+**Verification commands:**
+```bash
+# Check quarantine policy (default: TTL=30 days, warnings only)
+scripts/check_quarantine_policy.sh
+
+# Strict mode (stale quarantine fails build)
+QUARANTINE_STRICT=true scripts/check_quarantine_policy.sh
+
+# Custom TTL (e.g., 14 days)
+QUARANTINE_TTL_DAYS=14 scripts/check_quarantine_policy.sh
+```
+
+
+#### 1.4.1 CT-Native Quarantine Groups
+
+Test suites can use CT-native groups to exclude specific test cases from full tier runs:
+
+```erlang
+%% Pattern for CT-native quarantine in test suites:
+all() ->
+    Level = router_test_utils:get_test_level(),
+    groups_for_level(Level).
+
+groups_for_level(heavy) ->
+    %% Heavy tier: run all groups including quarantine
+    [{group, unit_tests}, {group, quarantine}];
+groups_for_level(_) ->
+    %% Full/fast/sanity tiers: exclude quarantine group
+    [{group, unit_tests}].
+
+groups() ->
+    [{unit_tests, [], [test_a, test_b]},
+     {quarantine, [], [test_flaky_case]}].
+```
+
+**Suites with CT-native quarantine groups:**
+- `router_alerts_test_SUITE` - Unit-style suite (fast)
+- `router_nats_publish_retry_SUITE` - Integration-style suite
+
+**Verification commands:**
+```bash
+# Full tier (excludes quarantine):
+ROUTER_TEST_LEVEL=full rebar3 ct --suite test/router_alerts_test_SUITE
+# Expected: 8 tests (unit_tests only)
+
+# Heavy tier (includes quarantine):
+ROUTER_TEST_LEVEL=heavy rebar3 ct --suite test/router_alerts_test_SUITE
+# Expected: 9 tests (unit_tests + quarantine)
+
+# Direct group access (useful for debugging):
+rebar3 ct --suite test/router_alerts_test_SUITE --group=quarantine
+```
+
+### 1.5 Quarantine Lifecycle
 
 - **Review cadence & ownership**: Every quarantine entry must be reviewed at least once per release cycle (or every calendar week, whichever is shorter). The `owner` field tags the team/controller responsible for that suite; they collect flakiness data and confirm the suite still requires quarantine before each review.
 - **Exit criteria**: A quarantined suite can be removed only after the owning team documents at least three consecutive heavy-tier executions (`ROUTER_TEST_LEVEL=heavy`) that complete without the previously observed nondeterministic failure. The heavy-tier logs (CT reports, `_build/test/logs/.../ctlog.html`) serve as the evidence trail for each pass.
-- **Visibility guardrails**: Track the total number of quarantine entries and the age of the oldest entry in the policy artifact or a lightweight dashboard so the team can spot growth. Escalate the list when it grows beyond five suites or when any entry is older than four weeks without a review update.
-- **Tooling hooks (future-ready)**: Prepare for optional automation that warns when the quarantine list exceeds a configurable threshold and consider extending the metadata format with a timestamp column so reviewers know when each entry was last validated. These touches remain policy-level guidance until automation is implemented.
+- **Visibility guardrails**: Track the total number of quarantine entries and the age of the oldest entry via `scripts/check_quarantine_policy.sh`. The script reports age in days and warns when entries exceed the configured TTL. Escalate the list when it grows beyond five suites or when any entry is older than four weeks without a review update.
+- **Tooling hooks (implemented)**: The policy enforcement script (`scripts/check_quarantine_policy.sh`) provides:
+  - Automatic TTL warnings when entries exceed 30 days (configurable via `QUARANTINE_TTL_DAYS`)
+  - Hard CI failures in strict mode (`QUARANTINE_STRICT=true`)
+  - Metadata validation ensuring every entry has owner, date, and reason
+  - CT group consistency checking via `scripts/lint/check_ct_quarantine_consistency.sh`
 
 ---
 
@@ -295,3 +368,4 @@ jobs:
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-12-07 | Platform Team | Initial governance document |
+| 1.2 | 2025-12-16 | Platform Team | Added quarantine policy enforcement with TTL, date field, and automated checks |

@@ -22,7 +22,7 @@ This document formally defines the ACL (Access Control List) model for Router, e
 **Storage**:
 - ETS tables with heir process for persistence
 - Policies indexed by `{TenantId, PolicyId}`
-- Default policy: `PolicyId = <<"default">>`
+- Default policy: `PolicyId = ~"default"`
 
 **API**:
 - `load_policy(TenantId, PolicyId)`: Load policy for tenant

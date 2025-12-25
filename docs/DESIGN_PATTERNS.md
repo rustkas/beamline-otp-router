@@ -26,19 +26,19 @@ reset() ->
         gen_server:call(?MODULE, reset_all, 5000)
     catch
         exit:{noproc, _} ->
-            router_logger:error(<<"Server not running for reset">>, #{
-                <<"event">> => <<"module_reset">>
+            router_logger:error(~"Server not running for reset", #{
+                ~"event" => ~"module_reset"
             }),
             {error, service_unavailable};
         exit:{timeout, _} ->
-            router_logger:error(<<"Reset timeout">>, #{
-                <<"event">> => <<"module_reset">>
+            router_logger:error(~"Reset timeout", #{
+                ~"event" => ~"module_reset"
             }),
             {error, timeout};
         Class:Reason ->
-            router_logger:error(<<"Reset error">>, #{
-                <<"event">> => <<"module_reset">>,
-                <<"error">> => {Class, Reason}
+            router_logger:error(~"Reset error", #{
+                ~"event" => ~"module_reset",
+                ~"error" => {Class, Reason}
             }),
             {error, {Class, Reason}}
     end.
@@ -50,14 +50,14 @@ handle_call(reset_all, _From, State = #state{table = Table}) ->
     case ets:info(Table) of
         undefined ->
             %% Table lost - log warning but continue
-            router_logger:warn(<<"Reset_all: ETS table undefined">>, #{
-                <<"event">> => <<"module_reset_all">>
+            router_logger:warn(~"Reset_all: ETS table undefined", #{
+                ~"event" => ~"module_reset_all"
             }),
             {reply, ok, State};
         _ ->
             ets:delete_all_objects(Table),
-            router_logger:info(<<"Reset_all: table cleared">>, #{
-                <<"event">> => <<"module_reset_all">>
+            router_logger:info(~"Reset_all: table cleared", #{
+                ~"event" => ~"module_reset_all"
             }),
             {reply, ok, State}
     end;
@@ -82,14 +82,14 @@ When implementing the reset/lifecycle pattern:
 handle_call(reset_all, _From, State = #state{table = Table}) ->
     case ets:info(Table) of
         undefined ->
-            router_logger:warn(<<"Circuit breaker reset_all: ETS table undefined">>, #{
-                <<"event">> => <<"circuit_breaker_reset_all">>
+            router_logger:warn(~"Circuit breaker reset_all: ETS table undefined", #{
+                ~"event" => ~"circuit_breaker_reset_all"
             }),
             {reply, ok, State};
         _ ->
             ets:delete_all_objects(Table),
-            router_logger:info(<<"Circuit breaker reset_all: table cleared">>, #{
-                <<"event">> => <<"circuit_breaker_reset_all">>
+            router_logger:info(~"Circuit breaker reset_all: table cleared", #{
+                ~"event" => ~"circuit_breaker_reset_all"
             }),
             {reply, ok, State}
     end;
@@ -179,7 +179,7 @@ The router project uses standardized error handling patterns to ensure consisten
 %% Examples:
 {error, invalid_input}
 {error, not_found}
-{error, {timeout, #{context => <<"operation">>}}}
+{error, {timeout, #{context => ~"operation"}}}
 ```
 
 #### Error Mapping Pattern
@@ -201,15 +201,15 @@ The router project uses standardized error handling patterns to ensure consisten
 
 ```erlang
 %% Log error with context
-router_logger:error(<<"Operation failed">>, #{
-    <<"error">> => Reason,
-    <<"context">> => Context,
-    <<"input">> => sanitize_input(Input)
+router_logger:error(~"Operation failed", #{
+    ~"error" => Reason,
+    ~"context" => Context,
+    ~"input" => sanitize_input(Input)
 }).
 
 %% Sanitize sensitive data
 sanitize_input(Input) ->
-    maps:remove(<<"password">>, maps:remove(<<"api_key">>, Input)).
+    maps:remove(~"password", maps:remove(~"api_key", Input)).
 ```
 
 #### Try-Catch Pattern
@@ -222,10 +222,10 @@ try
 catch
     Class:Reason:Stack ->
         %% Log error with full context
-        router_logger:error(<<"Operation error">>, #{
-            <<"error">> => {Class, Reason},
-            <<"stack">> => iolist_to_binary(io_lib:format("~p", [Stack])),
-            <<"input">> => sanitize_input(Input)
+        router_logger:error(~"Operation error", #{
+            ~"error" => {Class, Reason},
+            ~"stack" => iolist_to_binary(io_lib:format("~p", [Stack])),
+            ~"input" => sanitize_input(Input)
         }),
         {error, internal_error}
 end.
@@ -241,15 +241,15 @@ case primary_operation(Input) of
         %% Attempt recovery
         case recover_from_error(Reason, Input) of
             {ok, RecoveredResult} ->
-                router_logger:info(<<"Recovered from error">>, #{
-                    <<"error">> => Reason,
-                    <<"recovery">> => success
+                router_logger:info(~"Recovered from error", #{
+                    ~"error" => Reason,
+                    ~"recovery" => success
                 }),
                 {ok, RecoveredResult};
             {error, RecoveryError} ->
-                router_logger:error(<<"Recovery failed">>, #{
-                    <<"original_error">> => Reason,
-                    <<"recovery_error">> => RecoveryError
+                router_logger:error(~"Recovery failed", #{
+                    ~"original_error" => Reason,
+                    ~"recovery_error" => RecoveryError
                 }),
                 {error, RecoveryError}
         end
@@ -298,19 +298,19 @@ try
     gen_server:call(?MODULE, reset_all, 5000)
 catch
     exit:{noproc, _} ->
-        router_logger:error(<<"RBAC server not running for reset">>, #{
-            <<"event">> => <<"rbac_reset">>
+        router_logger:error(~"RBAC server not running for reset", #{
+            ~"event" => ~"rbac_reset"
         }),
         {error, service_unavailable};
     exit:{timeout, _} ->
-        router_logger:error(<<"RBAC reset timeout">>, #{
-            <<"event">> => <<"rbac_reset">>
+        router_logger:error(~"RBAC reset timeout", #{
+            ~"event" => ~"rbac_reset"
         }),
         {error, timeout};
     Class:Reason ->
-        router_logger:error(<<"RBAC reset error">>, #{
-            <<"event">> => <<"rbac_reset">>,
-            <<"error">> => {Class, Reason}
+        router_logger:error(~"RBAC reset error", #{
+            ~"event" => ~"rbac_reset",
+            ~"error" => {Class, Reason}
         }),
         {error, {Class, Reason}}
 end.

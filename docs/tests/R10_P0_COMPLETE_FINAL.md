@@ -30,11 +30,11 @@ All R10 metric reading is centralized in `router_r10_metrics.erl` module. Tests 
 ### Trigger Reason Constants
 
 All trigger reason values are available as constants:
-- `trigger_reason_failure_threshold()` - `<<"failure_threshold_exceeded">>`
-- `trigger_reason_error_rate()` - `<<"error_rate_threshold_exceeded">>`
-- `trigger_reason_latency()` - `<<"latency_threshold_exceeded">>`
-- `trigger_reason_half_open_failure()` - `<<"half_open_failure">>`
-- `trigger_reason_timeout()` - `<<"timeout_elapsed">>`
+- `trigger_reason_failure_threshold()` - `~"failure_threshold_exceeded"`
+- `trigger_reason_error_rate()` - `~"error_rate_threshold_exceeded"`
+- `trigger_reason_latency()` - `~"latency_threshold_exceeded"`
+- `trigger_reason_half_open_failure()` - `~"half_open_failure"`
+- `trigger_reason_timeout()` - `~"timeout_elapsed"`
 
 **When to add new trigger reasons**:
 1. Add constant function to `router_r10_metrics.erl`

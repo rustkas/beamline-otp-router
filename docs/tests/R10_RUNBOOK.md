@@ -40,18 +40,18 @@ This runbook provides step-by-step guidance for diagnosing and reproducing incid
    ```erlang
    %% In Erlang shell or via admin API
    router_r10_metrics:get_metric_value(router_circuit_breaker_state, #{
-       tenant_id => <<"affected_tenant">>,
-       provider_id => <<"affected_provider">>
+       tenant_id => ~"affected_tenant",
+       provider_id => ~"affected_provider"
    }).
    ```
 
 2. **Via Circuit Breaker API**:
    ```erlang
    %% Get current state
-   router_circuit_breaker:get_state(<<"tenant_id">>, <<"provider_id">>).
+   router_circuit_breaker:get_state(~"tenant_id", ~"provider_id").
    
    %% Check if requests are allowed
-   router_circuit_breaker:should_allow(<<"tenant_id">>, <<"provider_id">>).
+   router_circuit_breaker:should_allow(~"tenant_id", ~"provider_id").
    ```
 
 3. **Via Monitoring Dashboard**:

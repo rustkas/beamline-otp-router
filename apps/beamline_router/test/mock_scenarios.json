@@ -1,0 +1,57 @@
+{
+    "scenarios": [
+        {
+            "name": "success_openai",
+            "match": {
+                "policy_id": "demo-policy"
+            },
+            "response": {
+                "decision_id": "mock-dec-001",
+                "provider_id": "openai",
+                "reason": "weighted_random",
+                "priority": 1,
+                "expected_cost": 0.0001,
+                "expected_latency_ms": 500
+            }
+        },
+        {
+            "name": "success_anthropic",
+            "match": {
+                "policy_id": "anthropic-policy"
+            },
+            "response": {
+                "decision_id": "mock-dec-002",
+                "provider_id": "anthropic",
+                "reason": "lowest_cost",
+                "priority": 2,
+                "expected_cost": 0.00015
+            }
+        },
+        {
+            "name": "policy_not_found",
+            "match": {
+                "policy_id": "nonexistent-policy"
+            },
+            "error": "policy_not_found"
+        },
+        {
+            "name": "slow_response",
+            "match": {
+                "policy_id": "slow-policy"
+            },
+            "response": {
+                "decision_id": "mock-dec-slow",
+                "provider_id": "openai",
+                "reason": "test_latency"
+            },
+            "delay_ms": 1000
+        },
+        {
+            "name": "rate_limited",
+            "match": {
+                "policy_id": "rate-limit-policy"
+            },
+            "error": "rate_limit_exceeded"
+        }
+    ]
+}

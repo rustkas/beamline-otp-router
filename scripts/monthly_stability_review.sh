@@ -106,7 +106,7 @@ local trend_data="${REPORT_DIR}/trend_analysis_${MONTH}.txt"
     if (( $(echo "${avg_duration} > 900" | bc -l 2>/dev/null || echo "0") )); then
         echo -e "${YELLOW}Warning: Average duration exceeds 15 minutes${NC}"
         echo "- Consider creating separate CI job"
-        echo "- See docs/dev/FAULT_INJECTION_CI_JOB_GUIDE.md"
+        echo "- See docs/archive/dev/FAULT_INJECTION_CI_JOB_GUIDE.md"
     fi
     
     if [ ${unstable_weeks} -eq 0 ] && (( $(echo "${avg_pass_rate} >= 99" | bc -l 2>/dev/null || echo "0") )); then

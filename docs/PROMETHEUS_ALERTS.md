@@ -90,7 +90,7 @@ This document provides alerting rules for critical and warning signals emitted b
   - `RouterCircuitBreakerMultipleProvidersOpen`: Multiple providers have open circuit breakers (> 2 for 5m, critical)
   - `RouterCircuitBreakerHalfOpenProbesFailed`: Circuit breaker half-open probes failing (repeated opens after half-open, warning)
   
-  **Reference**: `docs/dev/CIRCUIT_BREAKER_OBSERVABILITY.md` for detailed alert definitions and runbook
+  **Reference**: `docs/archive/dev/CIRCUIT_BREAKER_OBSERVABILITY.md` for detailed alert definitions and runbook
 
 ## Example Alerting Rules (Prometheus)
 

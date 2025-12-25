@@ -19,9 +19,9 @@ This document describes the multi-tenant smoke test suite for Router, which veri
 
 The test suite uses the following tenant IDs:
 
-- **tenant-a** (`<<"tenant-a">>`): Valid tenant in allowlist
-- **tenant-b** (`<<"tenant-b">>`): Valid tenant in allowlist
-- **tenant-invalid** (`<<"tenant-invalid">>`): Invalid tenant (not in allowlist)
+- **tenant-a** (`~"tenant-a"`): Valid tenant in allowlist
+- **tenant-b** (`~"tenant-b"`): Valid tenant in allowlist
+- **tenant-invalid** (`~"tenant-invalid"`): Invalid tenant (not in allowlist)
 
 ## Test Scenarios
 
@@ -38,7 +38,7 @@ The test suite uses the following tenant IDs:
 4. Verify allowlist checks pass for `tenant-a`
 
 **Expected Results**:
-- ✅ Validation returns `{ok, <<"tenant-a">>}`
+- ✅ Validation returns `{ok, ~"tenant-a"}`
 - ✅ `router_nats_subscriber:check_tenant_allowed/1` returns `true`
 - ✅ `router_caf_adapter:check_tenant_allowed/1` returns `true`
 
@@ -56,8 +56,8 @@ The test suite uses the following tenant IDs:
 
 **Expected Results**:
 - ✅ Validation returns `{error, tenant_not_allowed, Context}`
-- ✅ Error context contains `tenant_id => <<"tenant-invalid">>`
-- ✅ Error context contains `reason => <<"tenant_id not in allowlist">>`
+- ✅ Error context contains `tenant_id => ~"tenant-invalid"`
+- ✅ Error context contains `reason => ~"tenant_id not in allowlist"`
 - ✅ `router_nats_subscriber:check_tenant_allowed/1` returns `false`
 - ✅ `router_caf_adapter:check_tenant_allowed/1` returns `false`
 
@@ -75,7 +75,7 @@ The test suite uses the following tenant IDs:
 5. Verify `tenant-a` still works (isolation check)
 
 **Expected Results**:
-- ✅ Validation returns `{ok, <<"tenant-b">>}`
+- ✅ Validation returns `{ok, ~"tenant-b"}`
 - ✅ `router_nats_subscriber:check_tenant_allowed/1` returns `true` for `tenant-b`
 - ✅ `router_caf_adapter:check_tenant_allowed/1` returns `true` for `tenant-b`
 - ✅ `tenant-a` still works (no cross-tenant interference)
@@ -95,9 +95,9 @@ The test suite uses the following tenant IDs:
 6. Verify no cross-tenant mixing (tenant-a events don't contain tenant-b)
 
 **Expected Results**:
-- ✅ All `tenant-a` events have `tenant_id => <<"tenant-a">>` in metadata
-- ✅ All `tenant-b` events have `tenant_id => <<"tenant-b">>` in metadata
-- ✅ All `tenant-invalid` events have `tenant_id => <<"tenant-invalid">>` in metadata
+- ✅ All `tenant-a` events have `tenant_id => ~"tenant-a"` in metadata
+- ✅ All `tenant-b` events have `tenant_id => ~"tenant-b"` in metadata
+- ✅ All `tenant-invalid` events have `tenant_id => ~"tenant-invalid"` in metadata
 - ✅ No `tenant-a` events contain `tenant-b` in metadata
 - ✅ No `tenant-b` events contain `tenant-a` in metadata
 
@@ -155,7 +155,7 @@ rebar3 ct --suite router_tenant_multitenant_smoke_SUITE --verbose
 The test suite configures the following application environment variables:
 
 - `caf_push_assignment_allowed_tenants`: List of allowed tenant IDs
-  - Default in tests: `[<<"tenant-a">>, <<"tenant-b">>]`
+  - Default in tests: `[~"tenant-a", ~"tenant-b"]`
 - `nats_mode`: Set to `mock` for testing
 - `grpc_enabled`: Set to `false` for testing
 - `grpc_port`: Set to `0` for testing

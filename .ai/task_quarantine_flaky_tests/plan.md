@@ -1,0 +1,7 @@
+## Plan
+
+1. Create a dedicated metadata source such as `config/quarantine/quarantined_suites.txt` that lists suite names plus a short reason/owner per line so the list is explicit, human-readable, and easy to update without mass refactors.
+2. Have `scripts/ct-full.sh` load that list (e.g., `while read -r suite reason; do ...; done < ...`) at startup, append the suites to the explicit `EXCLUDED_SUITES` array, and print a “Quarantined suites” block during the `--list` output; keep the rest of the runner unchanged so this stays a minimal injection.
+3. Ensure `scripts/ct-heavy.sh` / `rebar3 ct` log that the nightly run is executing the quarantine list so the trace is visible (it already runs everything, so this is a lightweight acknowledgement rather than a refactor).
+4. Document the policy + file location in `docs/testing/TEST_GOVERNANCE.md` (or a sibling note) so teams know how to add/remove entries, and mention how the new list interacts with the quality gate policy (quarantined suites bypass the “failed tests == 0” rule for full tier but still execute nightly).
+5. Use `router_nats_publish_retry_SUITE` as a concrete verification candidate: add it temporarily to the quarantine list, run `bash scripts/ct-full.sh --list` to confirm it is listed under quarantined suites and not scheduled, then run `ROUTER_TEST_LEVEL=heavy bash scripts/ct-heavy.sh` (or an equivalent rebar invocation) to confirm it still executes in the heavy/nightly tier.

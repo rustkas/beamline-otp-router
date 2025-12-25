@@ -141,10 +141,10 @@ make coverage-report
 
 ```erlang
 test_log_format_json(_Config) ->
-    Message = <<"Test log message">>,
+    Message = ~"Test log message",
     Context = #{
-        <<"tenant_id">> => <<"test_tenant">>,
-        <<"trace_id">> => <<"trace_123">>
+        ~"tenant_id" => ~"test_tenant",
+        ~"trace_id" => ~"trace_123"
     },
     
     router_logger:info(Message, Context),
@@ -155,7 +155,7 @@ test_log_format_json(_Config) ->
     LogFile = filename:join(LogDir, "router_" ++ Date ++ ".jsonl"),
     
     {ok, LogContent} = file:read_file(LogFile),
-    Lines = binary:split(LogContent, <<"\n">>, [global]),
+    Lines = binary:split(LogContent, ~"\n", [global]),
     ValidLines = [L || L <- Lines, byte_size(L) > 0],
     
     %% Verify each line is valid JSON
@@ -171,27 +171,27 @@ test_log_format_json(_Config) ->
 
 ```erlang
 test_correlation_fields(_Config) ->
-    Message = <<"Test CP1 correlation fields">>,
+    Message = ~"Test CP1 correlation fields",
     Context = #{
-        <<"tenant_id">> => <<"test_tenant">>,
-        <<"trace_id">> => <<"trace_abc123">>,
-        <<"run_id">> => <<"run_789">>,
-        <<"flow_id">> => <<"flow_456">>,
-        <<"step_id">> => <<"step_123">>
+        ~"tenant_id" => ~"test_tenant",
+        ~"trace_id" => ~"trace_abc123",
+        ~"run_id" => ~"run_789",
+        ~"flow_id" => ~"flow_456",
+        ~"step_id" => ~"step_123"
     },
     
     router_logger:info(Message, Context),
     
     %% Read log file and verify CP1 fields are at top level
     {ok, LogContent} = file:read_file(LogFile),
-    Lines = binary:split(LogContent, <<"\n">>, [global]),
+    Lines = binary:split(LogContent, ~"\n", [global]),
     [LastLine | _] = [L || L <- Lines, byte_size(L) > 0],
     LogEntry = jsx:decode(LastLine, [return_maps]),
     
     %% Verify CP1 fields are at top level (not in correlation object)
-    ?assert(maps:is_key(<<"tenant_id">>, LogEntry), "tenant_id should be at top level"),
-    ?assert(maps:is_key(<<"trace_id">>, LogEntry), "trace_id should be at top level"),
-    ?assert(maps:is_key(<<"run_id">>, LogEntry), "run_id should be at top level"),
+    ?assert(maps:is_key(~"tenant_id", LogEntry), "tenant_id should be at top level"),
+    ?assert(maps:is_key(~"trace_id", LogEntry), "trace_id should be at top level"),
+    ?assert(maps:is_key(~"run_id", LogEntry), "run_id should be at top level"),
     
     ok.
 ```
@@ -200,24 +200,24 @@ test_correlation_fields(_Config) ->
 
 ```erlang
 test_pii_filtering(_Config) ->
-    Message = <<"Test PII filtering">>,
+    Message = ~"Test PII filtering",
     Context = #{
-        <<"api_key">> => <<"sk-1234567890abcdef">>,
-        <<"password">> => <<"secret_password">>,
-        <<"token">> => <<"bearer_token_123">>
+        ~"api_key" => ~"sk-1234567890abcdef",
+        ~"password" => ~"secret_password",
+        ~"token" => ~"bearer_token_123"
     },
     
     router_logger:info(Message, Context),
     
     %% Read log file and verify PII is filtered
     {ok, LogContent} = file:read_file(LogFile),
-    [LastLine | _] = [L || L <- binary:split(LogContent, <<"\n">>, [global]), byte_size(L) > 0],
+    [LastLine | _] = [L || L <- binary:split(LogContent, ~"\n", [global]), byte_size(L) > 0],
     LogEntry = jsx:decode(LastLine, [return_maps]),
-    ContextMap = maps:get(<<"context">>, LogEntry, #{}),
+    ContextMap = maps:get(~"context", LogEntry, #{}),
     
     %% Verify PII fields are filtered
-    ?assertEqual(<<"[REDACTED]">>, maps:get(<<"api_key">>, ContextMap), "api_key should be filtered"),
-    ?assertEqual(<<"[REDACTED]">>, maps:get(<<"password">>, ContextMap), "password should be filtered"),
+    ?assertEqual(~"[REDACTED]", maps:get(~"api_key", ContextMap), "api_key should be filtered"),
+    ?assertEqual(~"[REDACTED]", maps:get(~"password", ContextMap), "password should be filtered"),
     
     ok.
 ```
@@ -246,7 +246,7 @@ test_pii_filtering(_Config) ->
 1. Check for special characters in log messages that need escaping
 2. Verify JSON serialization is working:
    ```erlang
-   jsx:encode(#{<<"test">> => <<"value">>})
+   jsx:encode(#{~"test" => ~"value"})
    ```
 3. Review `router_logger.erl` implementation for JSON encoding issues
 
@@ -492,7 +492,7 @@ rebar3 ct --suite test/router_observability_SUITE --group edge_case_tests
 - `apps/otp/router/scripts/benchmark_observability.sh` - Performance benchmarking script
 - `docs/OBSERVABILITY.md` - Unified observability requirements
 - `docs/OBSERVABILITY_CP1_INVARIANTS.md` - CP1 observability invariants
-- `docs/dev/ROUTER_OBSERVABILITY_TEST.md` - E2E test script documentation
+- `docs/archive/dev/ROUTER_OBSERVABILITY_TEST.md` - E2E test script documentation
 
 ## Test Maintenance
 

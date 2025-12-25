@@ -25,8 +25,8 @@ This document describes all telemetry events emitted by Router Core components, 
 **Example**:
 ```erlang
 telemetry:span([router_core, route], #{
-    tenant_id => <<"default_tenant">>,
-    policy_id => <<"default">>
+    tenant_id => ~"default_tenant",
+    policy_id => ~"default"
 }, fun() ->
     %% Route operation
 end).
@@ -49,7 +49,7 @@ end).
     tenant_id => binary(),
     policy_id => binary(),
     provider_id => binary(),
-    reason => <<"weighted">> | <<"sticky">> | <<"fallback">>,
+    reason => ~"weighted" | ~"sticky" | ~"fallback",
     result => ok
 }
 ```
@@ -103,7 +103,7 @@ end).
     tenant_id => binary(),
     policy_id => binary(),
     provider_id => binary(),
-    reason => <<"weighted">> | <<"sticky">> | <<"fallback">>,
+    reason => ~"weighted" | ~"sticky" | ~"fallback",
     result => ok
 }
 ```
@@ -121,10 +121,10 @@ end).
 **Example**:
 ```erlang
 telemetry:execute([router_core, routes_total], #{count => 1}, #{
-    tenant_id => <<"default_tenant">>,
-    policy_id => <<"default">>,
-    provider_id => <<"openai">>,
-    reason => <<"weighted">>,
+    tenant_id => ~"default_tenant",
+    policy_id => ~"default",
+    provider_id => ~"openai",
+    reason => ~"weighted",
     result => ok
 }).
 ```
@@ -150,9 +150,9 @@ telemetry:execute([router_core, routes_total], #{count => 1}, #{
 **Example**:
 ```erlang
 telemetry:execute([router_core, resolutions_total], #{count => 1}, #{
-    tenant_id => <<"default_tenant">>,
-    policy_id => <<"default">>,
-    provider_id => <<"openai">>
+    tenant_id => ~"default_tenant",
+    policy_id => ~"default",
+    provider_id => ~"openai"
 }).
 ```
 
@@ -179,12 +179,12 @@ telemetry:execute([router_core, resolutions_total], #{count => 1}, #{
 **Example**:
 ```erlang
 telemetry:execute([router_core, errors_total], #{count => 1}, #{
-    tenant_id => <<"default_tenant">>,
-    policy_id => <<"default">>,
+    tenant_id => ~"default_tenant",
+    policy_id => ~"default",
     error => missing_tenant_id,
     error_context => #{
-        context => <<"tenant_id is required in message">>,
-        message_id => <<"msg_123">>
+        context => ~"tenant_id is required in message",
+        message_id => ~"msg_123"
     },
     result => error
 }).
@@ -310,7 +310,7 @@ All events follow the pattern: `[component, operation, phase]`
 - `tenant_id`: Tenant identifier (binary)
 - `policy_id`: Policy identifier (binary)
 - `provider_id`: Selected provider (binary, for successful routes)
-- `reason`: Routing reason (binary: `<<"weighted">>`, `<<"sticky">>`, `<<"fallback">>`)
+- `reason`: Routing reason (binary: `~"weighted"`, `~"sticky"`, `~"fallback"`)
 - `result`: Operation result (`ok` | `error`)
 - `error`: Error reason (atom, for failed operations)
 - `error_context`: Error context map (for failed operations)
@@ -329,7 +329,7 @@ All events follow the pattern: `[component, operation, phase]`
 
 ```erlang
 telemetry:attach_many(
-    <<"router_core_handlers">>,
+    ~"router_core_handlers",
     [
         [router_core, route, start],
         [router_core, route, stop],

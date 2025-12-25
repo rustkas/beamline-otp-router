@@ -2,10 +2,11 @@
 # ci_full_quality_gates.sh - Quality Gates for Full Tier
 #
 # Implements quality gates for full tier CI:
-#   1. suite_linter == ok       - All suites pass linter checks (HARD GATE)
-#   2. failed_tests == 0        - No test failures allowed (HARD GATE)
-#   3. unexpected_skips == 0    - No unexpected skips (HARD GATE)
-#   4. targeted_coverage >= N%  - Coverage above threshold (SOFT GATE - warning only)
+#   0. quarantine_policy == ok   - Quarantine metadata is valid (HARD GATE)
+#   1. suite_linter == ok        - All suites pass linter checks (HARD GATE)
+#   2. failed_tests == 0         - No test failures allowed (HARD GATE)
+#   3. unexpected_skips == 0     - No unexpected skips (HARD GATE)
+#   4. targeted_coverage >= N%   - Coverage above threshold (SOFT GATE - warning only)
 #
 # Usage:
 #   ./scripts/ci_full_quality_gates.sh                    # Run all gates
@@ -89,10 +90,40 @@ echo -e "${BOLD}${BLUE}═══════════════════
 echo ""
 
 # ============================================================================
+# GATE 0: Quarantine Policy Check
+# ============================================================================
+check_quarantine_policy() {
+    echo -e "${BLUE}[Gate 0/4] Quarantine Policy Check${NC}"
+    echo "────────────────────────────────────────────────────────────────"
+    
+    local POLICY_SCRIPT="$SCRIPT_DIR/check_quarantine_policy.sh"
+    
+    if [[ ! -f "$POLICY_SCRIPT" ]]; then
+        echo -e "  ${YELLOW}⚠ Quarantine policy script not found: $POLICY_SCRIPT${NC}"
+        echo "    Skipping quarantine policy check."
+        return 0
+    fi
+    
+    # Run quarantine policy check (uses QUARANTINE_STRICT from environment if set)
+    local POLICY_OUTPUT
+    if POLICY_OUTPUT=$(bash "$POLICY_SCRIPT" 2>&1); then
+        echo -e "  ${GREEN}✓ Quarantine policy check passed${NC}"
+        # Show summary line
+        echo "$POLICY_OUTPUT" | grep -E "(Passed checks|Warnings|Errors|PASSED)" | tail -4 | sed 's/^/    /'
+        return 0
+    else
+        echo -e "  ${RED}✗ Quarantine policy check FAILED${NC}"
+        echo "$POLICY_OUTPUT" | grep -E "(ERROR|FAILED|Missing)" | head -10 | sed 's/^/    /'
+        return 1
+    fi
+}
+
+# ============================================================================
 # GATE 1: Suite Linter
 # ============================================================================
 run_suite_linter() {
-    echo -e "${BLUE}[Gate 1/3] Suite Linter Check${NC}"
+    echo ""
+    echo -e "${BLUE}[Gate 1/4] Suite Linter Check${NC}"
     echo "────────────────────────────────────────────────────────────────"
     
     # Compile and run linter
@@ -123,7 +154,7 @@ run_suite_linter() {
 # ============================================================================
 check_failed_tests() {
     echo ""
-    echo -e "${BLUE}[Gate 2/3] Failed Tests Check${NC}"
+    echo -e "${BLUE}[Gate 2/4] Failed Tests Check${NC}"
     echo "────────────────────────────────────────────────────────────────"
     
     if [[ ! -d "$CT_LOG_DIR" ]]; then
@@ -206,7 +237,7 @@ check_failed_tests() {
 # ============================================================================
 check_unexpected_skips() {
     echo ""
-    echo -e "${BLUE}[Gate 3/3] Unexpected Skips Check${NC}"
+    echo -e "${BLUE}[Gate 3/4] Unexpected Skips Check${NC}"
     echo "────────────────────────────────────────────────────────────────"
     
     local SKIP_COUNT=0
@@ -346,9 +377,16 @@ check_coverage() {
 # Main Execution
 # ============================================================================
 
+GATE0_RESULT=0
 GATE1_RESULT=0
 GATE2_RESULT=0
 GATE3_RESULT=0
+
+# Run Gate 0: Quarantine Policy Check (always runs first)
+if ! check_quarantine_policy; then
+    GATE0_RESULT=1
+    EXIT_CODE=1
+fi
 
 # Run Gate 1: Suite Linter (always runs)
 if ! run_suite_linter; then
@@ -408,6 +446,7 @@ soft_gate_status() {
 }
 
 echo -e "  ${BOLD}Hard Gates (blocking):${NC}"
+echo -e "  Gate 0: quarantine_policy == ok  $(gate_status $GATE0_RESULT)"
 echo -e "  Gate 1: suite_linter == ok       $(gate_status $GATE1_RESULT)"
 if [[ "$LINTER_ONLY" == false ]]; then
     echo -e "  Gate 2: failed_tests == 0        $(gate_status $GATE2_RESULT)"

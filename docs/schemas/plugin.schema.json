@@ -8,7 +8,7 @@
   "properties": {
     "$schema": {
       "type": "string",
-      "description": "JSON Schema URI (optional, for IDE support)"
+      "description": "JSON Schema URI (optional, for editor support)"
     },
     "id": {
       "type": "string",
@@ -88,4 +88,3 @@
     }
   ]
 }
-

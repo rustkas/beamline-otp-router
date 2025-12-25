@@ -101,8 +101,8 @@ true = (PublishResult =/= undefined),  %% Result returned, not lost
 %% 3.1: Error log contains clear message about failure
 AllLogs = ets:tab2list(LogCalls),
 ErrorLogs = [L || {log, _, Message, Context} = L <- AllLogs,
-                  binary:match(Message, <<"NATS publish failed">>) =/= nomatch,
-                  maps:get(<<"error_code">>, Context, undefined) =:= <<"NATS_PUBLISH_ERROR">>],
+                  binary:match(Message, ~"NATS publish failed") =/= nomatch,
+                  maps:get(~"error_code", Context, undefined) =:= ~"NATS_PUBLISH_ERROR"],
 true = length(ErrorLogs) > 0,
 
 %% 3.2: Metrics - error counters incremented (fact of error)

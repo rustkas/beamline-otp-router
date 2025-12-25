@@ -59,8 +59,8 @@ router_r10_metrics:dump_metrics().
 
 %% Check specific metric
 router_r10_metrics:get_metric_value(router_circuit_breaker_state, #{
-    tenant_id => <<"tenant-123">>,
-    provider_id => <<"provider-1">>
+    tenant_id => ~"tenant-123",
+    provider_id => ~"provider-1"
 }).
 
 %% Check rate limit metrics
@@ -78,7 +78,7 @@ router_metrics:get_metric_value(router_rate_limit_exceeded_total, #{}).
 **Diagnosis**:
 ```erlang
 %% Check if policy exists
-router_policy_store:list_policies(<<"tenant-123">>).
+router_policy_store:list_policies(~"tenant-123").
 
 %% Check policy store table
 ets:tab2list(router_policies).
@@ -100,7 +100,7 @@ ets:tab2list(router_policies).
 ```erlang
 %% Check rate limit metrics
 router_metrics:get_metric_value(router_rate_limit_exceeded_total, #{
-    tenant_id => <<"tenant-123">>
+    tenant_id => ~"tenant-123"
 }).
 
 %% Check rate limiter process
@@ -123,13 +123,13 @@ whereis(router_rate_limiter).
 ```erlang
 %% Check circuit breaker state
 router_r10_metrics:get_metric_value(router_circuit_breaker_state, #{
-    tenant_id => <<"tenant-123">>,
-    provider_id => <<"provider-1">>,
-    state => <<"open">>
+    tenant_id => ~"tenant-123",
+    provider_id => ~"provider-1",
+    state => ~"open"
 }).
 
 %% Check trigger reason
-router_r10_metrics:get_latest_trigger_reason(<<"tenant-123">>, <<"provider-1">>).
+router_r10_metrics:get_latest_trigger_reason(~"tenant-123", ~"provider-1").
 ```
 
 **Resolution**:
@@ -173,7 +173,7 @@ router_metrics:get_metric_value(router_nats_publish_failures_total, #{}).
 router_metrics:get_metric_value(router_grpc_request_duration_seconds, #{}).
 
 %% Check for backpressure
-router_intake_backpressure:get_backpressure_status(<<"beamline.router.v1.decide">>).
+router_intake_backpressure:get_backpressure_status(~"beamline.router.v1.decide").
 ```
 
 **Resolution**:

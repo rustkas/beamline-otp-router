@@ -1,0 +1,3 @@
+- When you edit these files, rerun the related verification command (see acceptance/progress) and note results in `progress.md`.
+- Mention any enduring assumptions (e.g., that `router_nats_server:which/1` is the only caller that needs trimming) with a short parenthetical.
+- If a fix interacts with both heavy and full tiers, describe the guarded change in `plan.md` so subsequent reviewers see the dependency.

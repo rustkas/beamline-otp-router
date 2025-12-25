@@ -1,0 +1,39 @@
+{
+    "version": "cp1",
+    "rules": {
+        "latency_p95_ms": {
+            "relative": {
+                "max_pct_increase": 15
+            }
+        },
+        "latency_p99_ms": {
+            "relative": {
+                "max_pct_increase": 20
+            }
+        },
+        "rps": {
+            "relative": {
+                "max_pct_decrease": 10
+            }
+        },
+        "mem_mb_total_erlang": {
+            "relative": {
+                "max_pct_increase": 15
+            }
+        },
+        "errors_total": {
+            "absolute": {
+                "equals": 0
+            }
+        },
+        "backpressure_active_total": {
+            "absolute": {
+                "equals": 0
+            }
+        }
+    },
+    "gate": {
+        "require_candidate_ct_exit_code_zero": true,
+        "require_all_metrics_present": true
+    }
+}

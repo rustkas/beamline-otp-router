@@ -1,0 +1,430 @@
+{
+    "meta": {
+        "name": "cp2_contracts",
+        "version": "0.1.0",
+        "status": "draft",
+        "freeze_tag": "cp1-freeze-1.0.0-rc1",
+        "updated_at": "2025-12-22",
+        "owners": [
+            "router",
+            "caf",
+            "platform"
+        ]
+    },
+    "conventions": {
+        "subject_versioning": {
+            "rule": "v1 subjects are frozen; v2 subjects must be additive and parallel. Never repurpose v1 semantics.",
+            "allowed_versions": [
+                "v1",
+                "v2"
+            ]
+        },
+        "encoding": {
+            "headers": "utf8-string",
+            "payload": "binary-or-json"
+        },
+        "backward_compatibility": {
+            "rule": "v1 consumers must continue working unchanged. v2 is opt-in.",
+            "headers_optional_in_v1": true
+        },
+        "ids": {
+            "trace_id": {
+                "format": "uuid-or-opaque",
+                "max_len": 128
+            },
+            "tenant_id": {
+                "format": "opaque",
+                "max_len": 128
+            },
+            "request_id": {
+                "format": "opaque",
+                "max_len": 128
+            },
+            "assignment_id": {
+                "format": "opaque",
+                "max_len": 128
+            },
+            "msg_id": {
+                "format": "opaque",
+                "max_len": 128
+            }
+        }
+    },
+    "header_sets": {
+        "base_v1": {
+            "description": "CP1 baseline headers (all optional for backward compat)",
+            "required": [],
+            "optional": [
+                "trace_id",
+                "tenant_id",
+                "version"
+            ]
+        },
+        "base_v2": {
+            "description": "CP2 enhanced headers (required for v2 subjects)",
+            "required": [
+                "x_trace_id",
+                "x_tenant_id",
+                "x_contract_version"
+            ],
+            "optional": [
+                "x_request_id",
+                "x_assignment_id",
+                "x_retry_count",
+                "x_sent_at_ms"
+            ]
+        },
+        "jetstream_v1": {
+            "description": "CP1 JetStream events (headers optional)",
+            "required": [],
+            "optional": [
+                "trace_id",
+                "tenant_id",
+                "version",
+                "nats-msg-id"
+            ]
+        },
+        "jetstream_v2": {
+            "description": "CP2 JetStream events (strict contract)",
+            "required": [
+                "x_trace_id",
+                "x_tenant_id",
+                "x_contract_version",
+                "x_msg_id"
+            ],
+            "optional": [
+                "x_request_id",
+                "x_assignment_id",
+                "x_sent_at_ms",
+                "x_producer",
+                "x_schema_id"
+            ]
+        },
+        "request_reply_v1": {
+            "description": "CP1 request-reply (minimal contract)",
+            "required": [],
+            "optional": [
+                "trace_id",
+                "tenant_id"
+            ]
+        },
+        "request_reply_v2": {
+            "description": "CP2 request-reply (enhanced)",
+            "required": [
+                "x_trace_id",
+                "x_tenant_id",
+                "x_contract_version"
+            ],
+            "optional": [
+                "x_request_id",
+                "x_sent_at_ms"
+            ]
+        },
+        "dlq_v2": {
+            "description": "CP2 DLQ envelope (new in v2)",
+            "required": [
+                "x_trace_id",
+                "x_tenant_id",
+                "x_contract_version",
+                "x_msg_id",
+                "x_dlq_reason",
+                "x_original_subject"
+            ],
+            "optional": [
+                "x_original_msg_id",
+                "x_request_id",
+                "x_assignment_id",
+                "x_retry_count",
+                "x_sent_at_ms",
+                "x_first_seen_ms",
+                "x_last_seen_ms"
+            ]
+        }
+    },
+    "subjects": [
+        {
+            "name": "beamline.router.v1.decide",
+            "class": "request_reply",
+            "direction": "client_or_gateway->router",
+            "purpose": "Routing decision request/reply. CP1 FROZEN.",
+            "version": "v1",
+            "status": "frozen",
+            "headers": "request_reply_v1",
+            "payload": {
+                "format": "protobuf",
+                "schema_id": "beamline.router.DecideRequest",
+                "schema_version": "v1"
+            },
+            "reply": {
+                "format": "protobuf",
+                "schema_id": "beamline.router.DecideResponse",
+                "schema_version": "v1"
+            },
+            "correlation": {
+                "primary": "request_id",
+                "fallback": []
+            },
+            "idempotency": {
+                "key": "request_id",
+                "scope": "tenant",
+                "enforcement": "optional"
+            },
+            "notes": [
+                "Request-reply over NATS (not JetStream).",
+                "Headers optional for backward compat.",
+                "Must remain unchanged in CP2."
+            ]
+        },
+        {
+            "name": "beamline.router.v2.decide",
+            "class": "request_reply",
+            "direction": "client_or_gateway->router",
+            "purpose": "CP2 routing decision with stricter contract. PARALLEL to v1.",
+            "version": "v2",
+            "status": "planned",
+            "headers": "request_reply_v2",
+            "payload": {
+                "format": "protobuf",
+                "schema_id": "beamline.router.DecideRequest",
+                "schema_version": "v2"
+            },
+            "reply": {
+                "format": "protobuf",
+                "schema_id": "beamline.router.DecideResponse",
+                "schema_version": "v2"
+            },
+            "correlation": {
+                "primary": "request_id",
+                "fallback": []
+            },
+            "idempotency": {
+                "key": "x_request_id",
+                "scope": "tenant",
+                "enforcement": "required"
+            },
+            "notes": [
+                "Parallel to v1, not replacement.",
+                "Headers REQUIRED.",
+                "Enhanced response with streaming hints."
+            ]
+        },
+        {
+            "name": "caf.exec.assign.v1",
+            "class": "jetstream_event",
+            "direction": "router->caf_worker",
+            "purpose": "CAF execution assignment stream. CP1 FROZEN.",
+            "version": "v1",
+            "status": "frozen",
+            "headers": "jetstream_v1",
+            "payload": {
+                "format": "protobuf",
+                "schema_id": "caf.exec.ExecAssignment",
+                "schema_version": "v1"
+            },
+            "correlation": {
+                "primary": "assignment_id",
+                "fallback": [
+                    "request_id"
+                ]
+            },
+            "idempotency": {
+                "key": "nats-msg-id",
+                "scope": "tenant",
+                "enforcement": "optional"
+            },
+            "notes": [
+                "Published to JetStream stream (when enabled).",
+                "Headers optional for CP1 backward compat."
+            ]
+        },
+        {
+            "name": "caf.exec.result.v1",
+            "class": "jetstream_event",
+            "direction": "caf_worker->router",
+            "purpose": "CAF execution result stream. CP1 FROZEN.",
+            "version": "v1",
+            "status": "frozen",
+            "headers": "jetstream_v1",
+            "payload": {
+                "format": "protobuf",
+                "schema_id": "caf.exec.ExecResult",
+                "schema_version": "v1"
+            },
+            "correlation": {
+                "primary": "assignment_id",
+                "fallback": [
+                    "request_id"
+                ]
+            },
+            "idempotency": {
+                "key": "nats-msg-id",
+                "scope": "tenant",
+                "enforcement": "required"
+            },
+            "notes": [
+                "Router result_consumer subscribes via JetStream.",
+                "Headers optional but msg_id CRITICAL for ack/nak."
+            ]
+        },
+        {
+            "name": "beamline.usage.v1.metered",
+            "class": "jetstream_event",
+            "direction": "router->usage_consumer",
+            "purpose": "Usage metering events. CP1 FROZEN.",
+            "version": "v1",
+            "status": "frozen",
+            "headers": "jetstream_v1",
+            "payload": {
+                "format": "json",
+                "schema_id": "beamline.usage.UsageEvent",
+                "schema_version": "v1"
+            },
+            "correlation": {
+                "primary": "assignment_id",
+                "fallback": [
+                    "request_id"
+                ]
+            },
+            "idempotency": {
+                "key": "assignment_id",
+                "scope": "tenant",
+                "enforcement": "required"
+            },
+            "notes": [
+                "Idempotency CRITICAL to prevent double billing.",
+                "CP1 uses in-memory store; CP2 should persist."
+            ]
+        },
+        {
+            "name": "beamline.router.dlq.v2",
+            "class": "dlq",
+            "direction": "router_or_worker->dlq_stream",
+            "purpose": "Dead-letter envelope for failed messages. NEW in CP2.",
+            "version": "v2",
+            "status": "planned",
+            "headers": "dlq_v2",
+            "payload": {
+                "format": "json",
+                "schema_id": "beamline.router.DlqEnvelope",
+                "schema_version": "v2"
+            },
+            "correlation": {
+                "primary": "msg_id",
+                "fallback": [
+                    "assignment_id",
+                    "request_id"
+                ]
+            },
+            "idempotency": {
+                "key": "x_msg_id",
+                "scope": "global",
+                "enforcement": "required"
+            },
+            "notes": [
+                "Envelope MUST include original_subject and error classification.",
+                "Replay tools can re-publish to original subject.",
+                "Not present in CP1."
+            ]
+        },
+        {
+            "name": "beamline.router.v2.status.backpressure",
+            "class": "request_reply",
+            "direction": "client->router",
+            "purpose": "Query backpressure status. NEW in CP2.",
+            "version": "v2",
+            "status": "planned",
+            "headers": "request_reply_v2",
+            "payload": {
+                "format": "json",
+                "schema_id": "beamline.router.BackpressureQuery",
+                "schema_version": "v2"
+            },
+            "reply": {
+                "format": "json",
+                "schema_id": "beamline.router.BackpressureStatus",
+                "schema_version": "v2"
+            },
+            "correlation": {
+                "primary": "request_id",
+                "fallback": []
+            },
+            "idempotency": {
+                "key": null,
+                "scope": null,
+                "enforcement": "none"
+            },
+            "notes": [
+                "Read-only query, no side effects.",
+                "Returns: status, pending_messages, latency_p95, retry_after_seconds."
+            ]
+        }
+    ],
+    "breaking_change_rules": {
+        "v1_to_v2": {
+            "allowed": [
+                "Add new v2 subject (parallel)",
+                "Add optional headers to v2",
+                "Add optional payload fields (protobuf/json additive)",
+                "Enhance v2 reply with new fields"
+            ],
+            "forbidden": [
+                "Change v1 subject semantics",
+                "Remove v1 subject",
+                "Make v1 headers required",
+                "Remove v1 payload fields",
+                "Change v1 correlation keys"
+            ]
+        }
+    },
+    "ownership": {
+        "beamline.router.v1.decide": {
+            "module": "router_decide_consumer",
+            "handler": "handle_decide_request/2",
+            "team": "router",
+            "status": "active",
+            "evidence": "src/router_decide_consumer.erl:18 (DEFAULT_DECIDE_SUBJECT)"
+        },
+        "beamline.router.v2.decide": {
+            "module": "router_decide_consumer_v2",
+            "handler": "TBD",
+            "team": "router",
+            "status": "planned",
+            "evidence": "Not implemented yet (CP2)"
+        },
+        "caf.exec.assign.v1": {
+            "module": "TBD",
+            "handler": "TBD",
+            "team": "caf",
+            "status": "external",
+            "evidence": "CAF worker (external component, not in Router codebase)"
+        },
+        "caf.exec.result.v1": {
+            "module": "router_result_consumer",
+            "handler": "handle_result/2",
+            "team": "router",
+            "status": "active",
+            "evidence": "src/router_result_consumer.erl:23 (DEFAULT_RESULT_SUBJECT)"
+        },
+        "beamline.usage.v1.metered": {
+            "module": "router_result_consumer",
+            "handler": "emit_usage/2",
+            "team": "router",
+            "status": "active",
+            "evidence": "src/router_result_consumer.erl:24 (DEFAULT_USAGE_SUBJECT)"
+        },
+        "beamline.router.dlq.v2": {
+            "module": "router_dlq_handler",
+            "handler": "TBD",
+            "team": "router",
+            "status": "planned",
+            "evidence": "New in CP2 (DLQ infrastructure)"
+        },
+        "beamline.router.v2.status.backpressure": {
+            "module": "router_backpressure",
+            "handler": "get_status/0",
+            "team": "router",
+            "status": "planned",
+            "evidence": "Planned CP2 API (backpressure query endpoint)"
+        }
+    }
+}

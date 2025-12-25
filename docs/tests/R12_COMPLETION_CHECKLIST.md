@@ -39,7 +39,7 @@
 - [x] R12_NETWORK_PARTITION_SCENARIOS.md - Updated with new scenarios
 - [x] R12_NETWORK_PARTITION_PATTERNS_CATALOG.md - Updated test coverage matrix (21 → 31)
 - [x] R12_REQUIREMENTS_TRACEABILITY.md - Updated requirements (26 → 32) and invariants (I1-I6 → I1-I8)
-- [x] docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md - Updated test count (21 → 31) and helper functions (5 → 8)
+- [x] docs/archive/dev/JETSTREAM_FAULT_INJECTION_TESTS.md - Updated test count (21 → 31) and helper functions (5 → 8)
 - [x] R12_RESULTS_REPORT_20250127.md - Updated test count and helper functions
 - [x] R12_DATA_GUARANTEES_AND_INVARIANTS.md - Created (new document)
 - [x] R12_NEW_SCENARIOS_ADDED.md - Created (new document)

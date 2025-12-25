@@ -1,0 +1,4 @@
+- `apps/otp/router/test/router_jetstream_recovery_ext_SUITE.erl`
+- `apps/otp/router/test/router_jetstream_recovery_helpers.erl`
+- `apps/otp/router/test/router_jetstream_fi_helper.erl` (if needed)
+- `apps/otp/router/test/router_mock_helpers.erl` (if needed)

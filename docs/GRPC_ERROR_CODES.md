@@ -24,7 +24,7 @@ This documentation describes the mapping between gRPC Status Codes, HTTP status 
 
 **Example:**
 ```erlang
-{grpc_error, {?GRPC_STATUS_INVALID_ARGUMENT, <<"missing tenant_id">>}}
+{grpc_error, {?GRPC_STATUS_INVALID_ARGUMENT, ~"missing tenant_id"}}
 ```
 
 ### NOT_FOUND (5)
@@ -35,7 +35,7 @@ This documentation describes the mapping between gRPC Status Codes, HTTP status 
 
 **Example:**
 ```erlang
-{grpc_error, {?GRPC_STATUS_NOT_FOUND, <<"policy not found">>}}
+{grpc_error, {?GRPC_STATUS_NOT_FOUND, ~"policy not found"}}
 ```
 
 ### INTERNAL (13)
@@ -47,7 +47,7 @@ This documentation describes the mapping between gRPC Status Codes, HTTP status 
 
 **Example:**
 ```erlang
-{grpc_error, {?GRPC_STATUS_INTERNAL, <<"Internal server error">>}}
+{grpc_error, {?GRPC_STATUS_INTERNAL, ~"Internal server error"}}
 ```
 
 ## RouterAdmin Service
@@ -66,15 +66,15 @@ This documentation describes the mapping between gRPC Status Codes, HTTP status 
 ```erlang
 %% Missing key
 Ctx = #{metadata => []},
-{grpc_error, {?GRPC_STATUS_UNAUTHENTICATED, <<"missing or invalid API key">>}}
+{grpc_error, {?GRPC_STATUS_UNAUTHENTICATED, ~"missing or invalid API key"}}
 
 %% Invalid key
-Ctx = #{metadata => [{<<"x-api-key">>, <<"wrong-key">>}]},
-{grpc_error, {?GRPC_STATUS_UNAUTHENTICATED, <<"missing or invalid API key">>}}
+Ctx = #{metadata => [{~"x-api-key", ~"wrong-key"}]},
+{grpc_error, {?GRPC_STATUS_UNAUTHENTICATED, ~"missing or invalid API key"}}
 
 %% Empty key
-Ctx = #{metadata => [{<<"x-api-key">>, <<>>}]},
-{grpc_error, {?GRPC_STATUS_UNAUTHENTICATED, <<"missing or invalid API key">>}}
+Ctx = #{metadata => [{~"x-api-key", <<>>}]},
+{grpc_error, {?GRPC_STATUS_UNAUTHENTICATED, ~"missing or invalid API key"}}
 ```
 
 ### INVALID_ARGUMENT (3)
@@ -91,19 +91,19 @@ Ctx = #{metadata => [{<<"x-api-key">>, <<>>}]},
 ```erlang
 %% Invalid weights
 AdminPolicyPb = #'AdminPolicy'{
-    policy_id = <<"test">>,
+    policy_id = ~"test",
     providers = [
-        #'AdminProvider'{id = <<"openai">>, weight = 1.5}  %% > 1.0
+        #'AdminProvider'{id = ~"openai", weight = 1.5}  %% > 1.0
     ]
 },
-{grpc_error, {?GRPC_STATUS_INVALID_ARGUMENT, <<"weights must be in [0.0, 1.0]">>}}
+{grpc_error, {?GRPC_STATUS_INVALID_ARGUMENT, ~"weights must be in [0.0, 1.0]"}}
 
 %% Empty policy_id
 AdminPolicyPb = #'AdminPolicy'{
     policy_id = <<>>,  %% Empty
     providers = [...]
 },
-{grpc_error, {?GRPC_STATUS_INVALID_ARGUMENT, <<"policy_id cannot be empty">>}}
+{grpc_error, {?GRPC_STATUS_INVALID_ARGUMENT, ~"policy_id cannot be empty"}}
 ```
 
 ### NOT_FOUND (5)
@@ -113,7 +113,7 @@ AdminPolicyPb = #'AdminPolicy'{
 
 **Example:**
 ```erlang
-{grpc_error, {?GRPC_STATUS_NOT_FOUND, <<"policy not found">>}}
+{grpc_error, {?GRPC_STATUS_NOT_FOUND, ~"policy not found"}}
 ```
 
 ### INTERNAL (13)
@@ -133,7 +133,7 @@ For `INTERNAL` errors, the server provides structured details via the `grpc-stat
 
 **Details format:**
 ```erlang
-#{error_type => <<"timeout">>, error_code => <<"TIMEOUT">>}
+#{error_type => ~"timeout", error_code => ~"TIMEOUT"}
 ```
 
 **Supported error types:**
@@ -153,8 +153,8 @@ For `INTERNAL` errors, the server provides structured details via the `grpc-stat
 
 **Example:**
 ```erlang
-{grpc_error, {?GRPC_STATUS_INTERNAL, <<"Internal server error">>, 
-              #{error_type => <<"timeout">>, error_code => <<"TIMEOUT">>}}}
+{grpc_error, {?GRPC_STATUS_INTERNAL, ~"Internal server error", 
+              #{error_type => ~"timeout", error_code => ~"TIMEOUT"}}}
 ```
 
 ## Error Handling in Client
@@ -178,15 +178,15 @@ catch
         {error, {not_found, Message}};
     {grpc_error, {?GRPC_STATUS_INTERNAL, Message, Details}} ->
         %% Server error with structured details - extract error type/code
-        ErrorType = maps:get(error_type, Details, <<"internal_error">>),
-        ErrorCode = maps:get(error_code, Details, <<"INTERNAL_ERROR">>),
+        ErrorType = maps:get(error_type, Details, ~"internal_error"),
+        ErrorCode = maps:get(error_code, Details, ~"INTERNAL_ERROR"),
         
         %% Handle specific error types
         case ErrorCode of
-            <<"TIMEOUT">> ->
+            ~"TIMEOUT" ->
                 %% Retry with backoff
                 {error, {timeout, Message}};
-            <<"CONNECTION_REFUSED">> ->
+            ~"CONNECTION_REFUSED" ->
                 %% Check service availability
                 {error, {connection_refused, Message}};
             _ ->
@@ -251,9 +251,9 @@ All sensitive data (API keys, secrets) is sanitized in logs via `router_logger:s
 
 ```erlang
 %% In logs
-Context = #{<<"api_key">> => <<"secret-key">>},
+Context = #{~"api_key" => ~"secret-key"},
 Sanitized = router_logger:sanitize_context(Context),
-%% Result: #{<<"api_key">> => <<"[REDACTED]">>}
+%% Result: #{~"api_key" => ~"[REDACTED]"}
 ```
 
 ### Error Messages
@@ -279,10 +279,10 @@ Sanitized = router_logger:sanitize_context(Context),
 ```erlang
 %% Valid key but insufficient scope
 Ctx = #{metadata => [
-    {<<"x-api-key">>, <<"valid-key">>},
-    {<<"x-scope">>, <<"read_only">>}
+    {~"x-api-key", ~"valid-key"},
+    {~"x-scope", ~"read_only"}
 ]},
-{grpc_error, {?GRPC_STATUS_PERMISSION_DENIED, <<"insufficient permissions: write access required">>}}
+{grpc_error, {?GRPC_STATUS_PERMISSION_DENIED, ~"insufficient permissions: write access required"}}
 ```
 
 ### RESOURCE_EXHAUSTED (8)
@@ -295,7 +295,7 @@ Ctx = #{metadata => [
 **Example (future implementation):**
 ```erlang
 %% Rate limit exceeded
-{grpc_error, {?GRPC_STATUS_RESOURCE_EXHAUSTED, <<"rate limit exceeded: 100 requests/minute">>}}
+{grpc_error, {?GRPC_STATUS_RESOURCE_EXHAUSTED, ~"rate limit exceeded: 100 requests/minute"}}
 ```
 
 **Retry strategy:**

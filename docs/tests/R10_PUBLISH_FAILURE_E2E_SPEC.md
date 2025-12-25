@@ -558,7 +558,7 @@ R10 is considered **complete** when:
 - [R8: JetStream Fault Injection Tests](./R8_SUMMARY.md)
 - [Triple Fault Patterns Catalog](./TRIPLE_FAULT_PATTERNS_CATALOG.md)
 - [Fault Injection Requirements Traceability](./FAULT_INJECTION_REQUIREMENTS_TRACEABILITY.md)
-- [JetStream Fault Injection Tests Documentation](../docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md)
+- [JetStream Fault Injection Tests Documentation](../docs/archive/dev/JETSTREAM_FAULT_INJECTION_TESTS.md)
 
 ## 11. Change History
 

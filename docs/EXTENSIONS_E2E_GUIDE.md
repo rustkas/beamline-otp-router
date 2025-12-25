@@ -142,7 +142,7 @@ nats req "beamline.ext.pre.normalize_text.v1" '{"payload":{"payload":"Hello Worl
 ```bash
 # Check Extension Registry
 # In Erlang shell:
-router_extension_registry:lookup(<<"normalize_text">>).
+router_extension_registry:lookup(~"normalize_text").
 
 # Reload extensions
 router_extension_registry:reload().

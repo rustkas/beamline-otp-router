@@ -1,0 +1,1 @@
+Task: Fix Common Test suite linter violations for router_jetstream_recovery_ext_SUITE and router_caf_adapter_SUITE. Add all required lifecycle callbacks per the CT linter guidelines without changing semantics or adding non-deterministic behavior.

@@ -169,7 +169,7 @@ Router implements comprehensive fault tolerance mechanisms to ensure reliable op
 
 **Total**: 4 metric contract tests
 
-**See**: `docs/dev/METRICS_CONTRACT_SPECIFICATION.md` for metric contract details.
+**See**: `docs/archive/dev/METRICS_CONTRACT_SPECIFICATION.md` for metric contract details.
 
 ## Known Limitations and Accepted Risks
 
@@ -289,7 +289,7 @@ Router implements comprehensive fault tolerance mechanisms to ensure reliable op
   - `test/CONCURRENT_FAULTS_TEST_DOCUMENTATION.md` - Concurrent fault scenarios
   - `test/FAULT_INJECTION_TEST_SCENARIOS.md` - General fault injection scenarios
   - `test/CONCURRENT_FAULTS_CI_STABILITY.md` - CI stability verification
-- **Metrics Contract**: `docs/dev/METRICS_CONTRACT_SPECIFICATION.md`
+- **Metrics Contract**: `docs/archive/dev/METRICS_CONTRACT_SPECIFICATION.md`
 - **NATS Resilience**: `docs/NATS_CONNECTION_RESILIENCE.md`
 - **Operational Guide**: `docs/OPERATIONAL_GUIDE.md`
 - **Prometheus Alerts**: `docs/PROMETHEUS_ALERTS.md`

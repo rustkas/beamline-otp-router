@@ -97,7 +97,7 @@ git commit -m "feat: Add my feature"
 
 -include("beamline_router.hrl").
 
-%% @doc Public function description
+-doc "Public function description".
 -spec public_function(Arg :: term()) -> ok.
 public_function(Arg) ->
     %% Implementation
@@ -131,9 +131,9 @@ end.
 
 **Use `router_logger` for all logging**:
 ```erlang
-router_logger:info(<<"Operation started">>, #{
-    <<"tenant_id">> => TenantId,
-    <<"operation">> => <<"my_operation">>
+router_logger:info(~"Operation started", #{
+    ~"tenant_id" => TenantId,
+    ~"operation" => ~"my_operation"
 }).
 ```
 
@@ -149,7 +149,7 @@ router_logger:info(<<"Operation started">>, #{
 ```erlang
 router_metrics:emit_metric(my_metric_name, #{count => 1}, #{
     tenant_id => TenantId,
-    label => <<"value">>
+    label => ~"value"
 }).
 ```
 
@@ -158,7 +158,7 @@ router_metrics:emit_metric(my_metric_name, #{count => 1}, #{
 Value = router_r10_metrics:get_metric_value(router_circuit_breaker_state, #{
     tenant_id => TenantId,
     provider_id => ProviderId,
-    state => <<"open">>
+    state => ~"open"
 }).
 ```
 
@@ -317,7 +317,7 @@ init([]) ->
 ```erlang
 router_metrics:emit_metric(my_metric, #{count => 1}, #{
     tenant_id => TenantId,
-    label => <<"value">>
+    label => ~"value"
 }).
 ```
 
@@ -353,9 +353,9 @@ supervisor:which_children(beamline_router_sup).
 ### Logging for Debugging
 
 ```erlang
-router_logger:debug(<<"Debug message">>, #{
-    <<"context">> => Context,
-    <<"value">> => Value
+router_logger:debug(~"Debug message", #{
+    ~"context" => Context,
+    ~"value" => Value
 }).
 ```
 

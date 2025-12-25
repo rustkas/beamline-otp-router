@@ -153,7 +153,7 @@ ok = router_test_utils:wait_for_metric(
 **`router_test_utils:wait_for_breaker_state/4`**:
 ```erlang
 ok = router_test_utils:wait_for_breaker_state(
-    <<"t1">>, <<"p1">>,
+    ~"t1", ~"p1",
     open,  % Expected state
     3000   % Timeout ms
 ).
@@ -177,8 +177,8 @@ ok = router_test_utils:wait_for_breaker_state(
 
 Use consistent test IDs across test suites:
 ```erlang
--define(TEST_TENANT_ID, <<"test_tenant_1">>).
--define(TEST_PROVIDER_ID, <<"test_provider_1">>).
+-define(TEST_TENANT_ID, ~"test_tenant_1").
+-define(TEST_PROVIDER_ID, ~"test_provider_1").
 ```
 
 #### Dynamic Test IDs
@@ -195,13 +195,13 @@ ProviderId = <<"test_provider_", (integer_to_binary(erlang:unique_integer([posit
 
 ```erlang
 RequestMap = #{
-    <<"tenant_id">> => <<"t1">>,
-    <<"request_id">> => <<"req_1">>,
-    <<"message">> => #{
-        <<"content">> => <<"test message">>
+    ~"tenant_id" => ~"t1",
+    ~"request_id" => ~"req_1",
+    ~"message" => #{
+        ~"content" => ~"test message"
     },
-    <<"context">> => #{
-        <<"user_id">> => <<"user_1">>
+    ~"context" => #{
+        ~"user_id" => ~"user_1"
     }
 }.
 ```
@@ -221,11 +221,11 @@ RouteRequest = #route_request{
 
 ```erlang
 Policy = #policy{
-    policy_id = <<"policy_1">>,
-    tenant_id = <<"t1">>,
+    policy_id = ~"policy_1",
+    tenant_id = ~"t1",
     providers = [
         #provider{
-            provider_id = <<"p1">>,
+            provider_id = ~"p1",
             weight = 100
         }
     ],
@@ -250,7 +250,7 @@ Use metrics access layer:
 ```erlang
 Value = router_r10_metrics:get_metric_value(
     router_circuit_breaker_state,
-    #{tenant_id => <<"t1">>, provider_id => <<"p1">>}
+    #{tenant_id => ~"t1", provider_id => ~"p1"}
 ).
 ```
 
@@ -259,7 +259,7 @@ Value = router_r10_metrics:get_metric_value(
 Use waiters for deterministic tests:
 ```erlang
 ok = router_r10_metrics:wait_for_trigger_reason(
-    <<"t1">>, <<"p1">>,
+    ~"t1", ~"p1",
     [router_r10_metrics:trigger_reason_failure_threshold()],
     3000
 ).
@@ -317,8 +317,8 @@ init_per_testcase(_TestCase, Config) ->
 
 ```erlang
 test_circuit_breaker_opens(_Config) ->
-    TenantId = <<"t1">>,
-    ProviderId = <<"p1">>,
+    TenantId = ~"t1",
+    ProviderId = ~"p1",
     
     %% Initial state should be closed
     ok = router_test_utils:wait_for_breaker_state(TenantId, ProviderId, closed, 1000),
@@ -338,8 +338,8 @@ test_circuit_breaker_opens(_Config) ->
 
 ```erlang
 test_metrics_increment(_Config) ->
-    TenantId = <<"t1">>,
-    ProviderId = <<"p1">>,
+    TenantId = ~"t1",
+    ProviderId = ~"p1",
     
     %% Clear metrics
     ok = router_r10_metrics:clear_metrics(),

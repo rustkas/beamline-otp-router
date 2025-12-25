@@ -7,7 +7,7 @@
 ## Template Structure
 
 ```erlang
-%% @doc <Module> Metrics Constants and Helpers
+-doc "<Module> Metrics Constants and Helpers".
 %%
 %% Provides centralized metric names and labels for <Module> observability.
 %% Aligned with OBSERVABILITY_CONVENTIONS and <Module> specification.
@@ -47,7 +47,7 @@
 %% METRIC NAMES (aligned with OBSERVABILITY_CONVENTIONS)
 %% ========================================================================
 
-%% @doc <Description>
+-doc "<Description>".
 -spec metric_<metric1>_total() -> atom().
 metric_<metric1>_total() ->
     <module>_<metric1>_total.
@@ -56,7 +56,7 @@ metric_<metric1>_total() ->
 %% LABEL NAMES
 %% ========================================================================
 
-%% @doc <Description>
+-doc "<Description>".
 -spec label_<label1>() -> atom().
 label_<label1>() ->
     <label1>.
@@ -65,16 +65,16 @@ label_<label1>() ->
 %% LABEL VALUES
 %% ========================================================================
 
-%% @doc <Description>
+-doc "<Description>".
 -spec <label1>_<value1>() -> binary().
 <label1>_<value1>() ->
-    <<"<value1>">>.
+    ~"<value1>".
 
 %% ========================================================================
 %% METRIC READING FUNCTIONS
 %% ========================================================================
 
-%% @doc Get metric value from ETS (wrapper around router_metrics)
+-doc "Get metric value from ETS (wrapper around router_metrics)".
 %% This provides a single entry point for reading <module> metrics
 %% @param MetricName Atom name of the metric
 %% @param Labels Map of label key-value pairs (empty map for metrics without labels)
@@ -100,7 +100,7 @@ get_metric_value(MetricName, Labels) ->
 %% DEBUGGING HELPERS
 %% ========================================================================
 
-%% @doc Dump all metrics for debugging
+-doc "Dump all metrics for debugging".
 %% Safe wrapper for dumping metrics without direct ETS access in tests
 -spec dump_metrics() -> list().
 dump_metrics() ->
@@ -108,32 +108,32 @@ dump_metrics() ->
     case ets:info(router_metrics) of
         undefined ->
             router_logger:debug("router_metrics ETS undefined", #{
-                <<"module">> => <<"<module>_metrics">>,
-                <<"function">> => <<"dump_metrics">>
+                ~"module" => ~"<module>_metrics",
+                ~"function" => ~"dump_metrics"
             }),
             [];
         _ ->
             Metrics = ets:tab2list(router_metrics),
             MetricCount = length(Metrics),
             router_logger:debug("router_metrics snapshot", #{
-                <<"module">> => <<"<module>_metrics">>,
-                <<"function">> => <<"dump_metrics">>,
-                <<"entry_count">> => MetricCount
+                ~"module" => ~"<module>_metrics",
+                ~"function" => ~"dump_metrics",
+                ~"entry_count" => MetricCount
             }),
             %% Log first 50 entries to avoid log spam
             case MetricCount > 50 of
                 true ->
                     router_logger:debug("router_metrics entries (first 50)", #{
-                        <<"module">> => <<"<module>_metrics">>,
-                        <<"function">> => <<"dump_metrics">>,
-                        <<"entries">> => lists:sublist(Metrics, 50),
-                        <<"remaining_count">> => MetricCount - 50
+                        ~"module" => ~"<module>_metrics",
+                        ~"function" => ~"dump_metrics",
+                        ~"entries" => lists:sublist(Metrics, 50),
+                        ~"remaining_count" => MetricCount - 50
                     });
                 false ->
                     router_logger:debug("router_metrics entries (all)", #{
-                        <<"module">> => <<"<module>_metrics">>,
-                        <<"function">> => <<"dump_metrics">>,
-                        <<"entries">> => Metrics
+                        ~"module" => ~"<module>_metrics",
+                        ~"function" => ~"dump_metrics",
+                        ~"entries" => Metrics
                     })
             end,
             Metrics
@@ -143,7 +143,7 @@ dump_metrics() ->
 %% METRICS TABLE MANAGEMENT
 %% ========================================================================
 
-%% @doc Clear all metrics from ETS table
+-doc "Clear all metrics from ETS table".
 %% Safe wrapper for clearing metrics without direct ETS access in tests
 -spec clear_metrics() -> ok.
 clear_metrics() ->
@@ -154,7 +154,7 @@ clear_metrics() ->
     end,
     ok.
 
-%% @doc Check if metrics table exists
+-doc "Check if metrics table exists".
 %% Safe wrapper for checking table existence without direct ETS access in tests
 -spec metrics_table_exists() -> boolean().
 metrics_table_exists() ->
@@ -164,7 +164,7 @@ metrics_table_exists() ->
         _ -> true
     end.
 
-%% @doc Prune test metrics matching tenant_* or provider_* patterns
+-doc "Prune test metrics matching tenant_* or provider_* patterns".
 %% Removes all metrics with test tenant/provider IDs (tenant_* / provider_*)
 %% @param RetentionMinutes Ignored (kept for API compatibility, but not used)
 -spec prune_old_test_metrics(non_neg_integer()) -> {ok, non_neg_integer()}.
@@ -194,7 +194,7 @@ prune_old_test_metrics(_RetentionMinutes) ->
             {ok, length(TestMetrics)}
     end.
 
-%% @doc Check if metric key matches test pattern (tenant_* or provider_*)
+-doc "Check if metric key matches test pattern (tenant_* or provider_*)".
 %% @private
 is_test_key(Key) when is_tuple(Key) ->
     %% Check if any element in tuple matches test pattern
@@ -207,7 +207,7 @@ is_test_key(Key) when is_atom(Key) ->
 is_test_key(_Key) ->
     false.
 
-%% @doc Check if value matches test pattern (tenant_* or provider_*)
+-doc "Check if value matches test pattern (tenant_* or provider_*)".
 %% @private
 is_test_pattern(Value) when is_binary(Value) ->
     ValueStr = binary_to_list(Value),
@@ -272,7 +272,7 @@ ets:delete_all_objects(router_metrics),
 Add lifecycle helpers to `router_test_utils.erl`:
 
 ```erlang
-%% @doc Clear <module> metrics before test
+-doc "Clear <module> metrics before test".
 -spec clear_<module>_metrics() -> ok.
 clear_<module>_metrics() ->
     <module>_metrics:clear_metrics(),

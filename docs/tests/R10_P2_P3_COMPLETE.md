@@ -76,7 +76,7 @@ end.
 
 **Files Updated**:
 
-1. **`docs/dev/QA_TEST_PLAN.md`**:
+1. **`docs/archive/dev/QA_TEST_PLAN.md`**:
    - ✅ Added "Metric Access Layer" section with all key functions
    - ✅ Updated trigger reason checks to recommend `wait_for_trigger_reason/4`
    - ✅ Added helper module separation documentation
@@ -101,7 +101,7 @@ end.
 
 ### Documentation Changes
 - `apps/otp/router/test/R10_CI_PROFILES.md` - New file with CI profiles documentation
-- `docs/dev/QA_TEST_PLAN.md` - Updated with metrics access layer info
+- `docs/archive/dev/QA_TEST_PLAN.md` - Updated with metrics access layer info
 - `docs/OBSERVABILITY_CONVENTIONS.md` - Updated R10 metrics section
 - `apps/otp/router/test/R10_P0_COMPLETE_FINAL.md` - Updated with P2 changes
 

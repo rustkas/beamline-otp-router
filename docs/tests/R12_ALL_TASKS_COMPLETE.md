@@ -102,7 +102,7 @@
    - Updated coverage statistics (26 → 32 requirements)
    - Updated contract invariants coverage (I1-I6 → I1-I8)
 
-4. ✅ `docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
+4. ✅ `docs/archive/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`
    - Updated test count (21 → 31)
    - Updated helper functions count (5 → 8)
    - Updated requirements coverage (26 → 32)

@@ -180,18 +180,18 @@ test_max_attempts_enforced(_Config) ->
     MetricsFun = fun(Attempt, _Max) -> ok end,
     
     Config = #{
-        <<"max_attempts">> => MaxAttempts,
-        <<"backoff_strategy">> => exponential,
-        <<"backoff_base_ms">> => 10,  % Small for fast test
-        <<"backoff_max_ms">> => 100,
-        <<"jitter_percent">> => 0,
-        <<"timeout_per_attempt_ms">> => 1000,
-        <<"total_deadline_ms">> => 10000
+        ~"max_attempts" => MaxAttempts,
+        ~"backoff_strategy" => exponential,
+        ~"backoff_base_ms" => 10,  % Small for fast test
+        ~"backoff_max_ms" => 100,
+        ~"jitter_percent" => 0,
+        ~"timeout_per_attempt_ms" => 1000,
+        ~"total_deadline_ms" => 10000
     },
     
     put(attempt_count, 0),
     Result = router_nats_publish_retry:publish_with_retry(
-        <<"test.subject">>, <<"payload">>, PublishFun, MetricsFun, #{}, Config
+        ~"test.subject", ~"payload", PublishFun, MetricsFun, #{}, Config
     ),
     
     FinalCount = get(attempt_count),
@@ -231,18 +231,18 @@ test_deadline_exceeded_before_max_attempts(_Config) ->
     MetricsFun = fun(_Attempt, _Max) -> ok end,
     
     Config = #{
-        <<"max_attempts">> => MaxAttempts,
-        <<"backoff_strategy">> => exponential,
-        <<"backoff_base_ms">> => BackoffBase,
-        <<"backoff_max_ms">> => 5000,
-        <<"jitter_percent">> => 0,
-        <<"timeout_per_attempt_ms">> => 1000,
-        <<"total_deadline_ms">> => TotalDeadline
+        ~"max_attempts" => MaxAttempts,
+        ~"backoff_strategy" => exponential,
+        ~"backoff_base_ms" => BackoffBase,
+        ~"backoff_max_ms" => 5000,
+        ~"jitter_percent" => 0,
+        ~"timeout_per_attempt_ms" => 1000,
+        ~"total_deadline_ms" => TotalDeadline
     },
     
     StartTime = erlang:system_time(millisecond),
     Result = router_nats_publish_retry:publish_with_retry(
-        <<"test.subject">>, <<"payload">>, PublishFun, MetricsFun, #{}, Config
+        ~"test.subject", ~"payload", PublishFun, MetricsFun, #{}, Config
     ),
     Elapsed = erlang:system_time(millisecond) - StartTime,
     
@@ -293,11 +293,11 @@ test_deadline_not_exceeded_with_fast_success(_Config) ->
     MetricsFun = fun(_Attempt, _Max) -> ok end,
     
     Config = router_nats_publish_retry:get_default_config(),
-    Config1 = Config#{<<"total_deadline_ms">> => TotalDeadline},
+    Config1 = Config#{~"total_deadline_ms" => TotalDeadline},
     
     StartTime = erlang:system_time(millisecond),
     Result = router_nats_publish_retry:publish_with_retry(
-        <<"test.subject">>, <<"payload">>, PublishFun, MetricsFun, #{}, Config1
+        ~"test.subject", ~"payload", PublishFun, MetricsFun, #{}, Config1
     ),
     Elapsed = erlang:system_time(millisecond) - StartTime,
     
@@ -412,20 +412,20 @@ test_retry_flow_with_fault_injection(_Config) ->
     end),
     
     %% Capture baseline metrics
-    BaselineAttempts = get_metric_value(router_nats_publish_attempts_total, #{status => <<"success">>, retry_count => <<"2">>}),
+    BaselineAttempts = get_metric_value(router_nats_publish_attempts_total, #{status => ~"success", retry_count => ~"2"}),
     
     %% Publish
-    Result = router_nats:publish(<<"test.subject">>, <<"payload">>),
+    Result = router_nats:publish(~"test.subject", ~"payload"),
     
     %% Verify success
     ?assertEqual(ok, Result),
     
     %% Verify metrics
-    FinalAttempts = get_metric_value(router_nats_publish_attempts_total, #{status => <<"success">>, retry_count => <<"2">>}),
+    FinalAttempts = get_metric_value(router_nats_publish_attempts_total, #{status => ~"success", retry_count => ~"2"}),
     ?assertEqual(BaselineAttempts + 1, FinalAttempts),
     
     %% Verify retry delay metric
-    RetryDelay = get_metric_value(router_nats_publish_retry_delay_seconds, #{attempt => <<"1">>}),
+    RetryDelay = get_metric_value(router_nats_publish_retry_delay_seconds, #{attempt => ~"1"}),
     ?assert(RetryDelay > 0),
     
     %% Cleanup
@@ -455,14 +455,14 @@ test_retry_flow_with_fault_injection(_Config) ->
 **Test Steps**:
 ```erlang
 test_circuit_breaker_opens_on_failure_threshold(_Config) ->
-    TenantId = <<"tenant1">>,
-    ProviderId = <<"provider1">>,
+    TenantId = ~"tenant1",
+    ProviderId = ~"provider1",
     FailureThreshold = 5,
     
     Config = #{
-        <<"failure_threshold">> => FailureThreshold,
-        <<"error_rate_threshold">> => 1.0,  % High to avoid triggering
-        <<"latency_threshold_ms">> => undefined
+        ~"failure_threshold" => FailureThreshold,
+        ~"error_rate_threshold" => 1.0,  % High to avoid triggering
+        ~"latency_threshold_ms" => undefined
     },
     
     %% Initialize circuit breaker
@@ -481,10 +481,10 @@ test_circuit_breaker_opens_on_failure_threshold(_Config) ->
     ?assertMatch({error, circuit_open}, router_circuit_breaker:should_allow(TenantId, ProviderId)),
     
     %% Verify metrics
-    StateMetric = get_metric_value(router_circuit_breaker_state, #{tenant_id => TenantId, provider_id => ProviderId, state => <<"open">>}),
+    StateMetric = get_metric_value(router_circuit_breaker_state, #{tenant_id => TenantId, provider_id => ProviderId, state => ~"open"}),
     ?assertEqual(1.0, StateMetric),
     
-    TriggerReason = get_metric_value(router_circuit_breaker_trigger_reason, #{tenant_id => TenantId, provider_id => ProviderId, reason => <<"failure_threshold_exceeded">>}),
+    TriggerReason = get_metric_value(router_circuit_breaker_trigger_reason, #{tenant_id => TenantId, provider_id => ProviderId, reason => ~"failure_threshold_exceeded"}),
     ?assertEqual(1, TriggerReason).
 ```
 
@@ -507,16 +507,16 @@ test_circuit_breaker_opens_on_failure_threshold(_Config) ->
 **Test Steps**:
 ```erlang
 test_circuit_breaker_opens_on_error_rate_threshold(_Config) ->
-    TenantId = <<"tenant1">>,
-    ProviderId = <<"provider1">>,
+    TenantId = ~"tenant1",
+    ProviderId = ~"provider1",
     ErrorRateThreshold = 0.5,  % 50%
     WindowSeconds = 30,
     
     Config = #{
-        <<"failure_threshold">> => 100,  % High to avoid triggering
-        <<"error_rate_threshold">> => ErrorRateThreshold,
-        <<"error_rate_window_seconds">> => WindowSeconds,
-        <<"latency_threshold_ms">> => undefined
+        ~"failure_threshold" => 100,  % High to avoid triggering
+        ~"error_rate_threshold" => ErrorRateThreshold,
+        ~"error_rate_window_seconds" => WindowSeconds,
+        ~"latency_threshold_ms" => undefined
     },
     
     router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config),
@@ -541,7 +541,7 @@ test_circuit_breaker_opens_on_error_rate_threshold(_Config) ->
     TriggerReason = get_metric_value(router_circuit_breaker_trigger_reason, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        reason => <<"error_rate_threshold_exceeded">>
+        reason => ~"error_rate_threshold_exceeded"
     }),
     ?assertEqual(1, TriggerReason).
 ```
@@ -563,14 +563,14 @@ test_circuit_breaker_opens_on_error_rate_threshold(_Config) ->
 **Test Steps**:
 ```erlang
 test_circuit_breaker_opens_on_latency_threshold(_Config) ->
-    TenantId = <<"tenant1">>,
-    ProviderId = <<"provider1">>,
+    TenantId = ~"tenant1",
+    ProviderId = ~"provider1",
     LatencyThreshold = 5000,  % 5 seconds
     
     Config = #{
-        <<"failure_threshold">> => 100,
-        <<"error_rate_threshold">> => 1.0,
-        <<"latency_threshold_ms">> => LatencyThreshold
+        ~"failure_threshold" => 100,
+        ~"error_rate_threshold" => 1.0,
+        ~"latency_threshold_ms" => LatencyThreshold
     },
     
     router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config),
@@ -592,7 +592,7 @@ test_circuit_breaker_opens_on_latency_threshold(_Config) ->
     TriggerReason = get_metric_value(router_circuit_breaker_trigger_reason, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        reason => <<"latency_threshold_exceeded">>
+        reason => ~"latency_threshold_exceeded"
     }),
     ?assertEqual(1, TriggerReason).
 ```
@@ -614,15 +614,15 @@ test_circuit_breaker_opens_on_latency_threshold(_Config) ->
 **Test Steps**:
 ```erlang
 test_circuit_breaker_half_open_after_timeout(_Config) ->
-    TenantId = <<"tenant1">>,
-    ProviderId = <<"provider1">>,
+    TenantId = ~"tenant1",
+    ProviderId = ~"provider1",
     TimeoutMs = 1000,  % 1 second for fast test
     
     Config = #{
-        <<"failure_threshold">> => 5,
-        <<"timeout_ms">> => TimeoutMs,
-        <<"half_open_max_calls">> => 3,
-        <<"success_threshold">> => 2
+        ~"failure_threshold" => 5,
+        ~"timeout_ms" => TimeoutMs,
+        ~"half_open_max_calls" => 3,
+        ~"success_threshold" => 2
     },
     
     router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config),
@@ -649,7 +649,7 @@ test_circuit_breaker_half_open_after_timeout(_Config) ->
     StateMetric = get_metric_value(router_circuit_breaker_state, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        state => <<"half_open">>
+        state => ~"half_open"
     }),
     ?assertEqual(2.0, StateMetric).
 ```
@@ -669,15 +669,15 @@ test_circuit_breaker_half_open_after_timeout(_Config) ->
 **Test Steps**:
 ```erlang
 test_circuit_breaker_closes_after_success_threshold(_Config) ->
-    TenantId = <<"tenant1">>,
-    ProviderId = <<"provider1">>,
+    TenantId = ~"tenant1",
+    ProviderId = ~"provider1",
     SuccessThreshold = 2,
     
     Config = #{
-        <<"failure_threshold">> => 5,
-        <<"timeout_ms">> => 1000,
-        <<"half_open_max_calls">> => 3,
-        <<"success_threshold">> => SuccessThreshold
+        ~"failure_threshold" => 5,
+        ~"timeout_ms" => 1000,
+        ~"half_open_max_calls" => 3,
+        ~"success_threshold" => SuccessThreshold
     },
     
     router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config),
@@ -704,7 +704,7 @@ test_circuit_breaker_closes_after_success_threshold(_Config) ->
     StateMetric = get_metric_value(router_circuit_breaker_state, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        state => <<"closed">>
+        state => ~"closed"
     }),
     ?assertEqual(0.0, StateMetric).
 ```
@@ -724,14 +724,14 @@ test_circuit_breaker_closes_after_success_threshold(_Config) ->
 **Test Steps**:
 ```erlang
 test_circuit_breaker_reopens_on_half_open_failure(_Config) ->
-    TenantId = <<"tenant1">>,
-    ProviderId = <<"provider1">>,
+    TenantId = ~"tenant1",
+    ProviderId = ~"provider1",
     
     Config = #{
-        <<"failure_threshold">> => 5,
-        <<"timeout_ms">> => 1000,
-        <<"half_open_max_calls">> => 3,
-        <<"success_threshold">> => 2
+        ~"failure_threshold" => 5,
+        ~"timeout_ms" => 1000,
+        ~"half_open_max_calls" => 3,
+        ~"success_threshold" => 2
     },
     
     router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config),
@@ -759,7 +759,7 @@ test_circuit_breaker_reopens_on_half_open_failure(_Config) ->
     TriggerReason = get_metric_value(router_circuit_breaker_trigger_reason, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        reason => <<"half_open_failure">>
+        reason => ~"half_open_failure"
     }),
     ?assertEqual(1, TriggerReason).
 ```
@@ -790,36 +790,36 @@ test_publish_attempts_metrics_labels(_Config) ->
     
     %% Simulate publish attempts with different retry counts
     router_metrics:emit_metric(router_nats_publish_attempts_total, #{count => 1}, #{
-        status => <<"success">>,
-        retry_count => <<"0">>
+        status => ~"success",
+        retry_count => ~"0"
     }),
     
     router_metrics:emit_metric(router_nats_publish_attempts_total, #{count => 1}, #{
-        status => <<"success">>,
-        retry_count => <<"1">>
+        status => ~"success",
+        retry_count => ~"1"
     }),
     
     router_metrics:emit_metric(router_nats_publish_attempts_total, #{count => 1}, #{
-        status => <<"error">>,
-        retry_count => <<"2">>
+        status => ~"error",
+        retry_count => ~"2"
     }),
     
     %% Verify metrics exist with correct labels
     Success0 = get_metric_value(router_nats_publish_attempts_total, #{
-        status => <<"success">>,
-        retry_count => <<"0">>
+        status => ~"success",
+        retry_count => ~"0"
     }),
     ?assertEqual(1, Success0),
     
     Success1 = get_metric_value(router_nats_publish_attempts_total, #{
-        status => <<"success">>,
-        retry_count => <<"1">>
+        status => ~"success",
+        retry_count => ~"1"
     }),
     ?assertEqual(1, Success1),
     
     Error2 = get_metric_value(router_nats_publish_attempts_total, #{
-        status => <<"error">>,
-        retry_count => <<"2">>
+        status => ~"error",
+        retry_count => ~"2"
     }),
     ?assertEqual(1, Error2).
 ```
@@ -843,25 +843,25 @@ test_publish_errors_metrics_labels(_Config) ->
     
     %% Emit errors with different types
     router_metrics:emit_metric(router_nats_publish_errors_total, #{count => 1}, #{
-        error_type => <<"timeout">>
+        error_type => ~"timeout"
     }),
     
     router_metrics:emit_metric(router_nats_publish_errors_total, #{count => 1}, #{
-        error_type => <<"connection">>
+        error_type => ~"connection"
     }),
     
     router_metrics:emit_metric(router_nats_publish_errors_total, #{count => 1}, #{
-        error_type => <<"nack">>
+        error_type => ~"nack"
     }),
     
     %% Verify labels
-    Timeout = get_metric_value(router_nats_publish_errors_total, #{error_type => <<"timeout">>}),
+    Timeout = get_metric_value(router_nats_publish_errors_total, #{error_type => ~"timeout"}),
     ?assertEqual(1, Timeout),
     
-    Connection = get_metric_value(router_nats_publish_errors_total, #{error_type => <<"connection">>}),
+    Connection = get_metric_value(router_nats_publish_errors_total, #{error_type => ~"connection"}),
     ?assertEqual(1, Connection),
     
-    Nack = get_metric_value(router_nats_publish_errors_total, #{error_type => <<"nack">>}),
+    Nack = get_metric_value(router_nats_publish_errors_total, #{error_type => ~"nack"}),
     ?assertEqual(1, Nack).
 ```
 
@@ -880,8 +880,8 @@ test_publish_errors_metrics_labels(_Config) ->
 **Test Steps**:
 ```erlang
 test_circuit_breaker_state_metrics_labels(_Config) ->
-    TenantId = <<"tenant1">>,
-    ProviderId = <<"provider1">>,
+    TenantId = ~"tenant1",
+    ProviderId = ~"provider1",
     
     router_circuit_breaker:record_state_with_config(TenantId, ProviderId, #{}),
     
@@ -889,7 +889,7 @@ test_circuit_breaker_state_metrics_labels(_Config) ->
     ClosedMetric = get_metric_value(router_circuit_breaker_state, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        state => <<"closed">>
+        state => ~"closed"
     }),
     ?assertEqual(0.0, ClosedMetric),
     
@@ -902,7 +902,7 @@ test_circuit_breaker_state_metrics_labels(_Config) ->
     OpenMetric = get_metric_value(router_circuit_breaker_state, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        state => <<"open">>
+        state => ~"open"
     }),
     ?assertEqual(1.0, OpenMetric),
     
@@ -914,7 +914,7 @@ test_circuit_breaker_state_metrics_labels(_Config) ->
     HalfOpenMetric = get_metric_value(router_circuit_breaker_state, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        state => <<"half_open">>
+        state => ~"half_open"
     }),
     ?assertEqual(2.0, HalfOpenMetric).
 ```
@@ -936,12 +936,12 @@ test_circuit_breaker_state_metrics_labels(_Config) ->
 **Test Steps**:
 ```erlang
 test_circuit_breaker_transitions_metrics_labels(_Config) ->
-    TenantId = <<"tenant1">>,
-    ProviderId = <<"provider1">>,
+    TenantId = ~"tenant1",
+    ProviderId = ~"provider1",
     
     router_circuit_breaker:record_state_with_config(TenantId, ProviderId, #{
-        <<"failure_threshold">> => 5,
-        <<"timeout_ms">> => 1000
+        ~"failure_threshold" => 5,
+        ~"timeout_ms" => 1000
     }),
     
     %% Open circuit (closed → open)
@@ -952,8 +952,8 @@ test_circuit_breaker_transitions_metrics_labels(_Config) ->
     ClosedToOpen = get_metric_value(router_circuit_breaker_state_transitions_total, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        from => <<"closed">>,
-        to => <<"open">>
+        from => ~"closed",
+        to => ~"open"
     }),
     ?assertEqual(1, ClosedToOpen),
     
@@ -964,8 +964,8 @@ test_circuit_breaker_transitions_metrics_labels(_Config) ->
     OpenToHalfOpen = get_metric_value(router_circuit_breaker_state_transitions_total, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        from => <<"open">>,
-        to => <<"half_open">>
+        from => ~"open",
+        to => ~"half_open"
     }),
     ?assertEqual(1, OpenToHalfOpen),
     
@@ -977,8 +977,8 @@ test_circuit_breaker_transitions_metrics_labels(_Config) ->
     HalfOpenToClosed = get_metric_value(router_circuit_breaker_state_transitions_total, #{
         tenant_id => TenantId,
         provider_id => ProviderId,
-        from => <<"half_open">>,
-        to => <<"closed">>
+        from => ~"half_open",
+        to => ~"closed"
     }),
     ?assertEqual(1, HalfOpenToClosed).
 ```
@@ -1031,23 +1031,23 @@ test_retry_delay_metrics_values(_Config) ->
     
     %% Emit retry delays for different attempts
     router_metrics:emit_metric(router_nats_publish_retry_delay_seconds, #{value => 0.1}, #{
-        attempt => <<"1">>
+        attempt => ~"1"
     }),
     router_metrics:emit_metric(router_nats_publish_retry_delay_seconds, #{value => 0.2}, #{
-        attempt => <<"2">>
+        attempt => ~"2"
     }),
     router_metrics:emit_metric(router_nats_publish_retry_delay_seconds, #{value => 0.4}, #{
-        attempt => <<"3">>
+        attempt => ~"3"
     }),
     
     %% Verify values
-    Delay1 = get_metric_value(router_nats_publish_retry_delay_seconds, #{attempt => <<"1">>}),
+    Delay1 = get_metric_value(router_nats_publish_retry_delay_seconds, #{attempt => ~"1"}),
     ?assertEqual(0.1, Delay1),
     
-    Delay2 = get_metric_value(router_nats_publish_retry_delay_seconds, #{attempt => <<"2">>}),
+    Delay2 = get_metric_value(router_nats_publish_retry_delay_seconds, #{attempt => ~"2"}),
     ?assertEqual(0.2, Delay2),
     
-    Delay3 = get_metric_value(router_nats_publish_retry_delay_seconds, #{attempt => <<"3">>}),
+    Delay3 = get_metric_value(router_nats_publish_retry_delay_seconds, #{attempt => ~"3"}),
     ?assertEqual(0.4, Delay3).
 ```
 
@@ -1078,8 +1078,8 @@ test_retry_delay_metrics_values(_Config) ->
 **Test Steps**:
 ```erlang
 test_retry_with_circuit_breaker_activation(_Config) ->
-    TenantId = <<"tenant1">>,
-    ProviderId = <<"provider1">>,
+    TenantId = ~"tenant1",
+    ProviderId = ~"provider1",
     
     %% Configure retry
     application:set_env(beamline_router, publish_retry_enabled, true),
@@ -1087,9 +1087,9 @@ test_retry_with_circuit_breaker_activation(_Config) ->
     
     %% Configure circuit breaker
     router_circuit_breaker:record_state_with_config(TenantId, ProviderId, #{
-        <<"failure_threshold">> => 5,
-        <<"error_rate_threshold">> => 0.5,
-        <<"timeout_ms">> => 30000
+        ~"failure_threshold" => 5,
+        ~"error_rate_threshold" => 0.5,
+        ~"timeout_ms" => 30000
     }),
     
     %% Enable fault injection (all publishes fail)
@@ -1097,7 +1097,7 @@ test_retry_with_circuit_breaker_activation(_Config) ->
     
     %% Make multiple publish attempts to trigger circuit breaker
     lists:foreach(fun(_) ->
-        router_nats:publish(<<"test.subject">>, <<"payload">>)
+        router_nats:publish(~"test.subject", ~"payload")
     end, lists:seq(1, 10)),
     
     %% Wait for circuit breaker to open
@@ -1109,8 +1109,8 @@ test_retry_with_circuit_breaker_activation(_Config) ->
     
     %% Verify retry attempts were made (before circuit opened)
     Attempts = get_metric_value(router_nats_publish_attempts_total, #{
-        status => <<"error">>,
-        retry_count => <<"2">>
+        status => ~"error",
+        retry_count => ~"2"
     }),
     ?assert(Attempts > 0),
     
@@ -1132,7 +1132,7 @@ test_retry_with_circuit_breaker_activation(_Config) ->
 ### Helper: `get_metric_value/2`
 
 ```erlang
-%% @doc Get metric value from ETS with labels
+-doc "Get metric value from ETS with labels".
 get_metric_value(MetricName, Labels) ->
     router_metrics:ensure(),
     LabelsKey = router_metrics:normalize_labels(Labels),

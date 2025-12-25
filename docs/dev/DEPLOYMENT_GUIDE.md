@@ -41,7 +41,7 @@ The `router_deployment` module provides programmatic deployment control.
 
 ```erlang
 %% Deploy new version
-case router_deployment:deploy(<<"v1.0.0">>) of
+case router_deployment:deploy(~"v1.0.0") of
     {ok, DeploymentResult} ->
         Version = maps:get(version, DeploymentResult),
         Status = maps:get(status, DeploymentResult),
@@ -57,7 +57,7 @@ end.
 
 ```erlang
 %% Validate deployment before executing
-case router_deployment:validate_deployment(<<"v1.0.0">>) of
+case router_deployment:validate_deployment(~"v1.0.0") of
     {ok, ValidationReport} ->
         Passed = maps:get(passed, ValidationReport),
         Health = maps:get(health, ValidationReport),
@@ -215,7 +215,7 @@ Template = router_config_validator:get_config_template(),
 %% Template includes:
 %% - grpc_enabled => false
 %% - grpc_port => 9000
-%% - admin_api_key => <<"CHANGE_ME">>
+%% - admin_api_key => ~"CHANGE_ME"
 %% - nats_mode => mock
 %% - audit_retention_days => 90
 %% - rbac_enabled => true
@@ -283,7 +283,7 @@ Cp2Features = maps:get(cp2_features, Compatibility).
 #{
     grpc_enabled => false,
     grpc_port => 9000,
-    admin_api_key => <<"dev_key">>,
+    admin_api_key => ~"dev_key",
     nats_mode => mock,
     audit_retention_days => 7,
     rbac_enabled => false,
@@ -301,7 +301,7 @@ Cp2Features = maps:get(cp2_features, Compatibility).
 #{
     grpc_enabled => true,
     grpc_port => 9000,
-    admin_api_key => <<"PRODUCTION_KEY_FROM_ENV">>,
+    admin_api_key => ~"PRODUCTION_KEY_FROM_ENV",
     nats_mode => real,
     audit_retention_days => 90,
     rbac_enabled => true,
@@ -355,7 +355,7 @@ Cp2Features = maps:get(cp2_features, Compatibility).
 
 ```erlang
 test_validate_deployment(_Config) ->
-    Version = <<"v1.0.0">>,
+    Version = ~"v1.0.0",
     {ok, Report} = router_deployment:validate_deployment(Version),
     ?assertEqual(true, maps:get(passed, Report)),
     ok.

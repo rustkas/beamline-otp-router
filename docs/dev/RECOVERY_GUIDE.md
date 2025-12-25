@@ -23,7 +23,7 @@ Circuit breakers automatically transition from `open` to `half_open` after the c
 ```erlang
 %% Configure timeout
 Config = #{
-    <<"timeout_ms">> => 60000  % 60 seconds
+    ~"timeout_ms" => 60000  % 60 seconds
 },
 router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config),
 
@@ -41,7 +41,7 @@ Circuit breakers automatically transition from `half_open` to `closed` after mee
 ```erlang
 %% Configure success threshold
 Config = #{
-    <<"success_threshold">> => 2  % 2 consecutive successes
+    ~"success_threshold" => 2  % 2 consecutive successes
 },
 router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config),
 
@@ -129,7 +129,7 @@ Get detailed recovery status for monitoring and debugging:
 %% Status for open state
 #{
     state => open,
-    recovery_type => <<"timeout_based">>,
+    recovery_type => ~"timeout_based",
     time_until_half_open_ms => 45000,
     timeout_ms => 60000,
     elapsed_ms => 15000,
@@ -139,7 +139,7 @@ Get detailed recovery status for monitoring and debugging:
 %% Status for half-open state
 #{
     state => half_open,
-    recovery_type => <<"success_based">>,
+    recovery_type => ~"success_based",
     half_open_calls_count => 1,
     half_open_max_calls => 3,
     success_count => 1,
@@ -177,12 +177,12 @@ Get detailed recovery status for monitoring and debugging:
 
 ```erlang
 Config = #{
-    <<"failure_threshold">> => 5,           % Failures before opening
-    <<"timeout_ms">> => 60000,              % Time before half-open (60s)
-    <<"half_open_max_calls">> => 3,         % Max calls in half-open
-    <<"success_threshold">> => 2,           % Successes before closing
-    <<"error_rate_threshold">> => 0.5,      % Error rate threshold (50%)
-    <<"error_rate_window_seconds">> => 60   % Error rate window (60s)
+    ~"failure_threshold" => 5,           % Failures before opening
+    ~"timeout_ms" => 60000,              % Time before half-open (60s)
+    ~"half_open_max_calls" => 3,         % Max calls in half-open
+    ~"success_threshold" => 2,           % Successes before closing
+    ~"error_rate_threshold" => 0.5,      % Error rate threshold (50%)
+    ~"error_rate_window_seconds" => 60   % Error rate window (60s)
 },
 router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config).
 ```

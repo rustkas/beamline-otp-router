@@ -59,7 +59,7 @@ find test docs -type f -name "*.md" -exec sed -i 's/2025-01-27/2025-11-30/g' {} 
 - ✅ `R12_DATE_CORRECTION_COMPLETE.md` (this file)
 
 ### Integration Documentation
-- ✅ `docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md` - Updated `Last Updated` field
+- ✅ `docs/archive/dev/JETSTREAM_FAULT_INJECTION_TESTS.md` - Updated `Last Updated` field
 
 ### Test Code
 - ✅ `test/router_cp1_minimal_mode_SUITE.erl` - Updated test data timestamps (2 occurrences)

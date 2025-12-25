@@ -58,7 +58,7 @@ rebar3 ct --suite test/router_publish_failure_e2e_SUITE --config test/ct.config
 - ✅ Test independence (unique tenant/provider IDs)
 - ✅ Timeout recommendations
 
-**Location**: `docs/dev/QA_TEST_PLAN.md`
+**Location**: `docs/archive/dev/QA_TEST_PLAN.md`
 
 #### 3. OBSERVABILITY_CONVENTIONS.md ✅
 

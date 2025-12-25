@@ -61,10 +61,10 @@ lint_suite(File, Bin, Baseline) when is_binary(Bin) ->
 
 missing_callbacks(File, Bin) ->
     Callbacks = [
-        {init_per_suite, <<"\\binit_per_suite\\s*\\(">>},
-        {end_per_suite, <<"\\bend_per_suite\\s*\\(">>},
-        {init_per_testcase, <<"\\binit_per_testcase\\s*\\(">>},
-        {end_per_testcase, <<"\\bend_per_testcase\\s*\\(">>}
+        {init_per_suite, ~"\\binit_per_suite\\s*\\("},
+        {end_per_suite, ~"\\bend_per_suite\\s*\\("},
+        {init_per_testcase, ~"\\binit_per_testcase\\s*\\("},
+        {end_per_testcase, ~"\\bend_per_testcase\\s*\\("}
     ],
     [ {File, missing_callback, Name, 0, 1}
       || {Name, Pattern} <- Callbacks,
@@ -93,23 +93,23 @@ allowed_for(FileKey, Rule, Baseline) ->
 
 count_rules(Bin) ->
     #{
-        meck_new => count(<<"\\bmeck:new\\b">>, Bin),
-        ets_new => count(<<"\\bets:new\\b">>, Bin),
-        sleep => count(<<"(?:\\btimer:sleep\\b|\\bsleep\\b)">>, Bin),
+        meck_new => count(~"\\bmeck:new\\b", Bin),
+        ets_new => count(~"\\bets:new\\b", Bin),
+        sleep => count(~"(?:\\btimer:sleep\\b|\\bsleep\\b)", Bin),
         meck_new_in_init_per_testcase => count_meck_in_init_per_testcase(Bin)
     }.
 
 count_meck_in_init_per_testcase(Bin) ->
-    case re:run(Bin, <<"init_per_testcase\\s*\\([^)]*\\)\\s*->">>, [unicode]) of
+    case re:run(Bin, ~"init_per_testcase\\s*\\([^)]*\\)\\s*->", [unicode]) of
         {match, [{Start, Len}]} ->
             StartPos = Start + Len,
             Tail = binary:part(Bin, StartPos, byte_size(Bin) - StartPos),
-            EndPos = case re:run(Tail, <<"\\n[A-Za-z0-9_]+\\s*\\([^\\n]*\\)\\s*->">>, [unicode]) of
+            EndPos = case re:run(Tail, ~"\\n[A-Za-z0-9_]+\\s*\\([^\\n]*\\)\\s*->", [unicode]) of
                 {match, [{S, _}] } -> S;
                 nomatch -> byte_size(Tail)
             end,
             Section = binary:part(Tail, 0, EndPos),
-            count(<<"\\bmeck:new\\b">>, Section);
+            count(~"\\bmeck:new\\b", Section);
         nomatch ->
             0
     end.

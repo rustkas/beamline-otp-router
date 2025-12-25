@@ -50,8 +50,8 @@ This report documents the implementation of the next steps from Task #1:
 **Example**:
 ```erlang
 {error, {missing_tenant_id, #{
-    context => <<"tenant_id is required in message">>,
-    message_id => <<"msg_123">>
+    context => ~"tenant_id is required in message",
+    message_id => ~"msg_123"
 }}}
 ```
 

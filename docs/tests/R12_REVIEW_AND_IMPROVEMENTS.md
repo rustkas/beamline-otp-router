@@ -355,9 +355,9 @@ run_partition_lifecycle(Faults, PartitionDuration, RecoveryWait) ->
 ```erlang
 %% Verify expected logs are emitted
 ExpectedLogs = [
-    {warn, <<"Network partition detected">>, #{from => <<"router">>, to => <<"nats">>}},
-    {error, <<"Connection lost to NATS JetStream broker">>, #{service => <<"nats-jetstream">>}},
-    {info, <<"Network partition resolved">>, #{from => <<"router">>, to => <<"nats">>}}
+    {warn, ~"Network partition detected", #{from => ~"router", to => ~"nats"}},
+    {error, ~"Connection lost to NATS JetStream broker", #{service => ~"nats-jetstream"}},
+    {info, ~"Network partition resolved", #{from => ~"router", to => ~"nats"}}
 ],
 verify_logs_emitted(ExpectedLogs),
 ```

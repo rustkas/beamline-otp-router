@@ -81,9 +81,9 @@ end
   BackoffSeconds = application:get_env(beamline_router, nats_js_backoff_seconds, [1, 2, 4]),
   
   ConsumerConfig = #{
-      <<"max_deliver">> => MaxDeliver,
-      <<"ack_wait">> => AckWaitSeconds * 1000000000,  %% Convert to nanoseconds
-      <<"backoff">> => [B * 1000000000 || B <- BackoffSeconds]  %% Convert to nanoseconds
+      ~"max_deliver" => MaxDeliver,
+      ~"ack_wait" => AckWaitSeconds * 1000000000,  %% Convert to nanoseconds
+      ~"backoff" => [B * 1000000000 || B <- BackoffSeconds]  %% Convert to nanoseconds
   }
   ```
 
@@ -102,25 +102,25 @@ end
 **Headers Building**:
 ```erlang
 %% Build headers from request context and inject trace context
-TraceId = maps:get(<<"trace_id">>, RequestMap, undefined),
-Version = <<"1">>,
+TraceId = maps:get(~"trace_id", RequestMap, undefined),
+Version = ~"1",
 BaseHeaders = case TraceId of
     undefined ->
         #{
-            <<"tenant_id">> => TenantId,
-            <<"version">> => Version
+            ~"tenant_id" => TenantId,
+            ~"version" => Version
         };
     _ ->
         #{
-            <<"trace_id">> => TraceId,
-            <<"tenant_id">> => TenantId,
-            <<"version">> => Version
+            ~"trace_id" => TraceId,
+            ~"tenant_id" => TenantId,
+            ~"version" => Version
         }
 end,
 %% Inject OpenTelemetry trace context (W3C Trace Context format)
 ParentContext = case TraceId of
     undefined -> undefined;
-    _ -> #{<<"trace_id">> => TraceId}
+    _ -> #{~"trace_id" => TraceId}
 end,
 Headers = router_tracing:inject_trace_context(BaseHeaders, ParentContext),
 ```
@@ -177,7 +177,7 @@ case router_nats:publish_with_ack(Subject, Json, Headers) of
 
 **Steps**:
 1. Extract `trace_id` from `RequestMap`
-2. Create `ParentContext`: `#{<<"trace_id">> => TraceId}`
+2. Create `ParentContext`: `#{~"trace_id" => TraceId}`
 3. Start OpenTelemetry span `beamline.router.publish.assignment` with `ParentContext`
 4. Inject trace context into headers:
    - W3C Trace Context: `traceparent` header
@@ -191,7 +191,7 @@ case router_nats:publish_with_ack(Subject, Json, Headers) of
 
 **Steps**:
 1. Extract `trace_id` from headers (priority) or payload (fallback)
-2. Create `ParentContext`: `#{<<"trace_id">> => TraceId}`
+2. Create `ParentContext`: `#{~"trace_id" => TraceId}`
 3. Start OpenTelemetry span `beamline.router.process.result` with `ParentContext`
 4. Process result and emit usage event with same `trace_id`
 
@@ -201,7 +201,7 @@ case router_nats:publish_with_ack(Subject, Json, Headers) of
 
 **Steps**:
 1. Extract `trace_id` from headers (priority) or payload (fallback)
-2. Create `ParentContext`: `#{<<"trace_id">> => TraceId}`
+2. Create `ParentContext`: `#{~"trace_id" => TraceId}`
 3. Start OpenTelemetry span `beamline.router.process.ack` with `ParentContext`
 
 #### Usage Event Emission
@@ -210,7 +210,7 @@ case router_nats:publish_with_ack(Subject, Json, Headers) of
 
 **Steps**:
 1. Extract `trace_id` from result context
-2. Create `TraceContext`: `#{<<"trace_id">> => TraceId}`
+2. Create `TraceContext`: `#{~"trace_id" => TraceId}`
 3. Start OpenTelemetry span `beamline.router.emit.usage` with `TraceContext`
 4. Publish usage event with `trace_id` in payload
 
@@ -245,5 +245,5 @@ case router_nats:publish_with_ack(Subject, Json, Headers) of
 - `src/router_caf_adapter.erl`: Headers with trace context injection
 - `src/router_tracing.erl`: OpenTelemetry integration
 - `test/router_jetstream_e2e_SUITE.erl`: E2E tests
-- `docs/dev/TRACE_ID_OTEL_VERIFICATION.md`: Detailed trace ID verification
+- `docs/archive/dev/TRACE_ID_OTEL_VERIFICATION.md`: Detailed trace ID verification
 

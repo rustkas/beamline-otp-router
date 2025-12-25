@@ -245,9 +245,9 @@ false
 %% Test circuit breaker
 6> router_circuit_breaker:start_link().
 {ok, <pid>}
-7> router_circuit_breaker:record_state(<<"t1">>, <<"p1">>).
+7> router_circuit_breaker:record_state(~"t1", ~"p1").
 ok
-8> router_circuit_breaker:get_state(<<"t1">>, <<"p1">>).
+8> router_circuit_breaker:get_state(~"t1", ~"p1").
 {ok, closed}
 ```
 

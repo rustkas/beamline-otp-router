@@ -96,7 +96,7 @@ Limit label cardinality to prevent metric explosion:
 %% Good: Limited cardinality
 router_metrics:emit_metric(router_requests_total, #{count => 1}, #{
     tenant_id => TenantId,
-    status => <<"success">>
+    status => ~"success"
 }).
 
 %% Bad: High cardinality (user_id changes frequently)
@@ -119,13 +119,13 @@ Use structured logging for better performance:
 
 ```erlang
 %% Good: Structured logging
-router_logger:info(<<"Request processed">>, #{
-    <<"tenant_id">> => TenantId,
-    <<"request_id">> => RequestId
+router_logger:info(~"Request processed", #{
+    ~"tenant_id" => TenantId,
+    ~"request_id" => RequestId
 }).
 
 %% Bad: String formatting (slower)
-router_logger:info(<<"Request processed: ~p">>, [RequestId]).
+router_logger:info(~"Request processed: ~p", [RequestId]).
 ```
 
 #### Log Level Configuration

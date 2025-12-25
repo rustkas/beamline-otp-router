@@ -81,13 +81,13 @@ The router supports multiple authentication methods:
 
 ```erlang
 %% Simple publish (fire and forget)
-ok = router_nats:publish(<<"subject">>, <<"payload">>).
+ok = router_nats:publish(~"subject", ~"payload").
 
 %% Publish with acknowledgment
 {ok, MsgId} = router_nats:publish_with_ack(
-    <<"subject">>, 
-    <<"payload">>, 
-    #{<<"header">> => <<"value">>}
+    ~"subject", 
+    ~"payload", 
+    #{~"header" => ~"value"}
 ).
 ```
 
@@ -96,8 +96,8 @@ ok = router_nats:publish(<<"subject">>, <<"payload">>).
 ```erlang
 %% Subscribe to decide subject
 {ok, ConsumerId} = router_jetstream:subscribe_decide(#{
-    subject => <<"beamline.router.v1.decide">>,
-    durable_group => <<"router-decide-consumer">>,
+    subject => ~"beamline.router.v1.decide",
+    durable_group => ~"router-decide-consumer",
     ack_policy => explicit,
     deliver_group => undefined,
     mode => pull_mode

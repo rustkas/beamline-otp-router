@@ -83,7 +83,7 @@ Each test verifies:
 ### Fail-Open Mode
 
 - `publish` returns `ok` even on errors
-- `publish_with_ack` returns `{ok, <<"stub-msg-id">>}` even on errors
+- `publish_with_ack` returns `{ok, ~"stub-msg-id"}` even on errors
 - No queueing (operations not preserved)
 - Metrics still incremented (failures tracked)
 

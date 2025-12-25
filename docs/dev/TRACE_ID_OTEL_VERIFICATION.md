@@ -14,7 +14,7 @@ This report verifies that `trace_id` is visible end-to-end in OpenTelemetry acro
 
 **Flow**:
 1. `router_caf_adapter:do_publish_assignment/3` extracts `trace_id` from `RequestMap`
-2. Creates `ParentContext` from `trace_id`: `#{<<"trace_id">> => TraceId}`
+2. Creates `ParentContext` from `trace_id`: `#{~"trace_id" => TraceId}`
 3. Starts OpenTelemetry span `beamline.router.publish.assignment` with `ParentContext`
 4. Builds headers with `trace_id`, `tenant_id`, `version`
 5. **Injects OpenTelemetry trace context** using `router_tracing:inject_trace_context/2`:
@@ -30,13 +30,13 @@ This report verifies that `trace_id` is visible end-to-end in OpenTelemetry acro
 **Headers Published**:
 ```erlang
 #{
-    <<"trace_id">> => TraceId,           %% Custom format
-    <<"tenant_id">> => TenantId,
-    <<"version">> => <<"1">>,
-    <<"traceparent">> => TraceParent,    %% W3C Trace Context
-    <<"span_id">> => SpanId,             %% Current span ID
-    <<"X-Trace-Id">> => TraceId,         %% Compatibility
-    <<"X-Span-Id">> => SpanId            %% Compatibility
+    ~"trace_id" => TraceId,           %% Custom format
+    ~"tenant_id" => TenantId,
+    ~"version" => ~"1",
+    ~"traceparent" => TraceParent,    %% W3C Trace Context
+    ~"span_id" => SpanId,             %% Current span ID
+    ~"X-Trace-Id" => TraceId,         %% Compatibility
+    ~"X-Span-Id" => SpanId            %% Compatibility
 }
 ```
 
@@ -45,7 +45,7 @@ This report verifies that `trace_id` is visible end-to-end in OpenTelemetry acro
 **Flow**:
 1. `router_result_consumer` receives message with headers and payload
 2. Extracts `trace_id` from headers (priority) or payload (fallback)
-3. Creates `ParentContext` from `trace_id`: `#{<<"trace_id">> => TraceId}`
+3. Creates `ParentContext` from `trace_id`: `#{~"trace_id" => TraceId}`
 4. Starts OpenTelemetry span `beamline.router.process.result` with `ParentContext`
 5. Processes result and emits usage event with same `trace_id`
 
@@ -55,10 +55,10 @@ This report verifies that `trace_id` is visible end-to-end in OpenTelemetry acro
 
 **Trace Context Extraction**:
 ```erlang
-TraceId = extract_header_or_payload(Headers, Result, <<"trace_id">>, <<"trace_id">>),
+TraceId = extract_header_or_payload(Headers, Result, ~"trace_id", ~"trace_id"),
 ParentContext = case TraceId of
     undefined -> undefined;
-    _ -> #{<<"trace_id">> => TraceId}
+    _ -> #{~"trace_id" => TraceId}
 end,
 router_tracing:with_span(?SPAN_ROUTER_PROCESS_RESULT, Attributes, ParentContext, Fun)
 ```
@@ -68,7 +68,7 @@ router_tracing:with_span(?SPAN_ROUTER_PROCESS_RESULT, Attributes, ParentContext,
 **Flow**:
 1. `router_ack_consumer` receives message with headers and payload
 2. Extracts `trace_id` from headers (priority) or payload (fallback)
-3. Creates `ParentContext` from `trace_id`: `#{<<"trace_id">> => TraceId}`
+3. Creates `ParentContext` from `trace_id`: `#{~"trace_id" => TraceId}`
 4. Starts OpenTelemetry span `beamline.router.process.ack` with `ParentContext`
 
 **Code Location**:
@@ -80,7 +80,7 @@ router_tracing:with_span(?SPAN_ROUTER_PROCESS_RESULT, Attributes, ParentContext,
 **Flow**:
 1. After processing result, `emit_usage_event/2` is called
 2. Extracts `trace_id` from result context
-3. Creates `TraceContext` from `trace_id`: `#{<<"trace_id">> => TraceId}`
+3. Creates `TraceContext` from `trace_id`: `#{~"trace_id" => TraceId}`
 4. Starts OpenTelemetry span `beamline.router.emit.usage` with `TraceContext`
 5. Publishes usage event with `trace_id` in payload
 
@@ -216,5 +216,5 @@ Router (DecideRequest)
 - `src/router_result_consumer.erl`: Result processing with trace context
 - `src/router_ack_consumer.erl`: ACK processing with trace context
 - `src/router_tracing.erl`: OpenTelemetry integration
-- `docs/dev/OPENTELEMETRY_TRACING_IMPLEMENTATION_REPORT.md`: Initial implementation report
+- `docs/archive/dev/OPENTELEMETRY_TRACING_IMPLEMENTATION_REPORT.md`: Initial implementation report
 

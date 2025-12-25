@@ -1,0 +1,1 @@
+Refactor `router_jetstream_recovery_ext_SUITE` to be deterministic, CT-native, and free of race conditions and sleeps. The suite must pass under `ROUTER_TEST_LEVEL=heavy` without external NATS/JetStream dependencies, relying entirely on mocked `router_nats` boundaries.

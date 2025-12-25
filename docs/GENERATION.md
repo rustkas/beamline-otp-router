@@ -37,7 +37,7 @@ flow_pb:find_msg_def('Message').
 % Returns: Field list with field numbers and types
 ```
 
-**Note**: Proto file restoration is deferred to CP2-LC. See `docs/dev/ROUTER_PROTO_NATS_CP2_DETAILED_PLAN.md` for restoration procedures.
+**Note**: Proto file restoration is deferred to CP2-LC. See `docs/archive/dev/ROUTER_PROTO_NATS_CP2_DETAILED_PLAN.md` for restoration procedures.
 
 ## Prerequisites
 

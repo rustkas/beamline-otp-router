@@ -15,7 +15,7 @@ This document defines test classification (fast vs slow) and marking strategy fo
 Test suites are marked with machine-readable tags using `@test_category` in module comments:
 
 ```erlang
-%% @doc Common Test Suite for Router Core
+-doc "Common Test Suite for Router Core".
 %% Tests policy parsing, basic decision, errors (CP1)
 %% @test_category cp1_smoke, fast
 -module(router_core_SUITE).
@@ -36,7 +36,7 @@ Test suites are marked with machine-readable tags using `@test_category` in modu
 
 **Example**:
 ```erlang
-%% @doc Common Test Suite for Router Core
+-doc "Common Test Suite for Router Core".
 %% Tests policy parsing, basic decision, errors (CP1)
 %% @test_category cp1_smoke, fast
 -module(router_core_SUITE).
@@ -138,7 +138,7 @@ Test suites are marked with machine-readable tags using `@test_category` in modu
 **Machine-readable tags** in module comments:
 
 ```erlang
-%% @doc Common Test Suite for Router Core
+-doc "Common Test Suite for Router Core".
 %% Tests policy parsing, basic decision, errors (CP1)
 %% @test_category cp1_smoke, fast
 -module(router_core_SUITE).
@@ -431,7 +431,7 @@ All marked with `@test_category fast`:
 ## References
 
 - `docs/CP1_TESTING.md`: CP1 baseline testing guide
-- `docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`: JetStream fault injection tests documentation
+- `docs/archive/dev/JETSTREAM_FAULT_INJECTION_TESTS.md`: JetStream fault injection tests documentation
 - `scripts/test_cp1_smoke.sh`: CP1 smoke test runner
 - `scripts/test_fast.sh`: Fast test runner (new)
 - `scripts/test_slow.sh`: Slow test runner (new)

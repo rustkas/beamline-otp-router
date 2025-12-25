@@ -67,13 +67,13 @@ test_circuit_breaker_opens(_Config) ->
     %% Wait for circuit breaker to open (max 2 seconds)
     test_helpers:wait_for_condition(
         fun() ->
-            State = router_circuit_breaker:get_state(<<"tenant">>, <<"provider">>),
+            State = router_circuit_breaker:get_state(~"tenant", ~"provider"),
             State =:= open
         end,
         2000
     ),
     %% Verify state
-    ?assertEqual(open, router_circuit_breaker:get_state(<<"tenant">>, <<"provider">>)),
+    ?assertEqual(open, router_circuit_breaker:get_state(~"tenant", ~"provider")),
     ok.
 ```
 
@@ -220,19 +220,19 @@ init_per_suite(Config) ->
 ```erlang
 test_state_change(_Config) ->
     %% Trigger state change
-    router_circuit_breaker:record_failure(<<"tenant">>, <<"provider">>),
+    router_circuit_breaker:record_failure(~"tenant", ~"provider"),
     
     %% Wait for state to change
     test_helpers:wait_for_condition(
         fun() ->
-            State = router_circuit_breaker:get_state(<<"tenant">>, <<"provider">>),
+            State = router_circuit_breaker:get_state(~"tenant", ~"provider"),
             State =:= open
         end,
         2000
     ),
     
     %% Verify state
-    ?assertEqual(open, router_circuit_breaker:get_state(<<"tenant">>, <<"provider">>)),
+    ?assertEqual(open, router_circuit_breaker:get_state(~"tenant", ~"provider")),
     ok.
 ```
 
@@ -283,7 +283,7 @@ If `wait_for_*` functions timeout:
 %% Add debug logging
 test_helpers:wait_for_condition(
     fun() ->
-        State = router_circuit_breaker:get_state(<<"tenant">>, <<"provider">>),
+        State = router_circuit_breaker:get_state(~"tenant", ~"provider"),
         ct:log("Current state: ~p", [State]),  %% Debug logging
         State =:= open
     end,

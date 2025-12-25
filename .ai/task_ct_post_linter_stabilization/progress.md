@@ -9,7 +9,7 @@
 - Command: `erl -noshell -pa test_support -s router_suite_linter run -s init stop` → exit 0; output: `router_suite_linter: ok (245 suites checked, mode=baseline)`.
 
 ## Step 3 – Full tier run
-- Command: `./scripts/ct-full.sh` → exit 0; summary: 55 suites / 332 tests executed, all passed, quality gates (0-3) green; baseline saved.
+- Command: `./scripts/ct-full.sh` → exit 0; guard, linter, and full tier suites all pass after the admin API-key override and network partition suite syntax fix (55 suites, 338 tests, no skips; baseline saved under `reports/full_baseline.json`).
 
 ## Step 4 – Targeted regression check
 - Command: `rebar3 ct --suite test/router_idem_core_SUITE.erl` → exit 0; suite-specific run compiled `beamline_router` and reported “All 0 tests passed.”

@@ -16,7 +16,7 @@
 - `proto/beamline/provider/v1/provider.proto` - Provider definitions
 - `proto/beamline/usage/v1/usage.proto` - Usage/metering definitions
 
-**Status**: Proto source files: **missing** (CP2-LC restoration). Source of truth: generated code (`flow_pb.erl`, `flow_pb.hrl`). See `docs/dev/ROUTER_PROTO_NATS_CP2_DETAILED_PLAN.md#proto-file-restoration`.
+**Status**: Proto source files: **missing** (CP2-LC restoration). Source of truth: generated code (`flow_pb.erl`, `flow_pb.hrl`). See `docs/archive/dev/ROUTER_PROTO_NATS_CP2_DETAILED_PLAN.md#proto-file-restoration`.
 
 **References**:
 - `proto/README.md` - Proto overview
@@ -246,7 +246,7 @@ bash scripts/check_proto_nats_compatibility.sh
 **References**:
 - `docs/ARCHITECTURE/compatibility-rules.md` - Compatibility policy
 - `docs/RELEASE_PROCESS.md` - Release process and versioning
-- `docs/dev/CP2_ROUTER_PLAN.md` - CP2 Router plan
+- `docs/archive/dev/CP2_ROUTER_PLAN.md` - CP2 Router plan
 - ADR on DTO/ABI gates (if exists)
 
 ## Verification Checklist

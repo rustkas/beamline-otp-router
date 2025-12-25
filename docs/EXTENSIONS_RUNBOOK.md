@@ -87,19 +87,19 @@ router_extension_registry_db:get_db_connection().
 **Via Erlang Shell**:
 ```erlang
 %% Lookup specific extension
-router_extension_registry:lookup(<<"normalize_text">>).
+router_extension_registry:lookup(~"normalize_text").
 
 %% List all extensions by type
-router_extension_registry:lookup_by_type(<<"pre">>).
+router_extension_registry:lookup_by_type(~"pre").
 ```
 
 **Expected Output**:
 ```erlang
 %% Extension found
 {ok, #extension{
-    id = <<"normalize_text">>,
-    type = <<"pre">>,
-    subject = <<"beamline.ext.pre.normalize_text.v1">>,
+    id = ~"normalize_text",
+    type = ~"pre",
+    subject = ~"beamline.ext.pre.normalize_text.v1",
     timeout_ms = 100,
     retry = 0,
     enabled = true
@@ -116,13 +116,13 @@ router_extension_registry:lookup_by_type(<<"pre">>).
 **Via Erlang Shell**:
 ```erlang
 %% Get health metrics
-router_extension_health:get_health(<<"normalize_text">>).
+router_extension_health:get_health(~"normalize_text").
 ```
 
 **Expected Output**:
 ```erlang
 {ok, #{
-    extension_id => <<"normalize_text">>,
+    extension_id => ~"normalize_text",
     last_success => {{2025,1,27},{12,0,0}},
     last_failure => null,
     success_count => 1000,
@@ -132,7 +132,7 @@ router_extension_health:get_health(<<"normalize_text">>).
     p50_latency_ms => 12.0,
     p95_latency_ms => 25.0,
     p99_latency_ms => 35.0,
-    circuit_breaker_state => <<"closed">>,
+    circuit_breaker_state => ~"closed",
     circuit_breaker_opened_at => null
 }}
 ```
@@ -169,8 +169,8 @@ router_extension_health:get_all_health().
 **Expected Output**:
 ```erlang
 {ok, [
-    #{extension_id => <<"normalize_text">>, ...},
-    #{extension_id => <<"pii_guard">>, ...},
+    #{extension_id => ~"normalize_text", ...},
+    #{extension_id => ~"pii_guard", ...},
     ...
 ]}
 ```
@@ -232,7 +232,7 @@ ok
 ets:info(extension_registry, size).
 
 %% Verify specific extension
-router_extension_registry:lookup(<<"normalize_text">>).
+router_extension_registry:lookup(~"normalize_text").
 ```
 
 ### 2. Switch Registry Source Mode
@@ -258,7 +258,7 @@ router_extension_registry:start_link().
 3. Verify:
 ```erlang
 application:get_env(beamline_router, extension_registry).
-router_extension_registry:lookup(<<"normalize_text">>).
+router_extension_registry:lookup(~"normalize_text").
 ```
 
 #### Switch to Database Mode
@@ -287,7 +287,7 @@ router_extension_registry:start_link().
 3. Verify:
 ```erlang
 application:get_env(beamline_router, extension_registry).
-router_extension_registry:lookup(<<"normalize_text">>).
+router_extension_registry:lookup(~"normalize_text").
 ```
 
 #### Switch to Auto Mode
@@ -316,7 +316,7 @@ router_extension_registry:start_link().
 3. Verify:
 ```erlang
 application:get_env(beamline_router, extension_registry).
-router_extension_registry:lookup(<<"normalize_text">>).
+router_extension_registry:lookup(~"normalize_text").
 ```
 
 **Behavior**:
@@ -344,7 +344,7 @@ router_extension_registry:reload().
 
 **Verify**:
 ```erlang
-{ok, Extension} = router_extension_registry:lookup(<<"normalize_text">>),
+{ok, Extension} = router_extension_registry:lookup(~"normalize_text"),
 Extension#extension.enabled.  % Should be false/true
 ```
 
@@ -422,7 +422,7 @@ grep "Extension Registry synced" /var/log/router/router.log
 **Diagnosis**:
 ```erlang
 %% Check extension health
-{ok, Health} = router_extension_health:get_health(<<"normalize_text">>),
+{ok, Health} = router_extension_health:get_health(~"normalize_text"),
 ErrorRate = 1.0 - maps:get(success_rate, Health, 0.0),
 ErrorRate.  % Should be < 0.3
 ```
@@ -452,7 +452,7 @@ ErrorRate.  % Should be < 0.3
 **Diagnosis**:
 ```erlang
 %% Check circuit breaker state
-{ok, Health} = router_extension_health:get_health(<<"normalize_text">>),
+{ok, Health} = router_extension_health:get_health(~"normalize_text"),
 maps:get(circuit_breaker_state, Health).  % Should be "closed"
 ```
 
@@ -480,7 +480,7 @@ maps:get(circuit_breaker_state, Health).  % Should be "closed"
 **Diagnosis**:
 ```erlang
 %% Check latency metrics
-{ok, Health} = router_extension_health:get_health(<<"normalize_text">>),
+{ok, Health} = router_extension_health:get_health(~"normalize_text"),
 maps:get(p95_latency_ms, Health).  % Should be < 100
 maps:get(p99_latency_ms, Health).  % Should be < 200
 ```
@@ -509,7 +509,7 @@ maps:get(p99_latency_ms, Health).  % Should be < 200
 **Diagnosis**:
 ```erlang
 %% Check extension exists
-router_extension_registry:lookup(<<"normalize_text">>).
+router_extension_registry:lookup(~"normalize_text").
 ```
 
 **Actions**:
@@ -1120,16 +1120,16 @@ INSERT INTO extension_versions (
 **Via Erlang Shell**:
 ```erlang
 %% Test version selection
-Context = #{<<"tenant_id">> => <<"premium_tenant">>},
-router_extension_versioning:lookup_with_version(<<"normalize_text">>, Context).
+Context = #{~"tenant_id" => ~"premium_tenant"},
+router_extension_versioning:lookup_with_version(~"normalize_text", Context).
 ```
 
 **Expected Output**:
 ```erlang
 {ok, #extension{
-    id = <<"normalize_text">>,
-    version = <<"v2">>,
-    subject = <<"beamline.ext.pre.normalize_text.v2">>,
+    id = ~"normalize_text",
+    version = ~"v2",
+    subject = ~"beamline.ext.pre.normalize_text.v2",
     ...
 }}
 ```
@@ -1155,7 +1155,7 @@ WHERE id = 'normalize_text' AND version = 'v2';
 **Via Erlang Shell**:
 ```erlang
 %% Monitor health
-router_extension_health:get_health(<<"normalize_text">>).
+router_extension_health:get_health(~"normalize_text").
 ```
 
 #### Step 5: Rollout to All Tenants
@@ -1206,8 +1206,8 @@ router_extension_registry:reload().
 **Via Erlang Shell**:
 ```erlang
 %% Should return v1
-Context = #{<<"tenant_id">> => <<"premium_tenant">>},
-router_extension_versioning:lookup_with_version(<<"normalize_text">>, Context).
+Context = #{~"tenant_id" => ~"premium_tenant"},
+router_extension_versioning:lookup_with_version(~"normalize_text", Context).
 ```
 
 #### Step 5: Disable Problematic Version
@@ -1266,7 +1266,7 @@ router_extension_registry:reload().
 
 **Via Erlang Shell**:
 ```erlang
-{ok, Extension} = router_extension_registry:lookup(<<"normalize_text">>),
+{ok, Extension} = router_extension_registry:lookup(~"normalize_text"),
 Extension#extension.enabled.  % Should be false
 ```
 
@@ -1311,7 +1311,7 @@ router_extension_registry:reload().
 
 **Via Erlang Shell**:
 ```erlang
-{ok, Extension} = router_extension_registry:lookup(<<"normalize_text">>),
+{ok, Extension} = router_extension_registry:lookup(~"normalize_text"),
 Extension#extension.enabled.  % Should be true
 ```
 
@@ -1335,7 +1335,7 @@ Extension#extension.enabled.  % Should be true
 **Diagnosis**:
 ```erlang
 %% Check extension exists
-router_extension_registry:lookup(<<"normalize_text">>).
+router_extension_registry:lookup(~"normalize_text").
 
 %% Check registry source
 application:get_env(beamline_router, extension_registry).
@@ -1365,7 +1365,7 @@ application:get_env(beamline_router, extension_registry).
 **Diagnosis**:
 ```erlang
 %% Check extension health
-{ok, Health} = router_extension_health:get_health(<<"normalize_text">>),
+{ok, Health} = router_extension_health:get_health(~"normalize_text"),
 maps:get(avg_latency_ms, Health).
 ```
 
@@ -1398,7 +1398,7 @@ maps:get(avg_latency_ms, Health).
 **Diagnosis**:
 ```erlang
 %% Check circuit breaker state
-{ok, Health} = router_extension_health:get_health(<<"normalize_text">>),
+{ok, Health} = router_extension_health:get_health(~"normalize_text"),
 maps:get(circuit_breaker_state, Health).
 ```
 
@@ -1465,7 +1465,7 @@ application:get_env(beamline_router, extension_registry).
 **Diagnosis**:
 ```erlang
 %% Check latency metrics
-{ok, Health} = router_extension_health:get_health(<<"normalize_text">>),
+{ok, Health} = router_extension_health:get_health(~"normalize_text"),
 maps:get(p95_latency_ms, Health),
 maps:get(p99_latency_ms, Health).
 ```
@@ -1503,10 +1503,10 @@ whereis(router_extension_registry).
 ets:info(extension_registry, size).
 
 %% Extension lookup
-router_extension_registry:lookup(<<"normalize_text">>).
+router_extension_registry:lookup(~"normalize_text").
 
 %% Health metrics
-router_extension_health:get_health(<<"normalize_text">>).
+router_extension_health:get_health(~"normalize_text").
 router_extension_health:get_health_summary().
 
 %% Database connection
@@ -1548,10 +1548,10 @@ SELECT * FROM extension_health WHERE extension_id = 'normalize_text';
 
 ## References
 
-- `docs/dev/EXTENSION_REGISTRY_PRODUCTION_DESIGN.md` - Registry design
-- `docs/dev/EXTENSION_ADVANCED_FEATURES_REPORT.md` - Advanced features
-- `docs/dev/EXTENSIONS_PIPELINE_PERF_REPORT.md` - Performance analysis
-- `docs/dev/EXTENSION_REGISTRY_CONFIG_EXAMPLES.md` - Configuration examples
+- `docs/archive/dev/EXTENSION_REGISTRY_PRODUCTION_DESIGN.md` - Registry design
+- `docs/archive/dev/EXTENSION_ADVANCED_FEATURES_REPORT.md` - Advanced features
+- `docs/archive/dev/EXTENSIONS_PIPELINE_PERF_REPORT.md` - Performance analysis
+- `docs/archive/dev/EXTENSION_REGISTRY_CONFIG_EXAMPLES.md` - Configuration examples
 - `apps/otp/router/docs/OPERATIONAL_GUIDE.md` - General operational guide
 - `apps/otp/router/docs/PROMETHEUS_ALERTS.md` - Alert rules
 - `apps/otp/router/docs/CONFIG.md` - Configuration reference

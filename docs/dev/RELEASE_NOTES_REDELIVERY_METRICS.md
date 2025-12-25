@@ -86,8 +86,8 @@ router_jetstream:nak(Msg, Reason, #{
 
 ## References
 
-- **Implementation**: `docs/dev/OBSERVABILITY_METRICS_FIX_IMPLEMENTATION.md`
-- **Labels Support**: `docs/dev/OBSERVABILITY_METRICS_LABELS_IMPLEMENTATION.md`
-- **Staging Guide**: `docs/dev/STAGING_VALIDATION_GUIDE.md`
-- **Task Completion**: `docs/dev/OBSERVABILITY_REDELIVERY_METRICS_TASK_COMPLETE.md`
+- **Implementation**: `docs/archive/dev/OBSERVABILITY_METRICS_FIX_IMPLEMENTATION.md`
+- **Labels Support**: `docs/archive/dev/OBSERVABILITY_METRICS_LABELS_IMPLEMENTATION.md`
+- **Staging Guide**: `docs/archive/dev/STAGING_VALIDATION_GUIDE.md`
+- **Task Completion**: `docs/archive/dev/OBSERVABILITY_REDELIVERY_METRICS_TASK_COMPLETE.md`
 

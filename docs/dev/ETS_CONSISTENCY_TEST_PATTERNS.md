@@ -58,7 +58,7 @@ Metrics = router_r10_metrics:dump_metrics(),
 lists:foreach(
     fun({_Key, Value}) ->
         true = is_map(Value),
-        true = maps:is_key(<<"value">>, Value) orelse maps:is_key(<<"count">>, Value)
+        true = maps:is_key(~"value", Value) orelse maps:is_key(~"count", Value)
     end,
     maps:to_list(Metrics)
 ).
@@ -90,7 +90,7 @@ test_ets_table_integrity(_Config) ->
         fun({Key, Value}) ->
             true = is_map(Value),
             %% Verify value has required structure
-            true = maps:is_key(<<"value">>, Value) orelse maps:is_key(<<"count">>, Value),
+            true = maps:is_key(~"value", Value) orelse maps:is_key(~"count", Value),
             %% Verify key is valid
             true = is_binary(Key) orelse is_atom(Key)
         end,
@@ -222,7 +222,7 @@ test_ets_cleanup_after_operations(_Config) ->
 ```erlang
 verify_entry_structure(Entry) ->
     true = is_map(Entry),
-    true = maps:is_key(<<"value">>, Entry) orelse maps:is_key(<<"count">>, Entry),
+    true = maps:is_key(~"value", Entry) orelse maps:is_key(~"count", Entry),
     ok.
 ```
 

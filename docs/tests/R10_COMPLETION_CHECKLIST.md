@@ -104,13 +104,13 @@ This document verifies that all R10 implementation tasks are complete and ready 
 **Circuit breaker** (per tenant/provider):
 ```erlang
 Config = #{
-    <<"failure_threshold">> => 5,
-    <<"error_rate_threshold">> => 0.5,
-    <<"error_rate_window_seconds">> => 30,
-    <<"latency_threshold_ms">> => 5000,  % NEW for R10
-    <<"timeout_ms">> => 30000,
-    <<"half_open_max_calls">> => 3,
-    <<"success_threshold">> => 2
+    ~"failure_threshold" => 5,
+    ~"error_rate_threshold" => 0.5,
+    ~"error_rate_window_seconds" => 30,
+    ~"latency_threshold_ms" => 5000,  % NEW for R10
+    ~"timeout_ms" => 30000,
+    ~"half_open_max_calls" => 3,
+    ~"success_threshold" => 2
 },
 router_circuit_breaker:record_state_with_config(TenantId, ProviderId, Config).
 ```
@@ -189,7 +189,7 @@ rebar3 compile
 %% Test retry config
 1> Config = router_nats_publish_retry:get_default_config().
 #{...}
-2> maps:get(<<"max_attempts">>, Config).
+2> maps:get(~"max_attempts", Config).
 3
 
 %% Test backoff calculation
@@ -215,14 +215,14 @@ ok
 
 %% Emit test metric
 2> router_metrics:emit_metric(router_nats_publish_attempts_total, #{count => 1}, #{
-    status => <<"success">>,
-    retry_count => <<"0">>
+    status => ~"success",
+    retry_count => ~"0"
 }).
 ok
 
 %% Verify metric stored
-3> ets:lookup(router_metrics, {router_nats_publish_attempts_total, [{retry_count,<<"0">>}, {status,<<"success">>}]}).
-[{{router_nats_publish_attempts_total,[{retry_count,<<"0">>},{status,<<"success">>}]},1}]
+3> ets:lookup(router_metrics, {router_nats_publish_attempts_total, [{retry_count,~"0"}, {status,~"success"}]}).
+[{{router_nats_publish_attempts_total,[{retry_count,~"0"},{status,~"success"}]},1}]
 ```
 
 **Expected**: Metrics stored correctly with labels
@@ -234,24 +234,24 @@ ok
 {ok, <pid>}
 
 %% Record state
-2> router_circuit_breaker:record_state(<<"t1">>, <<"p1">>).
+2> router_circuit_breaker:record_state(~"t1", ~"p1").
 ok
 
 %% Get state
-3> router_circuit_breaker:get_state(<<"t1">>, <<"p1">>).
+3> router_circuit_breaker:get_state(~"t1", ~"p1").
 {ok, closed}
 
 %% Record failures to open
-4> [router_circuit_breaker:record_failure(<<"t1">>, <<"p1">>) || _ <- lists:seq(1, 5)].
+4> [router_circuit_breaker:record_failure(~"t1", ~"p1") || _ <- lists:seq(1, 5)].
 [ok,ok,ok,ok,ok]
 
 %% Verify open
-5> router_circuit_breaker:get_state(<<"t1">>, <<"p1">>).
+5> router_circuit_breaker:get_state(~"t1", ~"p1").
 {ok, open}
 
 %% Verify state metric
-6> ets:lookup(router_metrics, {router_circuit_breaker_state, [{provider_id,<<"p1">>}, {state,<<"open">>}, {tenant_id,<<"t1">>}]}).
-[{{router_circuit_breaker_state,[{provider_id,<<"p1">>},{state,<<"open">>},{tenant_id,<<"t1">>}]},1.0}]
+6> ets:lookup(router_metrics, {router_circuit_breaker_state, [{provider_id,~"p1"}, {state,~"open"}, {tenant_id,~"t1"}]}).
+[{{router_circuit_breaker_state,[{provider_id,~"p1"},{state,~"open"},{tenant_id,~"t1"}]},1.0}]
 ```
 
 **Expected**: Circuit breaker works, metrics emitted

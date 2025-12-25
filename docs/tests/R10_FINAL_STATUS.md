@@ -89,7 +89,7 @@ rebar3 ct --dir apps/otp/router/test
 2. **`R10_RUNBOOK.md`** - Operational incident diagnostics
 3. **`R10_MAINTENANCE_CHECKLIST.md`** - Guidelines for future changes
 4. **`R10_P0_COMPLETE_FINAL.md`** - R10 metrics access layer API
-5. **`docs/dev/QA_TEST_PLAN.md`** - Test plan with R10 E2E suite details
+5. **`docs/archive/dev/QA_TEST_PLAN.md`** - Test plan with R10 E2E suite details
 6. **`docs/OBSERVABILITY_CONVENTIONS.md`** - R10 metrics conventions
 
 ### Test Documentation
@@ -276,7 +276,7 @@ rebar3 ct --dir apps/otp/router/test
 - Document dashboard/alert structure
 - Create SUITE + metrics + runbook templates
 
-**Deliverable**: `docs/dev/R_TEMPLATE_OBSERVABILITY.md`
+**Deliverable**: `docs/archive/dev/R_TEMPLATE_OBSERVABILITY.md`
 
 ---
 

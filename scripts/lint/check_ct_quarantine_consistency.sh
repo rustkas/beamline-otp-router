@@ -19,7 +19,14 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   line="${line#"${line%%[![:space:]]*}"}"
   [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
 
-  IFS='|' read -r raw_suite _owner _reason <<< "$line"
+  # Format: Suite | Owner | Date | Reason (4 columns)
+  # Parse using IFS directly on positional parameters
+  oldIFS="$IFS"
+  IFS='|'
+  set -- $line
+  IFS="$oldIFS"
+  
+  raw_suite="${1:-}"
   suite="$(trim "${raw_suite:-}")"
   [[ -z "$suite" ]] && continue
 
@@ -45,4 +52,3 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
 done < "$QUARANTINE_FILE"
 
 echo "CT quarantine consistency: OK"
-

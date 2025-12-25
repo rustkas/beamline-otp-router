@@ -153,9 +153,9 @@ This document provides a declarative specification of Router metrics contracts. 
 - Must have `byte_size/1` > 0
 
 **Examples**:
-- `assignment_id`: `<<"assign-123">>`
-- `request_id`: `<<"req-456">>`
-- `reason`: `<<"tenant_validation_failed">>`
+- `assignment_id`: `~"assign-123"`
+- `request_id`: `~"req-456"`
+- `reason`: `~"tenant_validation_failed"`
 
 ### Integer Labels
 

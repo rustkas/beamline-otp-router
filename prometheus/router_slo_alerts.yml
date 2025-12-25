@@ -1,0 +1,162 @@
+groups:
+  - name: router_slo_alerts
+    interval: 30s
+    rules:
+      # ========================================
+      # Latency SLO Violations
+      # ========================================
+      
+      - alert: RouterLatencyP95High
+        expr: slo:router_latency_p95:5m > 0.100
+        for: 5m
+        labels:
+          severity: warning
+          slo_type: latency
+          component: router
+        annotations:
+          summary: "Router p95 latency exceeds 100ms SLO"
+          description: |
+            Router p95 latency is {{ $value | humanizeDuration }} (target: 100ms).
+            This may indicate performance degradation.
+          impact: "User experience degraded (slow routing decisions)"
+          runbook: "https://github.com/beamline/router/docs/operations/RECOVERY_RUNBOOK.md#high-latency"
+
+      - alert: RouterLatencyP99Critical
+        expr: slo:router_latency_p99:5m > 0.200
+        for: 5m
+        labels:
+          severity: critical
+          slo_type: latency
+          component: router
+        annotations:
+          summary: "Router p99 latency exceeds 200ms SLO (CRITICAL)"
+          description: |
+            Router p99 latency is {{ $value | humanizeDuration }} (target: 200ms).
+            Immediate action required.
+          impact: "Significant user experience degradation"
+          runbook: "https://github.com/beamline/router/docs/operations/RECOVERY_RUNBOOK.md#critical-latency"
+
+      # ========================================
+      # Availability SLO Violations
+      # ========================================
+
+      - alert: RouterAvailabilityLow
+        expr: slo:router_error_rate:5m > 0.001
+        for: 5m
+        labels:
+          severity: warning
+          slo_type: availability
+          component: router
+        annotations:
+          summary: "Router error rate exceeds 0.1% (99.9% SLO violated)"
+          description: |
+            Router error rate is {{ $value | humanizePercentage }} (target: < 0.1%).
+            Current availability: {{ (1 - $value) | humanizePercentage }}.
+          impact: "SLO violated - error budget consuming"
+          runbook: "https://github.com/beamline/router/docs/operations/RECOVERY_RUNBOOK.md#high-error-rate"
+
+      # ========================================
+      # Error Budget Alerts
+      # ========================================
+
+      - alert: RouterErrorBudgetExhausted
+        expr: slo:router_error_budget_remaining:30d < 0.10
+        for: 5m
+        labels:
+          severity: critical
+          slo_type: error_budget
+          component: router
+        annotations:
+          summary: "Router error budget critically low (< 10% remaining)"
+          description: |
+            Error budget remaining: {{ $value | humanizePercentage }}.
+            Immediate action required - consider feature freeze.
+          impact: "Error budget exhaustion imminent - reliability at risk"
+          runbook: "https://github.com/beamline/router/docs/SLO_SPECIFICATION.md#error-budget-policy"
+
+      - alert: RouterErrorBudgetFastBurn
+        expr: slo:router_error_budget_burn_rate:1h > 6
+        for: 5m
+        labels:
+          severity: critical
+          slo_type: error_budget
+          component: router
+        annotations:
+          summary: "Router error budget burning too fast (6x normal rate)"
+          description: |
+            Error budget burn rate: {{ $value }}x (target: 1x).
+            At this rate, budget will be exhausted in {{ 30 / $value | humanizeDuration }}.
+          impact: "Rapid error budget consumption - incident likely"
+          runbook: "https://github.com/beamline/router/docs/operations/RECOVERY_RUNBOOK.md#fast-burn"
+
+      - alert: RouterErrorBudgetSlowBurn
+        expr: slo:router_error_budget_burn_rate:1h > 2
+        for: 1h
+        labels:
+          severity: warning
+          slo_type: error_budget
+          component: router
+        annotations:
+          summary: "Router error budget burning above normal (2x rate)"
+          description: |
+            Error budget burn rate: {{ $value }}x (target: 1x).
+            Monitor for sustained degradation.
+          impact: "Elevated error rate - investigate root cause"
+          runbook: "https://github.com/beamline/router/docs/operations/RECOVERY_RUNBOOK.md#slow-burn"
+
+      # ========================================
+      # Circuit Breaker Impact on SLO
+      # ========================================
+
+      - alert: RouterCircuitBreakersOpen
+        expr: sum(router_circuit_breaker_state{state="open"}) > 0
+        for: 10m
+        labels:
+          severity: warning
+          slo_type: availability
+          component: router
+        annotations:
+          summary: "Router has open circuit breakers"
+          description: |
+            {{ $value }} circuit breakers are open.
+            This may impact availability and latency SLOs.
+          impact: "Reduced provider availability"
+          runbook: "https://github.com/beamline/router/docs/operations/RECOVERY_RUNBOOK.md#circuit-breaker"
+
+      # ========================================
+      # Backpressure Impact on SLO
+      # ========================================
+
+      - alert: RouterBackpressureActive
+        expr: router_intake_backpressure_status{status="active"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          slo_type: latency
+          component: router
+        annotations:
+          summary: "Router backpressure active (may impact latency SLO)"
+          description: |
+            Backpressure is active, indicating high load or slow consumers.
+            Monitor latency SLO closely.
+          impact: "Potential latency degradation"
+          runbook: "https://github.com/beamline/router/docs/operations/RECOVERY_RUNBOOK.md#backpressure"
+
+      # ========================================
+      # NATS Connection Impact on SLO
+      # ========================================
+
+      - alert: RouterNatsDisconnected
+        expr: router_nats_connection_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          slo_type: availability
+          component: router
+        annotations:
+          summary: "Router NATS connection lost (availability at risk)"
+          description: |
+            Router has lost connection to NATS.
+            All requests will fail until reconnection.
+          impact: "Complete service outage"
+          runbook: "https://github.com/beamline/router/docs/operations/RECOVERY_RUNBOOK.md#nats-recovery"

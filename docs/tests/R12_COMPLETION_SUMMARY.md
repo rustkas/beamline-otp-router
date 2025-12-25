@@ -141,7 +141,7 @@ rebar3 as test ct --suite router_network_partition_SUITE --case test_single_inst
 - `test/scripts/r12_network_partition_fault_injection.ps1`
 
 ### Integration
-- `docs/dev/JETSTREAM_FAULT_INJECTION_TESTS.md` (updated with R12 section)
+- `docs/archive/dev/JETSTREAM_FAULT_INJECTION_TESTS.md` (updated with R12 section)
 
 ## Status
 

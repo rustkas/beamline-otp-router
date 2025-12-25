@@ -1,0 +1,1 @@
+Task: Make `router_admin_grpc_rbac_SUITE` self-contained by providing deterministic test-only admin API key handling so the suite, and therefore `./scripts/ct-full.sh`, no longer depends on manual credentials.

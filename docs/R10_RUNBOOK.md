@@ -170,20 +170,20 @@ rebar3 ct --suite test/router_publish_failure_e2e_SUITE \
 
 ```erlang
 % In Erlang shell
-router_circuit_breaker:get_state(<<"tenant_id">>, <<"provider_id">>).
+router_circuit_breaker:get_state(~"tenant_id", ~"provider_id").
 ```
 
 ### Check Metrics via router_r10_metrics
 
 ```erlang
 % Get latest trigger reason
-router_r10_metrics:get_latest_trigger_reason(<<"tenant_id">>, <<"provider_id">>).
+router_r10_metrics:get_latest_trigger_reason(~"tenant_id", ~"provider_id").
 
 % Get current state metric
 router_r10_metrics:get_metric_value(router_circuit_breaker_state, #{
-    tenant_id => <<"tenant_id">>,
-    provider_id => <<"provider_id">>,
-    state => <<"open">>
+    tenant_id => ~"tenant_id",
+    provider_id => ~"provider_id",
+    state => ~"open"
 }).
 ```
 

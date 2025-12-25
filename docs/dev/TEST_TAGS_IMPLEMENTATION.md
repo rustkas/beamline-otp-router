@@ -36,7 +36,7 @@ Machine-readable test category tags (`@test_category`) have been added to all te
 Tags are added in module comments using Erlang documentation syntax:
 
 ```erlang
-%% @doc Common Test Suite for Router Core
+-doc "Common Test Suite for Router Core".
 %% Tests policy parsing, basic decision, errors (CP1)
 %% @test_category cp1_smoke, fast
 -module(router_core_SUITE).

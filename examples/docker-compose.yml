@@ -1,0 +1,147 @@
+version: '3.8'
+
+services:
+  # NATS Server with JetStream
+  nats:
+    image: nats:2.10-alpine
+    container_name: beamline-nats
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # HTTP monitoring
+      - "6222:6222"  # Cluster
+    command: ["-js", "-m", "8222"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - beamline
+
+  # Beamline Router (Erlang/OTP)
+  router:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    container_name: beamline-router
+    ports:
+      - "50051:50051"  # gRPC
+    environment:
+      - NATS_URL=nats://nats:4222
+      - ROUTER_GRPC_PORT=50051
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:50051/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - beamline
+
+  # c-gateway (HTTP-to-NATS)
+  c-gateway:
+    build:
+      context: ../../../c-gateway
+      dockerfile: Dockerfile
+    container_name: beamline-c-gateway
+    ports:
+      - "8080:8080"  # HTTP API
+    environment:
+      - NATS_URL=nats://nats:4222
+      - GATEWAY_RATE_LIMIT_ROUTES_DECIDE_LIMIT=100
+      - GATEWAY_DISTRIBUTED_RATE_LIMIT_ENABLED=false
+      - GATEWAY_ADMIN_API_KEY=demo-key
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/_health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - beamline
+
+  # CAF Worker (C++ execution engine)
+  caf-worker:
+    build:
+      context: ../../../caf/processor
+      dockerfile: Dockerfile
+    container_name: beamline-caf-worker
+    ports:
+      - "9090:9090"  # Prometheus metrics
+    environment:
+      - NATS_URL=nats://nats:4222
+      - WORKER_CPU_POOL_SIZE=4
+      - WORKER_IO_POOL_SIZE=8
+      - WORKER_MAX_MEMORY_MB=1024
+      - PROMETHEUS_ENDPOINT=0.0.0.0:9090
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - beamline
+
+  # Redis (for distributed rate limiting - optional)
+  redis:
+    image: redis:7-alpine
+    container_name: beamline-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - beamline
+
+  # Prometheus (metrics collection)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: beamline-prometheus
+    ports:
+      - "9091:9090"  # Prometheus UI
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - beamline
+
+  # OpenTelemetry Collector (optional - for distributed tracing)
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: beamline-otel
+    ports:
+      - "4318:4318"  # OTLP HTTP
+      - "55679:55679"  # zpages
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel/config.yml:ro
+    command: ["--config=/etc/otel/config.yml"]
+    networks:
+      - beamline
+
+networks:
+  beamline:
+    driver: bridge
+
+volumes:
+  prometheus-data:

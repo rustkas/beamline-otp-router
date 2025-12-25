@@ -59,28 +59,28 @@
 #### 2.3. Fixed Metric Reason Matching
 **File**: `router_circuit_breaker_SUITE.erl`
 
-**Problem**: Test was looking for `reason => <<"failure_threshold_exceeded">>`, but in dump we saw `reason => <<"error_rate_threshold_exceeded">>`.
+**Problem**: Test was looking for `reason => ~"failure_threshold_exceeded"`, but in dump we saw `reason => ~"error_rate_threshold_exceeded"`.
 
 **Root Cause**: In `maybe_transition_to_open/1`, the logic checks multiple conditions:
 ```erlang
 if
     FailureCount >= FailureThreshold orelse SlidingErrorRate >= ErrorRateThreshold orelse LatencyExceeded ->
         Reason = if
-            LatencyExceeded -> <<"latency_threshold_exceeded">>;
-            FailureCount >= FailureThreshold -> <<"failure_threshold_exceeded">>;
-            true -> <<"error_rate_threshold_exceeded">>
+            LatencyExceeded -> ~"latency_threshold_exceeded";
+            FailureCount >= FailureThreshold -> ~"failure_threshold_exceeded";
+            true -> ~"error_rate_threshold_exceeded"
         end,
 ```
 
-If both `FailureCount >= FailureThreshold` AND `SlidingErrorRate >= ErrorRateThreshold` are true, the `orelse` short-circuits and the first condition (`FailureCount >= FailureThreshold`) is checked first. However, if `SlidingErrorRate >= ErrorRateThreshold` is true but `FailureCount < FailureThreshold`, then `Reason` becomes `<<"error_rate_threshold_exceeded">>`.
+If both `FailureCount >= FailureThreshold` AND `SlidingErrorRate >= ErrorRateThreshold` are true, the `orelse` short-circuits and the first condition (`FailureCount >= FailureThreshold`) is checked first. However, if `SlidingErrorRate >= ErrorRateThreshold` is true but `FailureCount < FailureThreshold`, then `Reason` becomes `~"error_rate_threshold_exceeded"`.
 
 **Solution**: Test now checks both possible reasons:
 ```erlang
 FailureReason = get_metric_value(router_circuit_breaker_trigger_reason, #{
-    reason => <<"failure_threshold_exceeded">>
+    reason => ~"failure_threshold_exceeded"
 }),
 ErrorRateReason = get_metric_value(router_circuit_breaker_trigger_reason, #{
-    reason => <<"error_rate_threshold_exceeded">>
+    reason => ~"error_rate_threshold_exceeded"
 }),
 max(FailureReason, ErrorRateReason)  % At least one should be >= 1
 ```

@@ -23,10 +23,10 @@
 ok = wait_for_metric(
     fun() ->
         FailureReason = get_metric_value(router_circuit_breaker_trigger_reason, #{
-            reason => <<"failure_threshold_exceeded">>
+            reason => ~"failure_threshold_exceeded"
         }),
         ErrorRateReason = get_metric_value(router_circuit_breaker_trigger_reason, #{
-            reason => <<"error_rate_threshold_exceeded">>
+            reason => ~"error_rate_threshold_exceeded"
         }),
         max(FailureReason, ErrorRateReason)
     end,
@@ -81,7 +81,7 @@ end,
    - `test_circuit_breaker_opens_on_latency_threshold` (line 315)
    - `test_circuit_breaker_reopens_on_half_open_failure` (line 474)
    
-   Replace hardcoded `<<"reason">>` with `router_r10_metrics:trigger_reason_*()` constants and add `assert_trigger_reason_in/3` calls.
+   Replace hardcoded `~"reason"` with `router_r10_metrics:trigger_reason_*()` constants and add `assert_trigger_reason_in/3` calls.
 
 2. **Run full `router_circuit_breaker_SUITE`**:
    - Verify all tests pass with new helpers

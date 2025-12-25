@@ -225,7 +225,7 @@ This document provides a prioritized roadmap for integrating R10 (Retry Logic + 
 - Maintenance checklist template
 
 **Deliverable**:
-- `docs/dev/R10_TEMPLATE_FOR_RISK_MODULES.md`
+- `docs/archive/dev/R10_TEMPLATE_FOR_RISK_MODULES.md`
 - Reference in `OBSERVABILITY_CONVENTIONS.md`
 
 **Estimated Effort**: 2-3 hours

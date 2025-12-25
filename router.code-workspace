@@ -1,0 +1,18 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../.."
+		}
+	],
+	"settings": {
+		"elpClient.serverPath": "/usr/local/bin/elp",
+		"erlang-elp.trace.server": "messages",
+		"elp.diagnostics.disabled": [
+			"W0008",
+			"W0052"
+		]
+	}
+}

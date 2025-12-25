@@ -9,6 +9,7 @@ This document defines all NATS subjects used for Router ↔ CAF integration via 
 Subjects follow hierarchical dot-separated format:
 - `beamline.router.v1.*` - Router service subjects
 - `caf.exec.assign.v1.*` - CAF execution assignment subjects
+- `beamline.router.control.v1.*` - Router control API subjects (primary namespace); enable `ROUTER_CONTROL_SUBJECT_ALIAS=true` to keep `beamline.router.ide.v1.*`.
 
 ## Router Subjects
 
@@ -92,6 +93,11 @@ Subjects follow hierarchical dot-separated format:
   }
 }
 ```
+
+## Control API Subjects
+
+Router control mode uses a separate namespace and is documented in:
+- `docs/CONTROL_API_NATS_SUBJECTS.md`
 
 ## CAF Subjects
 
@@ -313,9 +319,9 @@ Subjects can be configured via application environment:
 
 ```erlang
 {beamline_router, [
-    {nats_subject, <<"beamline.router.v1.decide">>},
-    {nats_reply_subject, <<"beamline.router.v1.decide.reply">>},
-    {caf_assignment_subject, <<"caf.exec.assign.v1">>}
+    {nats_subject, ~"beamline.router.v1.decide"},
+    {nats_reply_subject, ~"beamline.router.v1.decide.reply"},
+    {caf_assignment_subject, ~"caf.exec.assign.v1"}
 ]}
 ```
 
@@ -388,4 +394,3 @@ See `docs/NATS_BEST_PRACTICES.md` for production-ready recommendations:
 - `docs/NATS_BEST_PRACTICES.md` - Production best practices and recommendations
 - `src/router_nats_subscriber.erl` - Router NATS subscriber implementation
 - `src/router_caf_adapter.erl` - CAF adapter implementation
-

@@ -279,6 +279,6 @@ Create a **dedicated automated test suite** that:
 - `router_metrics_*_SUITE.erl` - Existing metrics tests
 - `router_prometheus.erl` - Prometheus export
 - `router_metrics.erl` - Metrics storage
-- `docs/dev/METRICS_CONTRACT_SPECIFICATION.md` - Metrics contracts
-- `docs/dev/METRICS_LABELS_IMPLEMENTATION_SPEC.md` - Labels specification
+- `docs/archive/dev/METRICS_CONTRACT_SPECIFICATION.md` - Metrics contracts
+- `docs/archive/dev/METRICS_LABELS_IMPLEMENTATION_SPEC.md` - Labels specification
 

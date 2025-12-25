@@ -54,7 +54,12 @@ load_quarantined_suites() {
         local line="$raw_line"
         line="${line#"${line%%[![:space:]]*}"}"
         [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
-        IFS='|' read -r raw_suite raw_owner raw_reason <<< "$line"
+        # Parse 4-column format: Suite | Owner | Date | Reason
+        local oldIFS="$IFS"
+        IFS='|'
+        set -- $line
+        IFS="$oldIFS"
+        local raw_suite="${1:-}" raw_owner="${2:-}" raw_date="${3:-}" raw_reason="${4:-}"
         local suite owner reason
         suite="$(trim "${raw_suite:-}")"
         owner="$(trim "${raw_owner:-}")"

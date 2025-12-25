@@ -133,7 +133,7 @@ This document describes gRPC contracts, request metadata (including `correlation
 ```erlang
 %% Client passes correlation_id in metadata
 Ctx = #{metadata => [
-    {<<"x-correlation-id">>, <<"550e8400-e29b-41d4-a716-446655440000">>}
+    {~"x-correlation-id", ~"550e8400-e29b-41d4-a716-446655440000"}
 ]},
 
 %% Server extracts and propagates
@@ -169,8 +169,8 @@ CorrId = router_admin_grpc:extract_correlation_id(Ctx),
 4. **Implementation example**:
    ```erlang
    %% Client preserves correlation_id for all retries
-   CorrelationId = <<"550e8400-e29b-41d4-a716-446655440000">>,
-   Metadata = [{<<"x-correlation-id">>, CorrelationId}],
+   CorrelationId = ~"550e8400-e29b-41d4-a716-446655440000",
+   Metadata = [{~"x-correlation-id", CorrelationId}],
    
    %% First attempt
    case call_rpc(Request, Metadata) of
@@ -322,41 +322,41 @@ All events contain the following measurements:
 ```erlang
 %% Successful list
 telemetry:execute([router_admin, list], #{count => 5}, #{
-    tenant_id => <<"my_tenant">>,
+    tenant_id => ~"my_tenant",
     result => ok,
-    correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>
+    correlation_id => ~"550e8400-e29b-41d4-a716-446655440000"
 }).
 
 %% Successful get_policy
 telemetry:execute([router_policy_store, get_policy], 
     #{duration_us => 1234, queue_len => 0}, 
     #{
-        tenant_id => <<"my_tenant">>,
-        policy_id => <<"my_policy">>,
+        tenant_id => ~"my_tenant",
+        policy_id => ~"my_policy",
         table => policy_store,  %% Exact ETS table name: policy_store
         result => ok,
-        correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>
+        correlation_id => ~"550e8400-e29b-41d4-a716-446655440000"
     }).
 
 %% Error get_policy (not_found)
 telemetry:execute([router_policy_store, get_policy], 
     #{duration_us => 567, queue_len => 0}, 
     #{
-        tenant_id => <<"my_tenant">>,
-        policy_id => <<"nonexistent">>,
+        tenant_id => ~"my_tenant",
+        policy_id => ~"nonexistent",
         table => policy_store,  %% Exact ETS table name: policy_store
         result => error,
         error => not_found,
-        correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>
+        correlation_id => ~"550e8400-e29b-41d4-a716-446655440000"
     }).
 
 %% Error on delete
 telemetry:execute([router_admin, delete], #{count => 1}, #{
-    tenant_id => <<"my_tenant">>,
-    policy_id => <<"my_policy">>,
+    tenant_id => ~"my_tenant",
+    policy_id => ~"my_policy",
     result => error,
     error => not_found,
-    correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>
+    correlation_id => ~"550e8400-e29b-41d4-a716-446655440000"
 }).
 ```
 
@@ -426,7 +426,7 @@ In gRPC response:
 **INVALID_ARGUMENT** (3) — invalid policy:
 ```erlang
 %% gRPC Status
-{grpc_error, {?GRPC_STATUS_INVALID_ARGUMENT, <<"Invalid policy: weights must sum to 100">>}}
+{grpc_error, {?GRPC_STATUS_INVALID_ARGUMENT, ~"Invalid policy: weights must sum to 100"}}
 
 %% Telemetry metadata
 #{
@@ -438,7 +438,7 @@ In gRPC response:
 **NOT_FOUND** (5) — policy not found:
 ```erlang
 %% gRPC Status
-{grpc_error, {?GRPC_STATUS_NOT_FOUND, <<"Policy not found: policy_id=non-existent">>}}
+{grpc_error, {?GRPC_STATUS_NOT_FOUND, ~"Policy not found: policy_id=non-existent"}}
 
 %% Telemetry metadata
 #{
@@ -450,7 +450,7 @@ In gRPC response:
 **INTERNAL** (13) — internal ETS error:
 ```erlang
 %% gRPC Status
-{grpc_error, {?GRPC_STATUS_INTERNAL, <<"Internal error: ETS table access failed">>}}
+{grpc_error, {?GRPC_STATUS_INTERNAL, ~"Internal error: ETS table access failed"}}
 
 %% Telemetry metadata
 #{
@@ -462,7 +462,7 @@ In gRPC response:
 **DEADLINE_EXCEEDED** (4) — operation timeout:
 ```erlang
 %% gRPC Status
-{grpc_error, {?GRPC_STATUS_DEADLINE_EXCEEDED, <<"queue wait exceeded 50000µs">>}}
+{grpc_error, {?GRPC_STATUS_DEADLINE_EXCEEDED, ~"queue wait exceeded 50000µs"}}
 
 %% Telemetry metadata
 #{
@@ -477,8 +477,8 @@ telemetry:execute([router_admin, rpc_timeout],
     #{wait_duration_us => 50000, queue_len => 150}, 
     #{
         service => router_admin,
-        otp_version => <<"26">>,
-        correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>,
+        otp_version => ~"26",
+        correlation_id => ~"550e8400-e29b-41d4-a716-446655440000",
         reason => deadline_exceeded
     }).
 ```
@@ -488,7 +488,7 @@ telemetry:execute([router_admin, rpc_timeout],
 **CANCELLED** (1) — cancelled by client:
 ```erlang
 %% gRPC Status
-{grpc_error, {?GRPC_STATUS_CANCELLED, <<"client cancelled the request">>}}
+{grpc_error, {?GRPC_STATUS_CANCELLED, ~"client cancelled the request"}}
 
 %% Telemetry metadata
 #{
@@ -501,8 +501,8 @@ telemetry:execute([router_admin, rpc_cancelled],
     #{duration_us => 25000, queue_len => 5}, 
     #{
         service => router_admin,
-        otp_version => <<"26">>,
-        correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>,
+        otp_version => ~"26",
+        correlation_id => ~"550e8400-e29b-41d4-a716-446655440000",
         reason => client_cancelled
     }).
 ```
@@ -514,7 +514,7 @@ telemetry:execute([router_admin, rpc_cancelled],
 **UNAVAILABLE** (14) — provider/backend temporarily unavailable:
 ```erlang
 %% gRPC Status
-{grpc_error, {?GRPC_STATUS_UNAVAILABLE, <<"Upstream service temporarily unavailable">>}}
+{grpc_error, {?GRPC_STATUS_UNAVAILABLE, ~"Upstream service temporarily unavailable"}}
 
 %% Telemetry metadata
 #{
@@ -527,8 +527,8 @@ telemetry:execute([router_admin, rpc_unavailable],
     #{duration_us => 120000, queue_len => 10}, 
     #{
         service => router_admin,
-        otp_version => <<"26">>,
-        correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>,
+        otp_version => ~"26",
+        correlation_id => ~"550e8400-e29b-41d4-a716-446655440000",
         reason => upstream_unreachable
     }).
 ```
@@ -538,7 +538,7 @@ telemetry:execute([router_admin, rpc_unavailable],
 **RESOURCE_EXHAUSTED** (8) — queue overflow or worker limits:
 ```erlang
 %% gRPC Status
-{grpc_error, {?GRPC_STATUS_RESOURCE_EXHAUSTED, <<"Queue overflow: queue_len exceeded limit">>}}
+{grpc_error, {?GRPC_STATUS_RESOURCE_EXHAUSTED, ~"Queue overflow: queue_len exceeded limit"}}
 
 %% Telemetry metadata
 #{
@@ -552,8 +552,8 @@ telemetry:execute([router_admin, rpc_resource_exhausted],
     #{queue_len => 1500, duration_us => 5000}, 
     #{
         service => router_admin,
-        otp_version => <<"26">>,
-        correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>,
+        otp_version => ~"26",
+        correlation_id => ~"550e8400-e29b-41d4-a716-446655440000",
         reason => queue_overflow
     }).
 ```
@@ -570,15 +570,15 @@ telemetry:execute([router_admin, rpc_resource_exhausted],
 ```erlang
 %% Error when deleting non-existent policy
 telemetry:execute([router_admin, delete], #{count => 1}, #{
-    tenant_id => <<"t-123">>,
-    policy_id => <<"p-404">>,
-    correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>,
+    tenant_id => ~"t-123",
+    policy_id => ~"p-404",
+    correlation_id => ~"550e8400-e29b-41d4-a716-446655440000",
     result => error,
     error => not_found
 }).
 
 %% gRPC response
-{grpc_error, {?GRPC_STATUS_NOT_FOUND, <<"policy not found">>}}
+{grpc_error, {?GRPC_STATUS_NOT_FOUND, ~"policy not found"}}
 ```
 
 ## Performance
@@ -634,7 +634,7 @@ Performance and queue thresholds are configured via `application:get_env(beamlin
 - **Distribution of `count`**: Histogram of `count` for `list` operations (detecting anomalously large responses)
 
 **Recommendation for matrix deployments** (recommended default): Add `otp_version` and `service` tags to event metadata for graph filtering:
-- `otp_version`: OTP version (e.g., `otp_version => <<"26">>`)
+- `otp_version`: OTP version (e.g., `otp_version => ~"26"`)
 - `service`: service name (`router_admin`, `router_policy_store`, `router_decide`) — simplifies dashboard construction
 
 **Dashboard filters**: Fix unified `service` values (`router_admin`, `router_policy_store`, `router_decide`) and include them in alerts. This simplifies analysis in matrix deployments by `otp_version`.
@@ -823,11 +823,11 @@ telemetry:execute([router_policy_store, transfer_success],
 **Masking example**:
 ```erlang
 %% Error with secret
-Error = {error, <<"Connection failed with api_key=secret123">>},
+Error = {error, ~"Connection failed with api_key=secret123"},
 
 %% After masking
 Sanitized = router_admin_grpc:sanitize_error_value(Error),
-%% Sanitized = {error, <<"[REDACTED: contains sensitive data]">>}
+%% Sanitized = {error, ~"[REDACTED: contains sensitive data]"}
 ```
 
 ### Metadata Security
@@ -917,9 +917,9 @@ client.listPolicies(request, metadata, (error, response) => {
 **Example for Erlang**:
 ```erlang
 Ctx = #{metadata => [
-    {<<"x-correlation-id">>, <<"550e8400-e29b-41d4-a716-446655440000">>}  %% Canonical key (lowercase)
+    {~"x-correlation-id", ~"550e8400-e29b-41d4-a716-446655440000"}  %% Canonical key (lowercase)
 ]},
-Request = flow_pb:encode_msg(#'ListPoliciesRequest'{tenant_id = <<"t-123">>}, 'ListPoliciesRequest'),
+Request = flow_pb:encode_msg(#'ListPoliciesRequest'{tenant_id = ~"t-123"}, 'ListPoliciesRequest'),
 {ok, Response, _} = router_admin_grpc:list_policies(Ctx, Request).
 ```
 
@@ -1036,21 +1036,21 @@ When adding a new telemetry event, ensure that:
 telemetry:execute([router_admin, operation], 
     #{duration_us => 1234, queue_len => 0, count => 1},  %% measurements
     #{
-        tenant_id => <<"my_tenant">>,
-        policy_id => <<"my_policy">>,  %% if applicable
+        tenant_id => ~"my_tenant",
+        policy_id => ~"my_policy",  %% if applicable
         result => ok,
-        correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>  %% may be undefined
+        correlation_id => ~"550e8400-e29b-41d4-a716-446655440000"  %% may be undefined
     }).
 
 %% Operation error
 telemetry:execute([router_admin, operation], 
     #{duration_us => 567, queue_len => 0},  %% count absent for errors
     #{
-        tenant_id => <<"my_tenant">>,
-        policy_id => <<"my_policy">>,  %% if applicable
+        tenant_id => ~"my_tenant",
+        policy_id => ~"my_policy",  %% if applicable
         result => error,
         error => not_found,  %% error atom
-        correlation_id => <<"550e8400-e29b-41d4-a716-446655440000">>  %% may be undefined
+        correlation_id => ~"550e8400-e29b-41d4-a716-446655440000"  %% may be undefined
     }).
 ```
 
@@ -1059,7 +1059,7 @@ telemetry:execute([router_admin, operation],
 If you decide to include `otp_version` and `service` in telemetry events, follow these recommendations:
 
 **Source of `otp_version`**:
-- Use `erlang:system_info(otp_release)` as a string (e.g., `<<"26">>`)
+- Use `erlang:system_info(otp_release)` as a string (e.g., `~"26"`)
 - Get the value once at initialization and cache it in process state to avoid repeated calls
 
 **Field `service`** (recommended default):

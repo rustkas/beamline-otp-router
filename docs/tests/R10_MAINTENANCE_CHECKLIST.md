@@ -117,7 +117,7 @@ end.
 Value = router_r10_metrics:get_metric_value(router_circuit_breaker_state, #{
     tenant_id => TenantId,
     provider_id => ProviderId,
-    state => <<"open">>
+    state => ~"open"
 }).
 ```
 
@@ -125,7 +125,7 @@ Value = router_r10_metrics:get_metric_value(router_circuit_breaker_state, #{
 
 **Wrong**:
 ```erlang
-?assertEqual(<<"failure_threshold_exceeded">>, TriggerReason).
+?assertEqual(~"failure_threshold_exceeded", TriggerReason).
 ```
 
 **Correct**:

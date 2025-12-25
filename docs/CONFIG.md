@@ -57,15 +57,15 @@ application:set_env(beamline_router, caf_push_assignment_enabled, true)
 ### `caf_assignment_subject`
 
 **Type**: `binary()` | `string()`  
-**Default**: `<<"caf.exec.assign.v1">>`  
+**Default**: `~"caf.exec.assign.v1"`  
 **Description**: Default NATS subject for ExecAssignment publication
 
-**Default Value**: `"caf.exec.assign.v1"` (as binary: `<<"caf.exec.assign.v1">>`)
+**Default Value**: `"caf.exec.assign.v1"` (as binary: `~"caf.exec.assign.v1"`)
 
 **Usage**:
 ```erlang
 {beamline_router, [
-    {caf_assignment_subject, <<"caf.exec.assign.v1.custom">>}
+    {caf_assignment_subject, ~"caf.exec.assign.v1.custom"}
 ]}
 ```
 
@@ -83,14 +83,14 @@ application:set_env(beamline_router, caf_push_assignment_enabled, true)
 ```erlang
 %% List of allowed tenants
 {beamline_router, [
-    {caf_push_assignment_allowed_tenants, [<<"tenant1">>, <<"tenant2">>]}
+    {caf_push_assignment_allowed_tenants, [~"tenant1", ~"tenant2"]}
 ]}
 
 %% Map of allowed tenants (for future extensions)
 {beamline_router, [
     {caf_push_assignment_allowed_tenants, #{
-        <<"tenant1">> => #{},
-        <<"tenant2">> => #{}
+        ~"tenant1" => #{},
+        ~"tenant2" => #{}
     }}
 ]}
 ```
@@ -373,26 +373,26 @@ application:set_env(beamline_router, caf_push_assignment_enabled, true)
 ### `ack_subject`
 
 **Type**: `binary()` | `string()`
-**Default**: `<<"caf.exec.assign.v1.ack">>`
+**Default**: `~"caf.exec.assign.v1.ack"`
 **Description**: NATS subject for ExecAssignmentAck messages
 
 **Usage**:
 ```erlang
 {beamline_router, [
-    {ack_subject, <<"caf.exec.assign.v1.ack">>}
+    {ack_subject, ~"caf.exec.assign.v1.ack"}
 ]}
 ```
 
 ### `result_subject`
 
 **Type**: `binary()` | `string()`
-**Default**: `<<"caf.exec.result.v1">>`
+**Default**: `~"caf.exec.result.v1"`
 **Description**: NATS subject for ExecResult messages from CAF
 
 **Usage**:
 ```erlang
 {beamline_router, [
-    {result_subject, <<"caf.exec.result.v1">>}
+    {result_subject, ~"caf.exec.result.v1"}
 ]}
 ```
 
@@ -403,13 +403,13 @@ application:set_env(beamline_router, caf_push_assignment_enabled, true)
 ### `usage_subject`
 
 **Type**: `binary()` | `string()`
-**Default**: `<<"beamline.usage.v1.metered">>`
+**Default**: `~"beamline.usage.v1.metered"`
 **Description**: NATS subject for usage metering events
 
 **Usage**:
 ```erlang
 {beamline_router, [
-    {usage_subject, <<"beamline.usage.v1.metered">>}
+    {usage_subject, ~"beamline.usage.v1.metered"}
 ]}
 ```
 
@@ -420,13 +420,13 @@ application:set_env(beamline_router, caf_push_assignment_enabled, true)
 ### `nats_js_durable_group_results`
 
 **Type**: `binary()` | `string()`
-**Default**: `<<"router-results">>`
+**Default**: `~"router-results"`
 **Description**: JetStream durable consumer group name for result subscription
 
 **Usage**:
 ```erlang
 {beamline_router, [
-    {nats_js_durable_group_results, <<"router-results">>}
+    {nats_js_durable_group_results, ~"router-results"}
 ]}
 ```
 
@@ -472,12 +472,12 @@ Router implements **real NATS/JetStream client** with the following features:
 ```erlang
 {beamline_router, [
     %% List of allowed tenant IDs
-    {result_ack_allowed_tenants, [<<"tenant1">>, <<"tenant2">>]},
+    {result_ack_allowed_tenants, [~"tenant1", ~"tenant2"]},
     
     %% Or map for additional metadata
     {result_ack_allowed_tenants, #{
-        <<"tenant1">> => #{},
-        <<"tenant2">> => #{}
+        ~"tenant1" => #{},
+        ~"tenant2" => #{}
     }}
 ]}
 ```
@@ -499,13 +499,13 @@ Router implements **real NATS/JetStream client** with the following features:
 ### `nats_js_durable_group_acks`
 
 **Type**: `binary()` | `string()`
-**Default**: `<<"router-acks">>`
+**Default**: `~"router-acks"`
 **Description**: JetStream durable consumer group name for ACK subscription
 
 **Usage**:
 ```erlang
 {beamline_router, [
-    {nats_js_durable_group_acks, <<"router-acks">>}
+    {nats_js_durable_group_acks, ~"router-acks"}
 ]}
 ```
 
@@ -520,13 +520,13 @@ Router implements **real NATS/JetStream client** with the following features:
 ### `nats_js_deliver_group_results`
 
 **Type**: `binary()` | `string()` | `undefined`
-**Default**: `<<"router-results-group">>`
+**Default**: `~"router-results-group"`
 **Description**: Queue group name for JetStream result consumer. Enables horizontal scaling - multiple Router instances share message load. Each message is delivered to only one consumer in the group.
 
 **Usage**:
 ```erlang
 {beamline_router, [
-    {nats_js_deliver_group_results, <<"router-results-group">>}
+    {nats_js_deliver_group_results, ~"router-results-group"}
 ]}
 ```
 
@@ -539,13 +539,13 @@ Router implements **real NATS/JetStream client** with the following features:
 ### `nats_js_deliver_group_acks`
 
 **Type**: `binary()` | `string()` | `undefined`
-**Default**: `<<"router-acks-group">>`
+**Default**: `~"router-acks-group"`
 **Description**: Queue group name for JetStream ACK consumer. Enables horizontal scaling.
 
 **Usage**:
 ```erlang
 {beamline_router, [
-    {nats_js_deliver_group_acks, <<"router-acks-group">>}
+    {nats_js_deliver_group_acks, ~"router-acks-group"}
 ]}
 ```
 
@@ -649,13 +649,13 @@ Router implements **real NATS/JetStream client** with the following features:
 ### `nats_subject`
 
 **Type**: `binary()`  
-**Default**: `<<"beamline.router.v1.decide">>`  
+**Default**: `~"beamline.router.v1.decide"`  
 **Description**: NATS subject for incoming DecideRequest messages
 
 **Usage**:
 ```erlang
 {beamline_router, [
-    {nats_subject, <<"beamline.router.v1.decide">>}
+    {nats_subject, ~"beamline.router.v1.decide"}
 ]}
 ```
 
@@ -750,13 +750,13 @@ Router implements **real NATS/JetStream client** with the following features:
 ### `admin_api_key`
 
 **Type**: `binary()`  
-**Default**: `<<"dev-admin-key">>`  
+**Default**: `~"dev-admin-key"`  
 **Description**: API key for admin operations (gRPC)
 
 **Usage**:
 ```erlang
 {beamline_router, [
-    {admin_api_key, <<"production-api-key">>}
+    {admin_api_key, ~"production-api-key"}
 ]}
 ```
 
@@ -786,14 +786,14 @@ Router implements **real NATS/JetStream client** with the following features:
     {nats_url, "nats://nats-prod:4222"},
     {nats_mode, real},
     {caf_push_assignment_enabled, true},
-    {caf_assignment_subject, <<"caf.exec.assign.v1">>},
-    {caf_push_assignment_allowed_tenants, [<<"tenant1">>, <<"tenant2">>]},
+    {caf_assignment_subject, ~"caf.exec.assign.v1"},
+    {caf_push_assignment_allowed_tenants, [~"tenant1", ~"tenant2"]},
     {caf_max_retries, 5},
     {caf_retry_base_ms, 200},
     {caf_deadline_multiplier, 5},
     {caf_deadline_min_ms, 5000},
     {caf_deadline_max_ms, 60000},
-    {admin_api_key, <<"${ADMIN_API_KEY}">>}  %% From environment variable
+    {admin_api_key, ~"${ADMIN_API_KEY}"}  %% From environment variable
 ]}
 ```
 
@@ -853,7 +853,7 @@ Configuration is validated at:
 - `docs/TELEMETRY_CAF_ADAPTER.md` - Telemetry events
 ### Checkpoint (CP) flags (no DevState integration)
 
-- `current_cp` — binary, текущий чекпойнт (`<<"CP1-LC">>`, `<<"CP2-LC">>`).
+- `current_cp` — binary, текущий чекпойнт (`~"CP1-LC"`, `~"CP2-LC"`).
 - `cp2_plus_allowed` — boolean, включает CP2+ возможности (Admin gRPC, idempotency, ack). 
 
 Примечание: DevState — отдельный инструмент и не интегрируется с Router. Управляйте CP флагами через env.

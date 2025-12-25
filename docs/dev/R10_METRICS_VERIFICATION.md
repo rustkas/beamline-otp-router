@@ -32,7 +32,7 @@ All R10 circuit breaker metrics are properly exported, have readable labels, and
 **Labels**:
 - `tenant_id` (binary) - Tenant identifier
 - `provider_id` (binary) - Provider identifier  
-- `state` (binary) - State value: `<<"closed">>`, `<<"open">>`, `<<"half_open">>`
+- `state` (binary) - State value: `~"closed"`, `~"open"`, `~"half_open"`
 
 **Values**:
 - `0.0` = closed (normal operation)
@@ -65,11 +65,11 @@ router_circuit_breaker_state{tenant_id="tenant_123"}
 - `reason` (binary) - Trigger reason value
 
 **Reason Values**:
-- `<<"failure_threshold_exceeded">>` - Consecutive failures exceeded threshold
-- `<<"error_rate_threshold_exceeded">>` - Error rate exceeded threshold
-- `<<"latency_threshold_exceeded">>` - Latency exceeded threshold
-- `<<"half_open_failure">>` - Failure during half-open probe
-- `<<"timeout_elapsed">>` - Timeout expired
+- `~"failure_threshold_exceeded"` - Consecutive failures exceeded threshold
+- `~"error_rate_threshold_exceeded"` - Error rate exceeded threshold
+- `~"latency_threshold_exceeded"` - Latency exceeded threshold
+- `~"half_open_failure"` - Failure during half-open probe
+- `~"timeout_elapsed"` - Timeout expired
 
 **Readability**: ✅ **Excellent**
 - Labels clearly identify tenant/provider
@@ -94,8 +94,8 @@ sum by (reason) (router_circuit_breaker_trigger_reason)
 **Labels**:
 - `tenant_id` (binary) - Tenant identifier
 - `provider_id` (binary) - Provider identifier
-- `from` (binary) - Source state: `<<"closed">>`, `<<"open">>`, `<<"half_open">>`
-- `to` (binary) - Target state: `<<"closed">>`, `<<"open">>`, `<<"half_open">>`
+- `from` (binary) - Source state: `~"closed"`, `~"open"`, `~"half_open"`
+- `to` (binary) - Target state: `~"closed"`, `~"open"`, `~"half_open"`
 
 **Readability**: ✅ **Excellent**
 - Labels clearly show transition path
@@ -120,8 +120,8 @@ rate(router_circuit_breaker_state_transitions_total[5m]) > 0.1
 **Labels**:
 - `tenant_id` (binary) - Tenant identifier
 - `provider_id` (binary) - Provider identifier
-- `status` (binary) - Status: `<<"success">>`, `<<"error">>`
-- `retry_count` (binary) - Retry count: `<<"0">>`, `<<"1">>`, `<<"2">>`, ...
+- `status` (binary) - Status: `~"success"`, `~"error"`
+- `retry_count` (binary) - Retry count: `~"0"`, `~"1"`, `~"2"`, ...
 
 **Readability**: ✅ **Excellent**
 - Labels provide full context
@@ -134,7 +134,7 @@ rate(router_circuit_breaker_state_transitions_total[5m]) > 0.1
 **Labels**:
 - `tenant_id` (binary) - Tenant identifier
 - `provider_id` (binary) - Provider identifier
-- `error_type` (binary) - Error type: `<<"timeout">>`, `<<"connection">>`, `<<"nack">>`, `<<"circuit_open">>`, ...
+- `error_type` (binary) - Error type: `~"timeout"`, `~"connection"`, `~"nack"`, `~"circuit_open"`, ...
 
 **Readability**: ✅ **Excellent**
 - Labels clearly identify error types

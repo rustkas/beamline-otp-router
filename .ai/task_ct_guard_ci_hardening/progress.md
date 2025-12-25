@@ -10,4 +10,5 @@
 
 ## Step 3 – CI / runner coverage
 - Guard wired into `rebar.config` via provider hooks so `rebar3 ct` runs `scripts/lint/check_ct_suite_structure.sh` before starting (in addition to the previous `ct-full` guard invocation).
-- Command: `./scripts/ct-full.sh` (clean tree) → exit 1; guard ran but the run aborted later because `router_admin_grpc_rbac_SUITE` fails without valid API keys (missing or invalid API key errors in multiple test cases), so quality gates reported test failures.
+- Command: `scripts/lint/check_ct_suite_structure.sh` (clean tree) → exit 0; guard now reports `ct suite structure guard: checked 71 suites`.
+- Command: `./scripts/ct-full.sh` (same environment) → exit 1; guard passed but `router_admin_grpc_rbac_SUITE` still fails without valid API keys, so the full-tier run stops there (further resolution requires valid credentials).

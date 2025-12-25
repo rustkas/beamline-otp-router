@@ -21,7 +21,7 @@ Always validate input data:
 ```erlang
 %% In router_grpc.erl
 validate_request(Request) ->
-    case maps:get(<<"tenant_id">>, Request, undefined) of
+    case maps:get(~"tenant_id", Request, undefined) of
         undefined ->
             {error, missing_tenant_id};
         TenantId when is_binary(TenantId), byte_size(TenantId) > 0 ->
@@ -66,7 +66,7 @@ Never hardcode secrets:
 
 ```erlang
 %% Bad: Hardcoded secret
-API_KEY = <<"secret_key_123">>.
+API_KEY = ~"secret_key_123".
 
 %% Good: Load from environment
 API_KEY = application:get_env(beamline_router, api_key, undefined).
@@ -78,13 +78,13 @@ Never log secrets:
 
 ```erlang
 %% Bad: Logging secret
-router_logger:info(<<"API call">>, #{
-    <<"api_key">> => API_KEY  % Secret in log!
+router_logger:info(~"API call", #{
+    ~"api_key" => API_KEY  % Secret in log!
 }).
 
 %% Good: Redact secret
-router_logger:info(<<"API call">>, #{
-    <<"api_key">> => <<"***REDACTED***">>
+router_logger:info(~"API call", #{
+    ~"api_key" => ~"***REDACTED***"
 }).
 ```
 
@@ -156,11 +156,11 @@ Use centralized error mapping:
 to_grpc(Error, Context) ->
     case Error of
         {error, permission_denied} ->
-            {grpc_error, ?GRPC_STATUS_PERMISSION_DENIED, <<"Access denied">>};
+            {grpc_error, ?GRPC_STATUS_PERMISSION_DENIED, ~"Access denied"};
         {error, invalid_input} ->
-            {grpc_error, ?GRPC_STATUS_INVALID_ARGUMENT, <<"Invalid input">>};
+            {grpc_error, ?GRPC_STATUS_INVALID_ARGUMENT, ~"Invalid input"};
         _ ->
-            {grpc_error, ?GRPC_STATUS_INTERNAL, <<"Internal error">>}
+            {grpc_error, ?GRPC_STATUS_INTERNAL, ~"Internal error"}
     end.
 ```
 
@@ -173,10 +173,10 @@ Filter PII from logs:
 ```erlang
 %% In router_logger.erl
 filter_pii(LogMap) ->
-    PIIKeys = [<<"user_id">>, <<"email">>, <<"phone">>],
+    PIIKeys = [~"user_id", ~"email", ~"phone"],
     maps:fold(fun(Key, Value, Acc) ->
         case lists:member(Key, PIIKeys) of
-            true -> maps:put(Key, <<"***REDACTED***">>, Acc);
+            true -> maps:put(Key, ~"***REDACTED***", Acc);
             false -> maps:put(Key, Value, Acc)
         end
     end, #{}, LogMap).
@@ -291,14 +291,14 @@ Test common attack vectors:
 %% In test/router_security_SUITE.erl
 test_input_injection(_Config) ->
     %% Test SQL injection (if applicable)
-    MaliciousInput = <<"'; DROP TABLE users; --">>,
-    Result = router_grpc:decide(#{<<"input">> => MaliciousInput}, #{}),
+    MaliciousInput = ~"'; DROP TABLE users; --",
+    Result = router_grpc:decide(#{~"input" => MaliciousInput}, #{}),
     ?assertMatch({error, _}, Result).
 
 test_privilege_escalation(_Config) ->
     %% Test unauthorized access
-    UserId = <<"regular_user">>,
-    Result = router_rbac:can_access(UserId, <<"admin">>, <<"policy">>, undefined),
+    UserId = ~"regular_user",
+    Result = router_rbac:can_access(UserId, ~"admin", ~"policy", undefined),
     ?assertEqual(false, Result).
 ```
 
@@ -389,7 +389,7 @@ Check permissions before operations:
 %% In router_admin_grpc.erl
 upsert_policy(Req, Context) ->
     UserId = extract_user_id(Context),
-    case router_rbac:can_access(UserId, <<"write">>, <<"policy">>, undefined) of
+    case router_rbac:can_access(UserId, ~"write", ~"policy", undefined) of
         true -> do_upsert_policy(Req);
         false -> {error, permission_denied}
     end.
@@ -402,7 +402,7 @@ Implement resource-level checks:
 ```erlang
 %% Check tenant access
 check_tenant_access(UserId, TenantId) ->
-    case router_rbac:can_access(UserId, <<"read">>, <<"tenant">>, TenantId) of
+    case router_rbac:can_access(UserId, ~"read", ~"tenant", TenantId) of
         true -> ok;
         false -> {error, tenant_access_denied}
     end.
@@ -442,10 +442,10 @@ Log security events:
 ```erlang
 %% Log authentication failure
 log_security_event(EventType, Details) ->
-    router_logger:security(<<"Security event">>, #{
-        <<"event_type">> => EventType,
-        <<"timestamp">> => erlang:system_time(second),
-        <<"details">> => Details
+    router_logger:security(~"Security event", #{
+        ~"event_type" => EventType,
+        ~"timestamp" => erlang:system_time(second),
+        ~"details" => Details
     }).
 ```
 

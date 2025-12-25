@@ -5,6 +5,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_dir="$(dirname "$script_dir")"
 
 echo "Mode: ROUTER_TEST_LEVEL=heavy"
+echo "CT quarantine group: INCLUDED"
 echo "WARNING: This may take several hours!"
 echo ""
 

@@ -1,0 +1,157 @@
+{
+  "suites": [
+    {
+      "level": "heavy",
+      "metrics": {
+        "error_rate": {
+          "fraction": 0.0
+        },
+        "latency_ms": {
+          "p50": 32.72,
+          "p95": 94.311,
+          "p99": 147.749
+        },
+        "throughput_rps": {
+          "avg": 20.083932853717027
+        }
+      },
+      "suite": "router_ext_load_baseline_SUITE",
+      "workload": {
+        "degraded_instance": false,
+        "scenario": "baseline"
+      }
+    },
+    {
+      "level": "heavy",
+      "metrics": {
+        "error_rate": {
+          "fraction": 0.0
+        },
+        "latency_ms": {
+          "p50": 37.071,
+          "p95": 207.456,
+          "p99": 271.828
+        },
+        "throughput_rps": {
+          "avg": 11.608469539375928
+        }
+      },
+      "suite": "router_ext_load_advanced_SUITE",
+      "workload": {
+        "degraded_instance": true,
+        "scenario": "advanced_degraded"
+      }
+    },
+    {
+      "level": "heavy",
+      "metrics": {
+        "error_rate": {
+          "fraction": 0.0
+        },
+        "latency_ms": {
+          "p95": 36
+        },
+        "throughput_rps": {
+          "avg": 65.14657980456026
+        }
+      },
+      "suite": "router_performance_benchmark_SUITE",
+      "workload": {
+        "degraded_instance": false,
+        "scenario": "sequential"
+      }
+    },
+    {
+      "level": "heavy",
+      "metrics": {
+        "error_rate": {
+          "fraction": 0.0
+        },
+        "latency_ms": {
+          "p95": 844
+        },
+        "throughput_rps": {
+          "avg": 58.8235294117647
+        }
+      },
+      "suite": "router_performance_benchmark_SUITE",
+      "workload": {
+        "degraded_instance": false,
+        "scenario": "concurrent"
+      }
+    },
+    {
+      "level": "heavy",
+      "metrics": {
+        "error_rate": {
+          "fraction": 0.0
+        },
+        "latency_ms": {
+          "p95": 94.098
+        },
+        "throughput_rps": {
+          "avg": 10.627218431847648
+        }
+      },
+      "suite": "router_performance_load_SUITE",
+      "workload": {
+        "degraded_instance": false,
+        "scenario": "sequential"
+      }
+    },
+    {
+      "level": "heavy",
+      "metrics": {
+        "error_rate": {
+          "fraction": 0.0
+        },
+        "latency_ms": {
+          "p95": 23.17
+        },
+        "throughput_rps": {
+          "avg": 43.15925766076823
+        }
+      },
+      "suite": "router_performance_load_SUITE",
+      "workload": {
+        "degraded_instance": false,
+        "scenario": "concurrent"
+      }
+    },
+    {
+      "level": "heavy",
+      "metrics": {
+        "error_rate": {
+          "fraction": 0.0
+        },
+        "throughput_rps": {
+          "avg": 60.21666666666667
+        }
+      },
+      "suite": "router_performance_load_SUITE",
+      "workload": {
+        "degraded_instance": false,
+        "scenario": "sustained"
+      }
+    },
+    {
+      "level": "heavy",
+      "metrics": {
+        "error_rate": {
+          "fraction": 0.0
+        },
+        "latency_ms": {
+          "p95": 19
+        },
+        "throughput_rps": {
+          "avg": "undefined"
+        }
+      },
+      "suite": "router_performance_load_SUITE",
+      "workload": {
+        "degraded_instance": false,
+        "scenario": "degraded_isolation"
+      }
+    }
+  ]
+}

@@ -161,8 +161,8 @@ true = (PublishResult =/= undefined),  %% Result returned, not lost
 %% 3.1: Error log contains clear message about failure
 AllLogs = ets:tab2list(LogCalls),
 ErrorLogs = [L || {log, _, Message, Context} = L <- AllLogs,
-                  binary:match(Message, <<"NATS publish failed">>) =/= nomatch,
-                  maps:get(<<"error_code">>, Context, undefined) =:= <<"NATS_PUBLISH_ERROR">>],
+                  binary:match(Message, ~"NATS publish failed") =/= nomatch,
+                  maps:get(~"error_code", Context, undefined) =:= ~"NATS_PUBLISH_ERROR"],
 true = length(ErrorLogs) > 0,
 
 %% 3.2: Metrics - error counters incremented (fact of error)
@@ -214,14 +214,14 @@ rebar3 ct --suite test/router_jetstream_fault_injection_SUITE --case test_fault_
 router_nats_fault_injection:enable_fault(publish, {error, nats_unavailable}),
 
 %% Try to publish (will fail with injected error)
-Result = router_nats:publish(<<"test.subject">>, <<"payload">>),
+Result = router_nats:publish(~"test.subject", ~"payload"),
 %% Result = {error, nats_unavailable}
 
 %% Disable fault
 router_nats_fault_injection:disable_fault(publish),
 
 %% Publish should now succeed
-Result2 = router_nats:publish(<<"test.subject">>, <<"payload">>),
+Result2 = router_nats:publish(~"test.subject", ~"payload"),
 %% Result2 = ok
 ```
 
@@ -244,17 +244,17 @@ true = is_process_alive(whereis(router_nats)),
 ```erlang
 %% Enable fault
 router_nats_fault_injection:enable_fault(publish, {error, intermittent}),
-Result1 = router_nats:publish(<<"test.1">>, <<"payload1">>),
+Result1 = router_nats:publish(~"test.1", ~"payload1"),
 %% Result1 = {error, intermittent}
 
 %% Disable fault
 router_nats_fault_injection:disable_fault(publish),
-Result2 = router_nats:publish(<<"test.2">>, <<"payload2">>),
+Result2 = router_nats:publish(~"test.2", ~"payload2"),
 %% Result2 = ok
 
 %% Re-enable fault
 router_nats_fault_injection:enable_fault(publish, {error, intermittent}),
-Result3 = router_nats:publish(<<"test.3">>, <<"payload3">>),
+Result3 = router_nats:publish(~"test.3", ~"payload3"),
 %% Result3 = {error, intermittent}
 ```
 
