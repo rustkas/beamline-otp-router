@@ -49,6 +49,28 @@
 -include("ack_pb.hrl").
 -include("gpb.hrl").
 
+-export([
+    e_type_sint/3,
+    e_type_int32/3,
+    e_type_int64/3,
+    e_type_bool/3,
+    e_type_string/3,
+    e_type_bytes/3,
+    e_type_fixed32/3,
+    e_type_sfixed32/3,
+    e_type_fixed64/3,
+    e_type_sfixed64/3,
+    e_type_float/3,
+    e_type_double/3,
+    e_unknown_elems/2,
+    e_varint/3,
+    v_ok/3,
+    m_overwrite/3,
+    cons/3,
+    lists_reverse/2,
+    'erlang_++'/3
+]).
+
 %% enumerated types
 
 -export_type([]).

@@ -52,6 +52,8 @@ groups_for_level(_) ->
     ].
 init_per_suite(Config) ->
     ok = router_mock_helpers:ensure_test_deps(),
+    %% Ensure enats is started so nats module is available
+    {ok, _} = application:ensure_all_started(enats),
     Config.
 
 end_per_suite(_Config) ->
@@ -67,8 +69,8 @@ init_per_testcase(TestCase, Config) ->
             %% No NATS URL - should fallback to stub mode
             ok = application:unset_env(beamline_router, nats_url);
         test_nats_connection_without_server ->
-            %% Set NATS URL but no server running
-            ok = application:set_env(beamline_router, nats_url, <<"nats://localhost:4222">>);
+            %% Set NATS URL but no server running (use invalid port)
+            ok = application:set_env(beamline_router, nats_url, <<"nats://localhost:9999">>);
         _ ->
             %% Default: no NATS URL for stub mode
             ok = application:unset_env(beamline_router, nats_url)
@@ -77,6 +79,9 @@ init_per_testcase(TestCase, Config) ->
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
+    application:unset_env(beamline_router, nats_mode),
+    application:unset_env(beamline_router, nats_url),
+    application:unset_env(beamline_router, nats_fail_open_mode),
     router_mock_helpers:unload_all(),
     ok.
 
@@ -88,6 +93,8 @@ test_nats_connection_config_validation(_Config) ->
     end,
     %% Test with valid configuration
     ok = application:set_env(beamline_router, nats_url, <<"nats://localhost:4222">>),
+    %% Explicitly set mode to real
+    ok = application:set_env(beamline_router, nats_mode, real),
     
     %% Start router_nats
     {ok, _Pid} = router_nats:start_link(),
@@ -103,6 +110,8 @@ test_nats_connection_config_validation(_Config) ->
 test_nats_stub_mode_fallback(_Config) ->
     %% Ensure no NATS URL is configured
     ok = application:unset_env(beamline_router, nats_url),
+    %% Explicitly set mode to stub
+    ok = application:set_env(beamline_router, nats_mode, stub),
     
     %% Start router_nats
     {ok, _Pid} = router_nats:start_link(),
@@ -131,7 +140,9 @@ test_nats_connection_without_server(_Config) ->
         {skip, _} = Skip -> Skip
     end,
     %% Set NATS URL to non-existent server
-    ok = application:set_env(beamline_router, nats_url, <<"nats://localhost:4222">>),
+    ok = application:set_env(beamline_router, nats_url, <<"nats://localhost:9999">>),
+    %% Explicitly set mode to real
+    ok = application:set_env(beamline_router, nats_mode, real),
     
     %% Start router_nats
     {ok, _Pid} = router_nats:start_link(),
@@ -150,6 +161,13 @@ test_nats_connection_without_server(_Config) ->
     %% Enable fail-open mode
     ok = application:set_env(beamline_router, nats_fail_open_mode, true),
     
+    %% Restart router_nats to pick up fail-open mode
+    ok = router_nats:stop(),
+    {ok, _} = router_nats:start_link(),
+    
+    %% Wait for it to fail connection and enter reconnecting state
+    router_nats_test_helpers:wait_for_status_any([reconnecting, disconnected], 2000),
+
     %% Publish should work in fail-open mode
     ok = router_nats:publish(Subject, Payload),
     
@@ -209,6 +227,7 @@ test_nats_publish_with_ack_in_stub_mode(_Config) ->
     ok = router_nats:stop().
 
 ensure_nats_client_available() ->
+    _ = code:ensure_loaded(nats),
     case erlang:function_exported(nats, connect, 3) of
         true -> ok;
         false -> throw({skip, nats_client_not_available})

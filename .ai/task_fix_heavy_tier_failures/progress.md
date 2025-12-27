@@ -60,3 +60,30 @@ Reason: All acceptance commands executed with non‑zero tests and clean PASS ev
 - Fix invalid group references in delivery/gateway suites; verify `groups/0` alignment.
 - Guard ETS cleanup in `router_ext_load_baseline_SUITE:init_per_testcase` to prevent `badarg`.
 - Confirm chaos suites use correct `router_nats:publish_with_ack` arity.
+
+## Verification runs (2025-12-26)
+
+- Command: `rebar3 ct --suite apps/beamline_router/test/router_cp2_conditions_SUITE,apps/beamline_router/test/router_cp2_dry_run_SUITE,apps/beamline_router/test/router_cp2_dag_SUITE,apps/beamline_router/test/router_extension_invoker_telemetry_SUITE`
+  Tier: default
+  Executed: 10
+  Result: PASS
+  CT logs: `/home/rustkas/aigroup/apps/otp/router/_build/test/logs/index.html`
+
+- Command: `ROUTER_ENABLE_META=1 ROUTER_TEST_LEVEL=heavy rebar3 ct --suite apps/beamline_router/test/router_cp2_conditions_SUITE,apps/beamline_router/test/router_cp2_dry_run_SUITE,apps/beamline_router/test/router_cp2_dag_SUITE,apps/beamline_router/test/router_extension_invoker_telemetry_SUITE`
+  Tier: heavy
+  Executed: 18
+  Result: PASS
+  CT logs: `/home/rustkas/aigroup/apps/otp/router/_build/test/logs/index.html`
+
+- Command: `ROUTER_ENABLE_META=1 ROUTER_TEST_LEVEL=heavy rebar3 as test ct --suite apps/beamline_router/test/router_cp2_conditions_SUITE,apps/beamline_router/test/router_cp2_dry_run_SUITE,apps/beamline_router/test/router_cp2_dag_SUITE,apps/beamline_router/test/router_extension_invoker_telemetry_SUITE`
+  Tier: heavy (profile test)
+  Executed: 18
+  Result: PASS
+  CT logs: `/home/rustkas/aigroup/apps/otp/router/_build/test/logs/index.html`
+
+### Git evidence
+- HEAD: `39c271827f8b8380fb550643f6edd5db8f38b89a`
+- Diffstat (working tree vs HEAD, targeted):
+  - `apps/beamline_router/test/router_extension_invoker_telemetry_SUITE.erl | 1 insertion(+), 1 deletion(-)`
+- Changed files (targeted):
+  - `apps/beamline_router/test/router_extension_invoker_telemetry_SUITE.erl`

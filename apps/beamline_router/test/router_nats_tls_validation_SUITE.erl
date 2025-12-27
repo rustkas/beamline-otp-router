@@ -8,11 +8,23 @@
 all() -> [test_tls_handshake_success].
 
 init_per_suite(Config) ->
-    %% Ensure application and dependencies are started
+    %% Ensure application and dependencies are started (loads mock config)
     {ok, _} = application:ensure_all_started(beamline_router),
+    
+    %% Override with real config
+    application:set_env(beamline_router, nats_mode, real),
+    application:set_env(beamline_router, nats_tls_enabled, true),
+    
+    %% Restart router_nats to pick up new config
+    ok = supervisor:terminate_child(beamline_router_sup, router_nats),
+    {ok, _} = supervisor:restart_child(beamline_router_sup, router_nats),
+    
     Config.
 
 end_per_suite(_Config) ->
+    application:stop(beamline_router),
+    application:unset_env(beamline_router, nats_mode),
+    application:unset_env(beamline_router, nats_tls_enabled),
     ok.
 
 test_tls_handshake_success(_Config) ->

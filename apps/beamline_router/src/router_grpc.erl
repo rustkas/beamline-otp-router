@@ -19,7 +19,12 @@
 
 -export([decide/2]).
 %% Exported for testing
--export([extract_correlation_id/1]).
+-export([
+    extract_correlation_id/1,
+    extract_user_id_from_context/1,
+    extract_user_id_from_request/1,
+    extract_correlation_fields_from_request/1
+]).
 
 -include("beamline_router.hrl").
 -include("flow_pb.hrl").
@@ -33,13 +38,7 @@
 %% Telemetry prefix for gRPC metrics
 -define(TELEMETRY_PREFIX, [router_grpc]).
 
-%% NOTE: Internal helper functions are used in complex contexts (try-catch, nested case)
-%% The compiler may not detect all usages statically, but they are all called.
-%% Suppress warnings for these internal functions that are definitely used:
-
 %% Looks for 'x-correlation-id' or 'correlation-id' header
-%% @dialyzer {nowarn_function, extract_correlation_id/1}
--dialyzer({nowarn_function, extract_correlation_id/1}).
 extract_correlation_id(Ctx) ->
     Metadata = maps:get(metadata, Ctx, []),
     case proplists:get_value(~"x-correlation-id", Metadata) of
@@ -88,6 +87,7 @@ decide(Ctx, Request) ->
     %% Extract tenant_id and correlation_id for metrics and tracing
     CorrelationId = extract_correlation_id(Ctx),
     TenantId = extract_tenant_id_from_request(Request),
+    UserId = extract_user_id_from_context(Ctx),
     
     %% Set trace_id in process dictionary for logging
     case CorrelationId of
@@ -97,16 +97,14 @@ decide(Ctx, Request) ->
     end,
     
     %% Initialize OTel span
-    OCtx = case catch otel_ctx:get_current() of
-        {'EXIT', _} -> undefined;
-        C -> C
-    end,
-    Span = case OCtx of
+    Tracer = router_tracing:get_tracer(),
+    Span = case Tracer of
         undefined -> undefined;
-        _ -> catch otel_tracer:start_span(OCtx, ~"grpc.decide", #{attributes => #{
+        _ -> catch otel_tracer:start_span(Tracer, ~"grpc.decide", #{attributes => #{
             ~"rpc.service" => ~"beamline.router.v1.Router",
             ~"rpc.method" => ~"Decide",
-            ~"tenant_id" => TenantId
+            ~"tenant_id" => TenantId,
+            ~"user_id" => UserId
         }})
     end,
     try
@@ -436,8 +434,6 @@ throw_internal_error(Reason) ->
     throw({grpc_error, {?GRPC_STATUS_INTERNAL, ErrorMsg}}).
 
 %% Returns user_id if available in metadata, undefined otherwise
-%% @dialyzer {nowarn_function, extract_user_id_from_context/1}
--dialyzer({nowarn_function, extract_user_id_from_context/1}).
 extract_user_id_from_context(Ctx) ->
     Metadata = case is_map(Ctx) of
         true ->
@@ -452,8 +448,6 @@ extract_user_id_from_context(Ctx) ->
     end.
 
 %% Returns user_id if available in message, undefined otherwise
-%% @dialyzer {nowarn_function, extract_user_id_from_request/1}
--dialyzer({nowarn_function, extract_user_id_from_request/1}).
 extract_user_id_from_request(RouteRequest) ->
     try
         Message = maps:get(message, RouteRequest, #{}),
@@ -465,8 +459,6 @@ extract_user_id_from_request(RouteRequest) ->
 
 %% Returns map with correlation fields if present
 -spec extract_correlation_fields_from_request(#route_request{}) -> map().
-%% @dialyzer {nowarn_function, extract_correlation_fields_from_request/1}
--dialyzer({nowarn_function, extract_correlation_fields_from_request/1}).
 extract_correlation_fields_from_request(RouteRequest) ->
     try
         #route_request{message = Message, context = Context} = RouteRequest,
@@ -504,8 +496,6 @@ extract_correlation_fields_from_request(RouteRequest) ->
     end.
 
 %% Returns tenant_id if available in message, undefined otherwise
-%% @dialyzer {nowarn_function, extract_tenant_id_from_request/1}
--dialyzer({nowarn_function, extract_tenant_id_from_request/1}).
 extract_tenant_id_from_request(Request) ->
     try
         case decode_route_request_internal(Request) of
@@ -521,16 +511,12 @@ extract_tenant_id_from_request(Request) ->
     end.
 
 %% Internal: Decode RouteRequest from protobuf binary
-%% @dialyzer {nowarn_function, decode_route_request/1}
--dialyzer({nowarn_function, decode_route_request/1}).
 decode_route_request(Request) when is_binary(Request) ->
     decode_route_request_internal(Request);
 decode_route_request(_) ->
     {error, invalid_request}.
 
 %% Internal: Decode RouteRequest (extracted for reuse)
-%% @dialyzer {nowarn_function, decode_route_request_internal/1}
--dialyzer({nowarn_function, decode_route_request_internal/1}).
 decode_route_request_internal(Request) when is_binary(Request) ->
     try
         RouteRequestPb = flow_pb:decode_msg(Request, 'RouteRequest'),
@@ -541,8 +527,6 @@ decode_route_request_internal(Request) when is_binary(Request) ->
     end.
 
 %% Internal: Convert Protobuf RouteRequest to internal record
-%% @dialyzer {nowarn_function, convert_route_request/1}
--dialyzer({nowarn_function, convert_route_request/1}).
 convert_route_request(#'RouteRequest'{message = undefined}) ->
     {error, missing_message};
 convert_route_request(#'RouteRequest'{message = MessagePb, policy_id = PolicyId, context = ContextPb}) ->
@@ -564,8 +548,6 @@ convert_route_request(#'RouteRequest'{message = MessagePb, policy_id = PolicyId,
     {ok, RouteRequest}.
 
 %% Internal: Convert Protobuf Message to map
-%% @dialyzer {nowarn_function, convert_message/1}
--dialyzer({nowarn_function, convert_message/1}).
 convert_message(#'Message'{
     message_id = MessageId,
     tenant_id = TenantId,
@@ -589,8 +571,6 @@ convert_message(#'Message'{
     }.
 
 %% Internal: Convert Protobuf context to map
-%% @dialyzer {nowarn_function, convert_context/1}
--dialyzer({nowarn_function, convert_context/1}).
 convert_context([]) ->
     #{};
 convert_context(ContextPb) when is_list(ContextPb) ->
@@ -605,8 +585,6 @@ convert_context(_) ->
     #{}.
 
 %% Internal: Convert Protobuf metadata to map
-%% @dialyzer {nowarn_function, convert_metadata/1}
--dialyzer({nowarn_function, convert_metadata/1}).
 convert_metadata([]) ->
     #{};
 convert_metadata(MetadataPb) when is_list(MetadataPb) ->
@@ -621,8 +599,6 @@ convert_metadata(_) ->
     #{}.
 
 %% Internal: Encode RouteDecision to Protobuf record
-%% @dialyzer {nowarn_function, encode_route_decision/1}
--dialyzer({nowarn_function, encode_route_decision/1}).
 encode_route_decision(Decision) ->
     #route_decision{
         provider_id = ProviderId,
@@ -646,8 +622,6 @@ encode_route_decision(Decision) ->
     }.
 
 %% Internal: Convert map to Protobuf metadata format
-%% @dialyzer {nowarn_function, convert_map_to_proto_metadata/1}
--dialyzer({nowarn_function, convert_map_to_proto_metadata/1}).
 convert_map_to_proto_metadata(Metadata) when is_map(Metadata) ->
     maps:fold(
         fun(Key, Value, Acc) ->

@@ -62,7 +62,7 @@ rebar3 compile
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run standard test suite (default)
 rebar3 ct
 
 # Run with coverage
@@ -70,6 +70,11 @@ rebar3 cover
 
 # Run specific test suite
 rebar3 ct --suite test/router_core_SUITE
+
+# Run heavy/extended tests (e.g. JetStream recovery scenarios)
+# These tests simulate prolonged failures, soak testing, and complex recovery scenarios.
+# They are skipped by default to keep CI fast.
+ROUTER_TEST_LEVEL=heavy rebar3 ct --suite apps/beamline_router/test/router_jetstream_recovery_ext_SUITE
 ```
 
 ### 🧹 Mock discipline lint

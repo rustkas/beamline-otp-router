@@ -27,6 +27,7 @@
 -export([decide/3, execute_post_processors/3, execute_provider_selection/5]).
 -export([calculate_pipeline_complexity/3, get_pipeline_complexity/2]).
 -export([validate_provider_selection/2, get_provider_selection_status/1, list_available_providers/1]).
+-export([evaluate_when_condition/2]).
 
 
 
@@ -64,15 +65,23 @@ execute_post_processors([], Response, Context) ->
     {ok, Response, Context};
 execute_post_processors([PostItem | Rest], Response, Context) ->
     case execute_post_processor_item(PostItem, Response, Context) of
-        {ok, ProcessedPayload, ProcessedContext} ->
+        {skip, SkippedPayload, SkippedContext} ->
+            execute_post_processors(Rest, SkippedPayload, SkippedContext);
+        {ok, ProcessedPayload, ProcessedContext, Status} ->
             %% Track executed extension in context
             ExtId = maps:get(id, PostItem, undefined),
             UpdatedContext = case ExtId of
                 undefined -> ProcessedContext;
                 _ ->
-                    CurrentExtensions = maps:get(~"executed_extensions", ProcessedContext, []),
-                    NewExtensions = [{~"post", ExtId} | CurrentExtensions],
-                    maps:put(~"executed_extensions", NewExtensions, ProcessedContext)
+                    CurrentExtensions = maps:get(<<"executed_extensions">>, ProcessedContext, []),
+                    SafeStatus = case Status of
+                        S when is_atom(S) -> atom_to_binary(S, utf8);
+                        {error, _} -> <<"error">>;
+                        S when is_binary(S) -> S;
+                        _ -> <<"unknown">>
+                    end,
+                    NewExtensions = [#{type => <<"post">>, id => ExtId, status => SafeStatus} | CurrentExtensions],
+                    maps:put(<<"executed_extensions">>, NewExtensions, ProcessedContext)
             end,
             execute_post_processors(Rest, ProcessedPayload, UpdatedContext);
         {error, Reason} ->
@@ -152,21 +161,94 @@ get_pipeline_complexity(TenantId, PolicyId) ->
 -spec execute_pipeline(list(), list(), #route_request{}, #policy{}, map(), map()) ->
     {ok, #route_decision{}} | {error, term()}.
 execute_pipeline(Pre, Validators, RouteRequest, Policy, Message, MergedContext) ->
-    %% Initialize executed extensions tracking
-    InitialExecutedExtensions = [],
-    case execute_pre_processors(Pre, Message, MergedContext, InitialExecutedExtensions) of
-        {ok, ProcessedMessage, ProcessedContext, ExecutedPre} ->
-            case execute_validators(Validators, ProcessedMessage, ProcessedContext, ExecutedPre) of
-                {ok, ValidatedMessage, ValidatedContext, ExecutedPreAndValidators} ->
-                    %% Store executed extensions in context metadata for later retrieval
-                    ContextWithExtensions = maps:put(~"executed_extensions", ExecutedPreAndValidators, ValidatedContext),
-                    execute_provider_selection(RouteRequest, Policy, ValidatedMessage, ContextWithExtensions, MergedContext);
+    %% DEBUG
+    io:format("DEBUG: execute_pipeline Pre=~p Validators=~p Post=~p~n", [length(Pre), length(Validators), length(Policy#policy.post)]),
+    %% Check execution status (deadline/cancel) before starting
+    case check_execution_status(MergedContext) of
+        ok ->
+            %% Initialize executed extensions tracking
+            InitialExecutedExtensions = [],
+            case execute_pre_processors(Pre, Message, MergedContext, InitialExecutedExtensions) of
+                {ok, ProcessedMessage, ProcessedContext, ExecutedPre} ->
+                    %% Check status after pre-processors
+                    case check_execution_status(ProcessedContext) of
+                        ok ->
+                            case execute_validators(Validators, ProcessedMessage, ProcessedContext, ExecutedPre) of
+                                {ok, ValidatedMessage, ValidatedContext, ExecutedPreAndValidators} ->
+                                    %% Check status after validators
+                                    case check_execution_status(ValidatedContext) of
+                                        ok ->
+                                            %% Store executed extensions in context metadata for later retrieval
+                                            ContextWithExtensions = maps:put(<<"executed_extensions">>, ExecutedPreAndValidators, ValidatedContext),
+                                            case execute_provider_selection(RouteRequest, Policy, ValidatedMessage, ContextWithExtensions, MergedContext) of
+                                                {ok, Decision} ->
+                                                    %% Execute post-processors
+                                                    %% We convert decision fields to a map for post-processors payload
+                                                    DecisionPayload = #{
+                                                        <<"provider_id">> => Decision#route_decision.provider_id,
+                                                        <<"reason">> => Decision#route_decision.reason,
+                                                        <<"priority">> => Decision#route_decision.priority
+                                                    },
+                                                    DecisionContext = Decision#route_decision.metadata,
+                                                    case execute_post_processors(Policy#policy.post, DecisionPayload, DecisionContext) of
+                                                        {ok, _PostPayload, PostContext} ->
+                                                            %% Update decision with new context/metadata (including post extensions)
+                                                            FinalDecision = Decision#route_decision{metadata = PostContext},
+                                                            {ok, FinalDecision};
+                                                        {error, Reason} ->
+                                                            enrich_error_with_extensions({error, Reason}, maps:get(<<"executed_extensions">>, DecisionContext, []))
+                                                    end;
+                                                Error -> Error
+                                            end;
+                                        Error -> 
+                                            enrich_error_with_extensions(Error, ExecutedPreAndValidators)
+                                    end;
+                                {error, Reason} ->
+                                    %% Validators already enriched (or partially), but let's ensure consistency if needed
+                                    %% execute_validators currently enriches validator_blocked.
+                                    {error, Reason}
+                            end;
+                        Error -> 
+                            enrich_error_with_extensions(Error, ExecutedPre)
+                    end;
                 {error, Reason} ->
                     {error, Reason}
             end;
-        {error, Reason} ->
-            {error, Reason}
+        Error -> Error
     end.
+
+-spec check_execution_status(map()) -> ok | {error, term()}.
+check_execution_status(Context) ->
+    case maps:get(<<"deadline">>, Context, undefined) of
+        undefined ->
+            ok;
+        Deadline when is_integer(Deadline) ->
+            Now = erlang:system_time(millisecond),
+            case Now > Deadline of
+                true ->
+                    {error, {deadline_exceeded, #{
+                        deadline => Deadline,
+                        now => Now,
+                        context => Context
+                    }}};
+                false ->
+                    ok
+            end;
+        _ ->
+            ok
+    end.
+
+-spec enrich_error_with_extensions({error, term()}, list()) -> {error, term()}.
+enrich_error_with_extensions({error, Reason}, ExecutedExtensions) ->
+    {error, enrich_error_reason(Reason, ExecutedExtensions)}.
+
+enrich_error_reason({ErrorType, Info}, ExecutedExtensions) when is_map(Info) ->
+    {ErrorType, maps:put(<<"executed_extensions">>, lists:reverse(ExecutedExtensions), Info)};
+enrich_error_reason(Reason, ExecutedExtensions) ->
+    {extension_failed, #{
+        reason => Reason,
+        executed_extensions => lists:reverse(ExecutedExtensions)
+    }}.
 
 -spec execute_provider_selection(#route_request{}, #policy{}, map(), map(), map()) ->
     {ok, #route_decision{}} | {error, term()}.
@@ -221,7 +303,7 @@ continue_provider_selection(Policy, TenantId, ProcessedContext, OriginalContext)
             record_sticky_hit(TenantId),
             store_sticky_provider(TenantId, Sticky, ProcessedContext, ProviderId),
             record_circuit_breaker_state(Policy, TenantId, ProviderId),
-            create_decision(ProviderId, ~"sticky", 100, OriginalContext);
+            create_decision(ProviderId, ~"sticky", 100, ProcessedContext);
         {error, not_found} ->
             record_sticky_miss(TenantId),
             try_weighted_selection(Weights, Sticky, Policy, TenantId, ProcessedContext, OriginalContext, Fallbacks, Fallback)
@@ -234,7 +316,7 @@ try_weighted_selection(Weights, Sticky, Policy, TenantId, ProcessedContext, Orig
         {ok, ProviderId} ->
             store_sticky_provider(TenantId, Sticky, ProcessedContext, ProviderId),
             record_circuit_breaker_state(Policy, TenantId, ProviderId),
-            create_decision(ProviderId, ~"weighted", 50, OriginalContext);
+            create_decision(ProviderId, ~"weighted", 50, ProcessedContext);
         {error, no_providers} ->
             try_fallbacks(Fallbacks, Fallback, ProcessedContext, OriginalContext, Policy)
     end.
@@ -244,10 +326,10 @@ try_weighted_selection(Weights, Sticky, Policy, TenantId, ProcessedContext, Orig
 try_fallbacks(Fallbacks, Fallback, ProcessedContext, OriginalContext, Policy) ->
     case check_fallbacks_with_retry(Fallbacks, ProcessedContext, OriginalContext) of
         {ok, FallbackProvider, RetryInfo} ->
-            DecisionMetadata = merge_retry_info(OriginalContext, RetryInfo),
+            DecisionMetadata = merge_retry_info(ProcessedContext, RetryInfo),
             create_decision(FallbackProvider, ~"fallback", 25, DecisionMetadata);
         {retry, ProviderId, RetryInfo} ->
-            DecisionMetadata = merge_retry_info(OriginalContext, RetryInfo),
+            DecisionMetadata = merge_retry_info(ProcessedContext, RetryInfo),
             create_decision(ProviderId, ~"retry", 50, DecisionMetadata);
         {error, no_fallback} ->
             try_legacy_fallback(Fallback, ProcessedContext, OriginalContext, Policy)
@@ -255,16 +337,16 @@ try_fallbacks(Fallbacks, Fallback, ProcessedContext, OriginalContext, Policy) ->
 
 -spec try_legacy_fallback(map() | undefined, map(), map(), #policy{}) ->
     {ok, #route_decision{}} | {error, term()}.
-try_legacy_fallback(Fallback, _ProcessedContext, OriginalContext, Policy) ->
+try_legacy_fallback(Fallback, ProcessedContext, _OriginalContext, Policy) ->
     case check_fallback(Fallback) of
         {ok, FallbackProvider} ->
-            create_decision(FallbackProvider, ~"fallback", 25, OriginalContext);
+            create_decision(FallbackProvider, ~"fallback", 25, ProcessedContext);
         {error, no_fallback} ->
             {error, {no_provider_available, #{
                 reason => ~"No provider available: weights failed and no fallback configured",
-                tenant_id => maps:get(~"tenant_id", OriginalContext, undefined),
+                tenant_id => maps:get(~"tenant_id", ProcessedContext, undefined),
                 policy_id => Policy#policy.policy_id,
-                context => OriginalContext
+                context => ProcessedContext
             }}}
     end.
 
@@ -277,23 +359,41 @@ execute_pre_processors([], Message, Context, ExecutedExtensions) ->
     {ok, Message, Context, ExecutedExtensions};
 execute_pre_processors([PreItem | Rest], Message, Context, ExecutedExtensions) ->
     case execute_pre_processor_item(PreItem, Message, Context) of
-        {ok, ProcessedPayload, ProcessedContext} ->
-            %% Track executed extension
+        {skip, SkippedMessage, SkippedContext} ->
+            execute_pre_processors(Rest, SkippedMessage, SkippedContext, ExecutedExtensions);
+        {ok, ProcessedPayload, ProcessedContext, Status} ->
             ExtId = maps:get(id, PreItem, undefined),
             NewExecutedExtensions = case ExtId of
                 undefined -> ExecutedExtensions;
-                _ -> [{~"pre", ExtId} | ExecutedExtensions]
+                _ -> 
+                    SafeStatus = case Status of
+                        S when is_atom(S) -> atom_to_binary(S, utf8);
+                        {error, _} -> <<"error">>;
+                        S when is_binary(S) -> S;
+                        _ -> <<"unknown">>
+                    end,
+                    [#{type => <<"pre">>, id => ExtId, status => SafeStatus} | ExecutedExtensions]
             end,
             execute_pre_processors(Rest, ProcessedPayload, ProcessedContext, NewExecutedExtensions);
         {error, Reason} ->
-            {error, Reason}
+            enrich_error_with_extensions({error, Reason}, ExecutedExtensions)
     end.
 
--spec execute_pre_processor_item(map(), map(), map()) -> {ok, map(), map()} | {error, term()}.
+-spec execute_pre_processor_item(map(), map(), map()) -> {ok, map(), map(), term()} | {skip, map(), map()} | {error, term()}.
 execute_pre_processor_item(PreItem, Message, Context) ->
     case PreItem of
         #{id := ExtId, mode := Mode} ->
-            StartTime = erlang:system_time(microsecond),
+            %% Check "when" condition (CP2: DAG v0)
+            ShouldExecute = case maps:get(~"when", PreItem, undefined) of
+                undefined -> true;
+                WhenCondition -> evaluate_when_condition(WhenCondition, Context)
+            end,
+
+            case ShouldExecute of
+                false ->
+                    {skip, Message, Context};
+                true ->
+                    StartTime = erlang:system_time(microsecond),
             Config = maps:get(config, PreItem, #{}),
             Request = #{
                 ~"payload" => Message,
@@ -324,7 +424,7 @@ execute_pre_processor_item(PreItem, Message, Context) ->
                             end
                     end,
                     ProcessedContext = maps:merge(Context, maps:get(~"metadata", Response, #{})),
-                    {ok, NormalizedPayload, ProcessedContext};
+                    {ok, NormalizedPayload, ProcessedContext, ok};
                 {error, Reason} ->
                     handle_pre_processor_error(Mode, ExtId, Reason, Context, Message)
             end,
@@ -334,7 +434,7 @@ execute_pre_processor_item(PreItem, Message, Context) ->
             
             %% Emit metrics
             {Status, MetricStatus} = case Result of
-                {ok, _, _} -> {success, ~"success"};
+                {ok, _, _, _} -> {success, ~"success"};
                 {error, _} -> {error, ~"error"}
             end,
             router_metrics:emit_metric(router_extension_execution_total, #{count => 1}, #{
@@ -371,13 +471,14 @@ execute_pre_processor_item(PreItem, Message, Context) ->
                     })
             end,
             
-            Result;
+            Result
+            end;
         _ ->
             %% Invalid pre-item, skip and continue
-            {ok, Message, Context}
+            {ok, Message, Context, ok}
     end.
 
--spec handle_pre_processor_error(binary(), binary(), term(), map(), map()) -> {ok, map(), map()} | {error, term()}.
+-spec handle_pre_processor_error(binary(), binary(), term(), map(), map()) -> {ok, map(), map(), term()} | {error, term()}.
 handle_pre_processor_error(~"required", ExtId, Reason, Context, _Message) ->
     {error, {pre_processor_failed, #{
         extension_id => ExtId,
@@ -389,14 +490,14 @@ handle_pre_processor_error(~"optional", ExtId, Reason, Context, Message) ->
         ~"extension_id" => ExtId,
         ~"reason" => normalize_error(Reason)
     }),
-    {ok, Message, Context};
+    {ok, Message, Context, {error, Reason}};
 handle_pre_processor_error(_, ExtId, Reason, Context, Message) ->
     %% Default to optional behavior
     router_logger:warn(~"Pre-processor failed (default optional)", #{
         ~"extension_id" => ExtId,
         ~"reason" => normalize_error(Reason)
     }),
-    {ok, Message, Context}.
+    {ok, Message, Context, {error, Reason}}.
 
 %% ============================================================================
 %% Internal: Validators
@@ -407,27 +508,43 @@ execute_validators([], Message, Context, ExecutedExtensions) ->
     {ok, Message, Context, ExecutedExtensions};
 execute_validators([ValidatorItem | Rest], Message, Context, ExecutedExtensions) ->
     case execute_validator_item(ValidatorItem, Message, Context) of
-        {ok, ValidatedMessage, ValidatedContext} ->
+        {ok, ValidatedMessage, ValidatedContext, Status} ->
             %% Track executed extension
             ExtId = maps:get(id, ValidatorItem, undefined),
             NewExecutedExtensions = case ExtId of
                 undefined -> ExecutedExtensions;
-                _ -> [{~"validator", ExtId} | ExecutedExtensions]
+                _ -> [#{type => <<"validator">>, id => ExtId, status => atom_to_binary(Status, utf8)} | ExecutedExtensions]
             end,
             execute_validators(Rest, ValidatedMessage, ValidatedContext, NewExecutedExtensions);
         {error, Reason} ->
-            {error, Reason}
+            EnrichedReason = case Reason of
+                {validator_blocked, Info} when is_map(Info) ->
+                    {validator_blocked, maps:put(executed_extensions, ExecutedExtensions, Info)};
+                _ -> Reason
+            end,
+            {error, EnrichedReason}
     end.
 
--spec execute_validator_item(map(), map(), map()) -> {ok, map(), map()} | {error, term()}.
+-spec execute_validator_item(map(), map(), map()) -> {ok, map(), map(), atom()} | {error, term()}.
 execute_validator_item(ValidatorItem, Message, Context) ->
     case ValidatorItem of
         #{id := ExtId, on_fail := OnFail} ->
-            StartTime = erlang:system_time(microsecond),
-            Request = #{
-                ~"payload" => Message,
-                ~"metadata" => Context
-            },
+            %% Check "when" condition (CP2: DAG v0)
+            ShouldExecute = case maps:get(~"when", ValidatorItem, undefined) of
+                undefined -> true;
+                WhenCondition -> evaluate_when_condition(WhenCondition, Context)
+            end,
+
+            case ShouldExecute of
+                false ->
+                    %% Skip execution if condition not met
+                    {ok, Message, Context, skipped};
+                true ->
+                    StartTime = erlang:system_time(microsecond),
+                    Request = #{
+                        ~"payload" => Message,
+                        ~"metadata" => Context
+                    },
             TenantId = maps:get(~"tenant_id", Context, maps:get(~"tenant_id", Message, undefined)),
             PolicyId = maps:get(~"policy_id", Context, maps:get(~"policy_id", Message, undefined)),
             
@@ -444,7 +561,7 @@ execute_validator_item(ValidatorItem, Message, Context) ->
                     Valid = maps:get(~"valid", Response, true),
                     case Valid of
                         true ->
-                            {ok, Message, Context};
+                            {ok, Message, Context, ok};
                         false ->
                             handle_validator_failure(OnFail, ExtId, Message, Context)
                     end;
@@ -457,7 +574,7 @@ execute_validator_item(ValidatorItem, Message, Context) ->
             
             %% Emit metrics
             {Status, MetricStatus} = case Result of
-                {ok, _, _} -> {success, ~"success"};
+                {ok, _, _, _} -> {success, ~"success"};
                 {error, _} -> {error, ~"error"}
             end,
             router_metrics:emit_metric(router_extension_execution_total, #{count => 1}, #{
@@ -494,13 +611,14 @@ execute_validator_item(ValidatorItem, Message, Context) ->
                     })
             end,
             
-            Result;
+            Result
+            end;
         _ ->
             %% Invalid validator item, skip and continue
-            {ok, Message, Context}
+            {ok, Message, Context, ok}
     end.
 
--spec handle_validator_failure(binary(), binary(), map(), map()) -> {ok, map(), map()} | {error, term()}.
+-spec handle_validator_failure(binary(), binary(), map(), map()) -> {ok, map(), map(), atom()} | {error, term()}.
 handle_validator_failure(~"block", ExtId, _Message, Context) ->
     {error, {validator_blocked, #{
         extension_id => ExtId,
@@ -512,9 +630,9 @@ handle_validator_failure(~"warn", ExtId, Message, Context) ->
         ~"extension_id" => ExtId,
         ~"context" => Context
     }),
-    {ok, Message, Context};
+    {ok, Message, Context, warn};
 handle_validator_failure(~"ignore", _ExtId, Message, Context) ->
-    {ok, Message, Context};
+    {ok, Message, Context, ignore};
 handle_validator_failure(_, ExtId, _Message, Context) ->
     {error, {validator_blocked, #{
         extension_id => ExtId,
@@ -522,7 +640,7 @@ handle_validator_failure(_, ExtId, _Message, Context) ->
         context => Context
     }}}.
 
--spec handle_validator_failure(binary(), binary(), map(), map(), term()) -> {ok, map(), map()} | {error, term()}.
+-spec handle_validator_failure(binary(), binary(), map(), map(), term()) -> {ok, map(), map(), atom()} | {error, term()}.
 handle_validator_failure(~"block", ExtId, _Message, Context, Error) ->
     {error, {validator_blocked, #{
         extension_id => ExtId,
@@ -535,9 +653,9 @@ handle_validator_failure(~"warn", ExtId, Message, Context, Error) ->
         ~"reason" => normalize_error(Error),
         ~"context" => Context
     }),
-    {ok, Message, Context};
+    {ok, Message, Context, warn};
 handle_validator_failure(~"ignore", _ExtId, Message, Context, _Error) ->
-    {ok, Message, Context};
+    {ok, Message, Context, ignore};
 handle_validator_failure(_, ExtId, _Message, Context, Error) ->
     {error, {validator_blocked, #{
         extension_id => ExtId,
@@ -549,33 +667,44 @@ handle_validator_failure(_, ExtId, _Message, Context, Error) ->
 %% Internal: Post-processors
 %% ============================================================================
 
--spec execute_post_processor_item(map(), map(), map()) -> {ok, map(), map()} | {error, term()}.
+-spec execute_post_processor_item(map(), map(), map()) -> {ok, map(), map(), term()} | {skip, map(), map()} | {error, term()}.
 execute_post_processor_item(PostItem, Response, Context) ->
     case PostItem of
         #{id := ExtId, mode := Mode} ->
-            StartTime = erlang:system_time(microsecond),
-            Config = maps:get(config, PostItem, #{}),
-            Request = #{
-                ~"payload" => Response,
-                ~"config" => Config,
-                ~"metadata" => Context
-            },
-            TenantId = maps:get(~"tenant_id", Context, maps:get(~"tenant_id", Response, undefined)),
-            PolicyId = maps:get(~"policy_id", Context, maps:get(~"policy_id", Response, undefined)),
+            %% Check "when" condition (CP2: DAG v0)
+            ShouldExecute = case maps:get(<<"when">>, PostItem, undefined) of
+                undefined -> true;
+                WhenCondition -> evaluate_when_condition(WhenCondition, Context)
+            end,
+
+            case ShouldExecute of
+                false ->
+                    %% Skip execution if condition not met
+                    {skip, Response, Context};
+                true ->
+                    StartTime = erlang:system_time(microsecond),
+                    Config = maps:get(config, PostItem, #{}),
+                    Request = #{
+                        <<"payload">> => Response,
+                        <<"config">> => Config,
+                        <<"metadata">> => Context
+                    },
+                    TenantId = maps:get(<<"tenant_id">>, Context, maps:get(<<"tenant_id">>, Response, undefined)),
+                    PolicyId = maps:get(<<"policy_id">>, Context, maps:get(<<"policy_id">>, Response, undefined)),
             
             %% Log extension execution start
-            router_logger:debug(~"Executing post-processor extension", #{
-                ~"extension_id" => ExtId,
-                ~"extension_type" => ~"post",
-                ~"tenant_id" => TenantId,
-                ~"policy_id" => PolicyId
+            router_logger:debug(<<"Executing post-processor extension">>, #{
+                <<"extension_id">> => ExtId,
+                <<"extension_type">> => <<"post">>,
+                <<"tenant_id">> => TenantId,
+                <<"policy_id">> => PolicyId
             }),
             
             Result = case router_extension_invoker:invoke(ExtId, Request, Context) of
                 {ok, PostResponse} ->
-                    ProcessedPayload = maps:get(~"payload", PostResponse, Response),
-                    ProcessedContext = maps:merge(Context, maps:get(~"metadata", PostResponse, #{})),
-                    {ok, ProcessedPayload, ProcessedContext};
+                    ProcessedPayload = maps:get(<<"payload">>, PostResponse, Response),
+                    ProcessedContext = maps:merge(Context, maps:get(<<"metadata">>, PostResponse, #{})),
+                    {ok, ProcessedPayload, ProcessedContext, ok};
                 {error, Reason} ->
                     handle_post_processor_error(Mode, ExtId, Reason, Context, Response)
             end,
@@ -585,19 +714,19 @@ execute_post_processor_item(PostItem, Response, Context) ->
             
             %% Emit metrics
             {Status, MetricStatus} = case Result of
-                {ok, _, _} -> {success, ~"success"};
-                {error, _} -> {error, ~"error"}
+                {ok, _, _, _} -> {success, <<"success">>};
+                {error, _} -> {error, <<"error">>}
             end,
             router_metrics:emit_metric(router_extension_execution_total, #{count => 1}, #{
                 extension_id => ExtId,
-                extension_type => ~"post",
+                extension_type => <<"post">>,
                 status => MetricStatus,
                 tenant_id => TenantId,
                 policy_id => PolicyId
             }),
             router_metrics:emit_metric(router_extension_execution_latency_ms, #{value => LatencyMs}, #{
                 extension_id => ExtId,
-                extension_type => ~"post",
+                extension_type => <<"post">>,
                 tenant_id => TenantId,
                 policy_id => PolicyId
             }),
@@ -605,49 +734,50 @@ execute_post_processor_item(PostItem, Response, Context) ->
             %% Log extension execution result
             case Status of
                 success ->
-                    router_logger:info(~"Post-processor extension executed successfully", #{
-                        ~"extension_id" => ExtId,
-                        ~"extension_type" => ~"post",
-                        ~"latency_ms" => LatencyMs,
-                        ~"tenant_id" => TenantId,
-                        ~"policy_id" => PolicyId
+                    router_logger:info(<<"Post-processor extension executed successfully">>, #{
+                        <<"extension_id">> => ExtId,
+                        <<"extension_type">> => <<"post">>,
+                        <<"latency_ms">> => LatencyMs,
+                        <<"tenant_id">> => TenantId,
+                        <<"policy_id">> => PolicyId
                     });
                 error ->
-                    router_logger:warn(~"Post-processor extension execution failed", #{
-                        ~"extension_id" => ExtId,
-                        ~"extension_type" => ~"post",
-                        ~"latency_ms" => LatencyMs,
-                        ~"tenant_id" => TenantId,
-                        ~"policy_id" => PolicyId
+                    router_logger:warn(<<"Post-processor extension execution failed">>, #{
+                        <<"extension_id">> => ExtId,
+                        <<"extension_type">> => <<"post">>,
+                        <<"latency_ms">> => LatencyMs,
+                        <<"tenant_id">> => TenantId,
+                        <<"policy_id">> => PolicyId
                     })
             end,
             
-            Result;
+            Result
+            end;
         _ ->
             %% Invalid post-item, skip and continue
-            {ok, Response, Context}
+            {ok, Response, Context, ok}
     end.
 
--spec handle_post_processor_error(binary(), binary(), term(), map(), map()) -> {ok, map(), map()} | {error, term()}.
-handle_post_processor_error(~"required", ExtId, Reason, Context, _Response) ->
+-spec handle_post_processor_error(binary(), binary(), term(), map(), map()) -> {ok, map(), map(), term()} | {error, term()}.
+handle_post_processor_error(<<"required">>, ExtId, Reason, Context, _Response) ->
     {error, {post_processor_failed, #{
         extension_id => ExtId,
         reason => normalize_error(Reason),
         context => Context
     }}};
-handle_post_processor_error(~"optional", ExtId, Reason, Context, Response) ->
-    router_logger:warn(~"Post-processor failed (optional)", #{
-        ~"extension_id" => ExtId,
-        ~"reason" => normalize_error(Reason)
+handle_post_processor_error(<<"optional">>, ExtId, Reason, Context, Response) ->
+    router_logger:warn(<<"Post-processor failed (optional)">>, #{
+        <<"extension_id">> => ExtId,
+        <<"reason">> => normalize_error(Reason)
     }),
-    {ok, Response, Context};
+    {ok, Response, Context, {error, Reason}};
 handle_post_processor_error(_, ExtId, Reason, Context, Response) ->
     %% Default to optional behavior
-    router_logger:warn(~"Post-processor failed (default optional)", #{
-        ~"extension_id" => ExtId,
-        ~"reason" => normalize_error(Reason)
+    router_logger:warn(<<"Post-processor failed (default optional)">>, #{
+        <<"extension_id">> => ExtId,
+        <<"reason">> => normalize_error(Reason)
     }),
-    {ok, Response, Context}.
+    {ok, Response, Context, {error, Reason}}.
 
 %% ============================================================================
 %% Internal: Provider Selection
@@ -1064,6 +1194,10 @@ evaluate_when_condition(_, _Context) ->
     false.
 
 -spec evaluate_condition(binary(), term(), map()) -> boolean().
+evaluate_condition(Op, [Left, Right], Context) when Op =:= ~"=="; Op =:= ~"!="; Op =:= ~">"; Op =:= ~"<"; Op =:= ~">="; Op =:= ~"<="; Op =:= ~"in" ->
+    Val1 = resolve_operand(Left, Context),
+    Val2 = resolve_operand(Right, Context),
+    do_compare(Op, Val1, Val2);
 evaluate_condition(Key, Values, Context) when is_binary(Key), is_list(Values) ->
     ContextValue = maps:get(Key, Context, undefined),
     case ContextValue of
@@ -1091,6 +1225,42 @@ evaluate_condition(Key, Value, Context) when is_binary(Key) ->
     end;
 evaluate_condition(_, _, _) ->
     false.
+
+-spec resolve_operand(term(), map()) -> term().
+resolve_operand(#{<< "var" >> := Path}, Context) when is_binary(Path) ->
+    resolve_var(Path, Context);
+resolve_operand(Value, _Context) ->
+    Value.
+
+-spec do_compare(binary(), term(), term()) -> boolean().
+do_compare(_, undefined, _) -> false;
+do_compare(_, _, undefined) -> false;
+do_compare(~"==", A, B) -> A =:= B;
+do_compare(~"!=", A, B) -> A =/= B;
+do_compare(~">", A, B) -> A > B;
+do_compare(~"<", A, B) -> A < B;
+do_compare(~">=", A, B) -> A >= B;
+do_compare(~"<=", A, B) -> A =< B;
+do_compare(~"in", A, B) when is_list(B) -> lists:member(A, B);
+do_compare(~"in", _, _) -> false.
+
+-spec resolve_var(binary(), map()) -> term().
+resolve_var(Path, Context) ->
+    Parts = binary:split(Path, <<".">>, [global]),
+    case Parts of
+        [<<"context">> | Rest] ->
+            resolve_path_in_map(Rest, Context);
+        _ ->
+            resolve_path_in_map(Parts, Context)
+    end.
+
+resolve_path_in_map([], Value) -> Value;
+resolve_path_in_map([Key | Rest], Map) when is_map(Map) ->
+    case maps:get(Key, Map, undefined) of
+        undefined -> undefined;
+        NextValue -> resolve_path_in_map(Rest, NextValue)
+    end;
+resolve_path_in_map(_, _) -> undefined.
 
 %% ============================================================================
 %% Internal: Pipeline Validation & Complexity

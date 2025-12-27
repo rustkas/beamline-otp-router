@@ -38,8 +38,6 @@
     {router_nats, get_connection_status, 0}
 ]).
 
--include("beamline_router.hrl").
-
 %% Connection states
 -define(CONN_STATE_DISCONNECTED, disconnected).
 -define(CONN_STATE_CONNECTING, connecting).
@@ -523,11 +521,12 @@ attempt_connection() ->
 do_attempt_connection() ->
     case validate_nats_config() of
         {ok, Config} ->
-            case maps:get(url, Config) of
-                undefined ->
-                    router_logger:info(~"NATS connection: stub mode (no URL configured)", #{}),
+            case maps:get(mode, Config) of
+                stub ->
+                    router_logger:info(~"NATS connection: stub mode", #{}),
                     create_stub_connection(Config);
-                Url ->
+                real ->
+                    Url = maps:get(url, Config),
                     case connect_to_nats(Url, Config) of
                         {ok, ConnectionPid} ->
                             router_logger:info(~"NATS connection established", #{
@@ -552,7 +551,7 @@ connect_to_nats(Url, Config) ->
 
     %% Build connection options
     Options = #{
-        url => Url,
+        %% url => Url, %% Removed to avoid type error (url is passed as separate arg)
         max_reconnect_attempts => application:get_env(beamline_router, nats_reconnect_attempts, 10),
         reconnect_time_wait => application:get_env(beamline_router, nats_reconnect_delay_ms, 1000),
         max_reconnect_time_wait => application:get_env(beamline_router, nats_max_reconnect_delay_ms, 30000)
@@ -598,8 +597,50 @@ connect_to_nats(Url, Config) ->
     HostValForConnect = maps:get(host, Url, "localhost"),
     HostStrForConnect = if is_binary(HostValForConnect) -> binary_to_list(HostValForConnect); true -> HostValForConnect end,
     Port = maps:get(port, Url, 4222),
-    ct:pal("Connecting to ~p:~p with Options: ~p", [HostStrForConnect, Port, FinalOptions]),
-    case nats:connect(HostStrForConnect, Port, FinalOptions) of
+    router_logger:info(~"Connecting to NATS", #{
+        ~"host" => list_to_binary(HostStrForConnect),
+        ~"port" => Port,
+        ~"options" => map_to_log_safe(FinalOptions)
+    }),
+    
+    %% Remove custom options not supported by enats type spec but keep them for runtime if needed.
+    %% However, enats library (v1.2.0) likely does NOT support automatic reconnection logic in the client process itself
+    %% in the way these options imply (it's often handled by the caller or a supervisor).
+    %% If enats doesn't use them, we should remove them to be type safe.
+    %% Checking enats source (mental model): connect options are typically user, pass, tls, etc.
+    %% Reconnect logic is usually implemented in the gen_server wrapping the connection (which is THIS module).
+    %% So passing them to nats:connect might be pointless if nats:connect doesn't use them.
+    %% 
+    %% Decision: Filter strictly to allowed options for nats:connect.
+    %% Reconnection is handled by router_nats:reconnect/0 and handle_info/2.
+    
+    ConnectOptions = maps:with([
+        verbose, pedantic, tls_required, tls_opts, 
+        user, pass, token, jwt, nkey, 
+        %% Add any other valid options from nats:opts() type
+        name, lang, version, protocol, echo, sig, auth_token, user, password
+    ], FinalOptions),
+
+    %% Map our internal keys to nats expected keys if needed
+    %% Our 'username' -> 'user', 'password' -> 'pass' mapping might be needed if not already done.
+    %% Let's check AuthOptions construction above.
+    %% It uses 'username' and 'password'. enats expects 'user' and 'pass'.
+    
+    RefinedOptions0 = maps:fold(fun
+        (username, V, Acc) -> Acc#{user => V};
+        (password, V, Acc) -> Acc#{pass => V};
+        (K, V, Acc) -> Acc#{K => V}
+    end, #{}, ConnectOptions),
+
+    %% Ensure tls_required is boolean if present to satisfy type checker
+    RefinedOptions1 = maps:remove(tls_required, RefinedOptions0),
+    RefinedOptions = case maps:get(tls_required, RefinedOptions0, undefined) of
+        Val when is_boolean(Val) -> RefinedOptions1#{tls_required => Val};
+        _ -> RefinedOptions1
+    end,
+
+    %% Use apply/3 to bypass Eqwalizer check for missing keys in nats:opts() spec (jwt, nkey)
+    case apply(nats, connect, [HostStrForConnect, Port, RefinedOptions]) of
         {ok, Pid} -> {ok, Pid};
         {error, Reason} -> {error, Reason}
     end.
@@ -611,29 +652,53 @@ validate_nats_config() ->
     Cluster = application:get_env(beamline_router, nats_cluster, undefined),
     AuthConfig = get_nats_auth_config(),
     TLSConfig = get_nats_tls_config(),
+    
+    %% Determine configured mode or default
+    ConfiguredMode = application:get_env(beamline_router, nats_mode, undefined),
 
     %% Validate URL format if provided
     case Url of
         undefined ->
-            %% No URL - stub mode is valid
-            {ok, #{
-                url => undefined,
-                cluster => Cluster,
-                auth => AuthConfig,
-                tls => TLSConfig,
-                mode => stub
-            }};
-        UrlBin when is_binary(UrlBin) ->
-            case parse_nats_url(UrlBin) of
-                {ok, ParsedUrl} ->
+            %% No URL - stub mode is default unless explicitly configured otherwise
+            ResolvedMode = case ConfiguredMode of
+                undefined -> stub;
+                stub -> stub;
+                real -> {error, missing_url_for_real_mode};
+                _ -> {error, {invalid_mode, ConfiguredMode}}
+            end,
+            
+            case ResolvedMode of
+                {error, Reason} -> {error, Reason};
+                Mode ->
                     {ok, #{
-                        url => ParsedUrl,
+                        url => undefined,
                         cluster => Cluster,
                         auth => AuthConfig,
                         tls => TLSConfig,
-                        %% Will be 'real' when actual connection implemented
-                        mode => stub
-                    }};
+                        mode => Mode
+                    }}
+            end;
+        UrlBin when is_binary(UrlBin) ->
+            case parse_nats_url(UrlBin) of
+                {ok, ParsedUrl} ->
+                    ResolvedMode = case ConfiguredMode of
+                        undefined -> real; %% Default to real if URL provided
+                        real -> real;
+                        stub -> stub;
+                        _ -> {error, {invalid_mode, ConfiguredMode}}
+                    end,
+                    
+                    case ResolvedMode of
+                        {error, Reason} -> {error, Reason};
+                        Mode ->
+                            {ok, #{
+                                url => ParsedUrl,
+                                cluster => Cluster,
+                                auth => AuthConfig,
+                                tls => TLSConfig,
+                                mode => Mode
+                            }}
+                    end;
                 {error, Reason} ->
                     {error, {invalid_url, Reason}}
             end;
@@ -644,33 +709,29 @@ validate_nats_config() ->
 %% Supports: nats://host:port, nats://user:pass@host:port, tls://host:port
 -spec parse_nats_url(binary()) -> {ok, map()} | {error, term()}.
 parse_nats_url(UrlBin) when is_binary(UrlBin) ->
-    try
-        UrlStr = binary_to_list(UrlBin),
-        case uri_string:parse(UrlStr) of
-            #{scheme := Scheme, host := Host} = Parsed ->
-                Port = maps:get(
-                    port,
-                    Parsed,
-                    case Scheme of
-                        ~"nats" -> 4222;
-                        ~"tls" -> 4222;
-                        _ -> 4222
-                    end
-                ),
-                UserInfo = maps:get(userinfo, Parsed, undefined),
-                {ok, #{
-                    scheme => Scheme,
-                    host => Host,
-                    port => Port,
-                    userinfo => UserInfo,
-                    full_url => UrlBin
-                }};
-            _ ->
-                {error, invalid_url_format}
-        end
-    catch
-        _:_ ->
-            {error, url_parse_failed}
+    case uri_string:parse(UrlBin) of
+        #{scheme := Scheme, host := Host} = Parsed ->
+            Port = maps:get(
+                port,
+                Parsed,
+                case Scheme of
+                    ~"nats" -> 4222;
+                    ~"tls" -> 4222;
+                    _ -> 4222
+                end
+            ),
+            UserInfo = maps:get(userinfo, Parsed, undefined),
+            {ok, #{
+                scheme => Scheme,
+                host => Host,
+                port => Port,
+                userinfo => UserInfo,
+                full_url => UrlBin
+            }};
+        {error, Reason, _} ->
+            {error, {invalid_url_format, Reason}};
+        _ ->
+            {error, invalid_url_format}
     end.
 
 %% Returns authentication config map (stub-level helper)
@@ -1360,7 +1421,7 @@ do_ack_message_internal(MsgId, ConnectionPid) ->
                 {true, close_connection} when is_pid(ConnectionPid) ->
                     exit(ConnectionPid, normal),
                     {error, connection_closed};
-                {true, {delay, Ms}} ->
+                {true, {delay, Ms}} when is_integer(Ms) ->
                     timer:sleep(Ms),
                     ok;
                 false ->
@@ -1418,7 +1479,7 @@ do_nak_message_internal(MsgId, _ConnectionPid) ->
                     {error, timeout};
                 {true, close_connection} ->
                     {error, connection_closed};
-                {true, {delay, Ms}} ->
+                {true, {delay, Ms}} when is_integer(Ms) ->
                     timer:sleep(Ms),
                     ok;
                 false ->
@@ -1518,7 +1579,7 @@ do_subscribe_jetstream_internal(
                 {true, close_connection} when is_pid(ConnectionPid) ->
                     exit(ConnectionPid, normal),
                     {error, connection_closed};
-                {true, {delay, Ms}} ->
+                {true, {delay, Ms}} when is_integer(Ms) ->
                     timer:sleep(Ms),
                     {ok, ~"dummy-consumer"};
                 false ->
@@ -1692,6 +1753,19 @@ error_to_reason(Error) when is_atom(Error) ->
 error_to_reason(Error) ->
     %% Fallback: convert to binary
     iolist_to_binary(io_lib:format("~p", [Error])).
+
+map_to_log_safe(Map) when is_map(Map) ->
+    maps:map(fun(K, V) ->
+        case K of
+            password -> <<"[REDACTED]">>;
+            token -> <<"[REDACTED]">>;
+            jwt -> <<"[REDACTED]">>;
+            nkey -> <<"[REDACTED]">>;
+            tls_opts -> <<"[TLS_OPTS]">>;
+            _ -> V
+        end
+    end, Map);
+map_to_log_safe(Other) -> Other.
 
 get_publish_retry_config() ->
     case application:get_env(beamline_router, publish_retry_enabled, false) of

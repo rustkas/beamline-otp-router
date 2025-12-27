@@ -1,5 +1,6 @@
 -module(router_extension_invoker).
 
+
 -doc "Extension Invoker".
 %% Invokes extensions via NATS request-reply with retry and timeout handling
 -export([invoke/3, invoke_with_retry/4]).
@@ -9,13 +10,22 @@
   {router_extension_invoker, create_health_record_with_latency, 2}
 ]).
 
--include("beamline_router.hrl").
+-include("../include/beamline_router.hrl").
 
 -define(TELEMETRY_PREFIX, [router_extension_invoker]).
 
 %% Returns: {ok, Response} | {error, Reason}
 -spec invoke(binary(), map(), map()) -> {ok, map()} | {error, term()}.
 invoke(ExtensionId, Request, Context) ->
+    case maps:get(~"dry_run", Context, false) of
+        true ->
+            router_logger:debug(~"Dry-run: skipping extension execution", #{
+                ~"extension_id" => ExtensionId,
+                ~"tenant_id" => maps:get(~"tenant_id", Context, maps:get(~"tenant_id", Request, undefined)),
+                ~"policy_id" => maps:get(~"policy_id", Context, maps:get(~"policy_id", Request, undefined))
+            }),
+            {ok, #{}};
+        _ ->
     %% Check circuit breaker (CP3)
     case check_circuit_breaker(ExtensionId) of
         {ok, allow} ->
@@ -70,6 +80,7 @@ invoke(ExtensionId, Request, Context) ->
                 reason => ~"Circuit breaker is open",
                 context => Context
             }}}
+    end
     end.
 
 -spec invoke_with_retry(binary(), map(), map(), integer()) -> {ok, map()} | {error, term()}.
@@ -129,7 +140,7 @@ invoke_extension_with_health(Extension, Request, Context) ->
     end.
 
 %% Internal: Invoke extension
-invoke_extension(#extension{subject = Subject, timeout_ms = TimeoutMs, retry = Retry} = Extension, Request, Context) ->
+invoke_extension(#extension{timeout_ms = TimeoutMs, retry = Retry} = Extension, Request, Context) ->
     %% Build NATS request payload
     Payload = build_request_payload(Request, Context),
     
@@ -162,7 +173,7 @@ invoke_extension(#extension{subject = Subject, timeout_ms = TimeoutMs, retry = R
                                 ok ->
                                     %% MaxRetries passed to internal function represents total attempts (Initial + Retries)
                                     TotalAttempts = RetryCount + 1,
-                                    invoke_with_retry_internal(#extension{subject = Subject, timeout_ms = TimeoutMs}, 
+                                    invoke_with_retry_internal(Extension, 
                                                                 Request, Context, TotalAttempts, TotalAttempts)
                             end
                     end
@@ -208,7 +219,7 @@ invoke_with_retry_internal(Extension, Request, Context, RetriesLeft, MaxRetries)
     {ok, map()} | {error, atom()}.
 handle_nats_response(ResponseJson, Extension, StartTime, RetriesUsed) ->
     Latency = calculate_latency(StartTime),
-    case jsx:decode(ResponseJson, [return_maps]) of
+    case jsx:decode(ResponseJson, [{return_maps, true}]) of
         Response when is_map(Response) ->
             emit_telemetry(success, Extension, Latency, RetriesUsed),
             {ok, Response};
@@ -274,7 +285,7 @@ build_request_payload(Request, Context) ->
 
 %% Internal: Validate payload size (security: prevent DoS)
 validate_payload_size(Payload, Extension) ->
-    PayloadJson = jsx:encode(Payload),
+    PayloadJson = ensure_json_binary(jsx:encode(Payload)),
     PayloadSize = byte_size(PayloadJson),
     
     %% Check per-extension limit first (if configured)
@@ -305,7 +316,7 @@ validate_payload_size(Payload, Extension) ->
 
 %% Internal: Validate metadata size (security: prevent DoS)
 validate_metadata_size(Metadata, Extension) when is_map(Metadata) ->
-    MetadataJson = jsx:encode(Metadata),
+    MetadataJson = ensure_json_binary(jsx:encode(Metadata)),
     MetadataSize = byte_size(MetadataJson),
 
     %% Check per-extension limit first (if configured)
@@ -490,10 +501,13 @@ update_health_metrics(ExtensionId, LatencyMs, _Status) ->
                 ~"error" => Error,
                 ~"reason" => sanitize_error_for_logging(Reason),
                 ~"event" => ~"health_update_failed"
-            }),
-            %% Health update failed, ignore
-            ok
+            })
     end.
+
+%% Internal: Ensure JSON is binary
+-spec ensure_json_binary(jsx:json_text() | {incomplete, jsx:encoder()}) -> binary().
+ensure_json_binary(Bin) when is_binary(Bin) -> Bin;
+ensure_json_binary(_) -> error(json_encoding_failed).
 
 %% Internal: Update latency metrics (percentile tracking)
 update_latency_metrics(ExtensionId, LatencyMs) ->

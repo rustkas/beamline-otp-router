@@ -15,7 +15,9 @@
     get_sampling_config/0,
     set_sampling_config/1,
     should_sample/1,
-    get_current_trace_context/0
+    get_current_trace_context/0,
+    get_tracer/0,
+    format_error/1
 ]).
 -ignore_xref([
     {router_tracing, end_span, 1},
@@ -360,7 +362,7 @@ with_span(SpanName, Attributes, ParentContext, Fun) ->
     end.
 
 %% Internal: Get or create tracer
--spec get_tracer() -> term().
+-spec get_tracer() -> opentelemetry:tracer() | undefined.
 get_tracer() ->
     case code:which(opentelemetry) of
         non_existing -> undefined;

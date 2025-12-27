@@ -75,7 +75,9 @@ groups() ->
      {cp1_fields_error_tests, [sequence], [test_cp1_fields_preserved_in_error_response]}].
 
 init_per_suite(Config) ->
-    router_test_bootstrap:init_per_suite(Config, #{}).
+    router_test_bootstrap:init_per_suite(Config, #{
+        app_env => #{nats_mode => stub}
+    }).
 
 end_per_suite(Config) ->
     router_test_bootstrap:end_per_suite(Config, #{}).

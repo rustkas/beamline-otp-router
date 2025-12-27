@@ -29,21 +29,9 @@ all() ->
     Level = router_test_utils:get_test_level(),
     groups_for_level(Level).
 
-groups_for_level(heavy) ->
-    case os:getenv("ROUTER_TEST_LEVEL") of
-        "heavy" -> [{group, recovery_tests}];
-        _ -> []
-    end;
-groups_for_level(full) ->
-    case os:getenv("ROUTER_TEST_LEVEL") of
-        "heavy" -> [{group, recovery_tests}];
-        _ -> []
-    end;
 groups_for_level(_) ->
-    case os:getenv("ROUTER_TEST_LEVEL") of
-        "heavy" -> [{group, recovery_tests}];
-        _ -> []
-    end.
+    [{group, recovery_tests}].
+
 groups() ->
     [{recovery_tests, [sequence], [
         test_prolonged_partition,
@@ -53,7 +41,31 @@ groups() ->
         test_multiple_fault_cycles
     ]}].
 
-init_per_suite(Config) -> router_jetstream_ct_helpers:init_suite(Config).
+init_per_suite(Config) -> 
+    case os:getenv("ROUTER_TEST_LEVEL") of
+        "heavy" -> 
+            check_nats_availability(),
+            router_jetstream_ct_helpers:init_suite(Config);
+        _ ->
+            ct:pal("SKIPPING: ~p requires ROUTER_TEST_LEVEL=heavy", [?MODULE]),
+            ct:pal("Current ROUTER_TEST_LEVEL: ~p", [os:getenv("ROUTER_TEST_LEVEL")]),
+            {skip, "Requires ROUTER_TEST_LEVEL=heavy"}
+    end.
+
+check_nats_availability() ->
+    Host = "localhost",
+    Port = 4222,
+    ct:pal("Checking NATS availability at ~s:~p...", [Host, Port]),
+    case gen_tcp:connect(Host, Port, [binary, {active, false}], 1000) of
+        {ok, Socket} ->
+            gen_tcp:close(Socket),
+            ct:pal("NATS is available."),
+            ok;
+        {error, Reason} ->
+            ct:pal("WARNING: NATS is NOT available (~p). Tests are currently mocked, so this is non-fatal.", [Reason]),
+            ok
+    end.
+
 end_per_suite(Config) -> router_jetstream_ct_helpers:end_suite(Config).
 init_per_testcase(TC, Config) -> router_jetstream_ct_helpers:init_case(TC, Config).
 end_per_testcase(TC, Config) -> router_jetstream_ct_helpers:end_case(TC, Config).

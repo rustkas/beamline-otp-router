@@ -51,10 +51,22 @@
 -include("gpb.hrl").
 
 %% Suppress warnings for auto-generated helper functions that may not be used
--compile([{nowarn_unused_function, [{e_type_sint, 3}, {e_type_int32, 3}, {e_type_bool, 3}, 
-                                     {e_type_bytes, 3}, {e_type_fixed32, 3}, {e_type_sfixed32, 3},
-                                     {e_type_fixed64, 3}, {e_type_sfixed64, 3}, {e_type_float, 3},
-                                     {e_type_double, 3}, {e_unknown_elems, 2}, {e_varint, 3}, {v_ok, 3}]}]).
+-export([
+    e_type_sint/3,
+    e_type_int32/3,
+    e_type_bool/3,
+    e_type_bytes/3,
+    e_type_fixed32/3,
+    e_type_sfixed32/3,
+    e_type_fixed64/3,
+    e_type_sfixed64/3,
+    e_type_float/3,
+    e_type_double/3,
+    e_unknown_elems/2,
+    e_varint/3,
+    v_ok/3,
+    m_overwrite/3
+]).
 
 
 %% enumerated types

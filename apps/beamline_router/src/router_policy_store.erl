@@ -10,6 +10,7 @@
 -export([exec_with_telemetry/3, wait_for_table_owner/3]).  %% Internal helpers (used internally)
 -export([parse_policy_map/3]).  %% Exported for use by router_policy.erl
 -export([get_table_size/0, get_table_memory/0, get_index_table_size/0, check_size_limit/0, reset/0]).
+-export([compile_policy/2, upsert_policy_map/2]).
 %% Silence xref warnings for internal helpers kept for future use
 -ignore_xref([
     {router_policy_store, upsert_policy, 2},
@@ -918,6 +919,23 @@ parse_policy_map(TenantId, PolicyId, PolicyMap) ->
         metadata = maps:get(~"metadata", PolicyMap, #{})
     }.
 
+-spec compile_policy(binary(), map()) -> {ok, #policy{}} | {error, term()}.
+compile_policy(TenantId, PolicyMap) ->
+    PolicyId = maps:get(~"policy_id", PolicyMap, ~"default"),
+    Policy = parse_policy_map(TenantId, PolicyId, PolicyMap),
+    PolicyMapNorm = policy_to_map(Policy),
+    case router_policy_validator:validate(PolicyMapNorm) of
+        ok -> {ok, Policy};
+        {error, Details} -> {error, {invalid_policy, Details}}
+    end.
+
+-spec upsert_policy_map(binary(), map()) -> {ok, #policy{}} | {error, term()}.
+upsert_policy_map(TenantId, PolicyMap) ->
+    case compile_policy(TenantId, PolicyMap) of
+        {ok, Policy} -> upsert_policy(TenantId, Policy);
+        Error -> Error
+    end.
+
 %% Internal: Parse weights from policy map
 %% Supports both legacy "weights" map (0.0-1.0) and new "providers" array (0-100 → 0.0-1.0)
 parse_weights(PolicyMap) ->
@@ -1179,7 +1197,12 @@ parse_pre_extensions(PreList) when is_list(PreList) ->
             #{~"id" := Id} ->
                 Mode = maps:get(~"mode", PreItem, ~"optional"),
                 Config = maps:get(~"config", PreItem, #{}),
-                #{id => ensure_binary(Id), mode => ensure_binary(Mode), config => Config};
+                When = maps:get(~"when", PreItem, undefined),
+                Base = #{id => ensure_binary(Id), mode => ensure_binary(Mode), config => Config},
+                case When of
+                    undefined -> Base;
+                    _ -> maps:put(~"when", When, Base)
+                end;
             _ ->
                 #{}
         end
@@ -1193,7 +1216,13 @@ parse_validator_extensions(ValidatorsList) when is_list(ValidatorsList) ->
         case ValidatorItem of
             #{~"id" := Id} ->
                 OnFail = maps:get(~"on_fail", ValidatorItem, ~"block"),
-                #{id => ensure_binary(Id), on_fail => ensure_binary(OnFail)};
+                Config = maps:get(~"config", ValidatorItem, #{}),
+                When = maps:get(~"when", ValidatorItem, undefined),
+                Base = #{id => ensure_binary(Id), on_fail => ensure_binary(OnFail), config => Config},
+                case When of
+                    undefined -> Base;
+                    _ -> maps:put(~"when", When, Base)
+                end;
             _ ->
                 #{}
         end
@@ -1208,7 +1237,12 @@ parse_post_extensions(PostList) when is_list(PostList) ->
             #{~"id" := Id} ->
                 Mode = maps:get(~"mode", PostItem, ~"optional"),
                 Config = maps:get(~"config", PostItem, #{}),
-                #{id => ensure_binary(Id), mode => ensure_binary(Mode), config => Config};
+                When = maps:get(~"when", PostItem, undefined),
+                Base = #{id => ensure_binary(Id), mode => ensure_binary(Mode), config => Config},
+                case When of
+                    undefined -> Base;
+                    _ -> maps:put(~"when", When, Base)
+                end;
             _ ->
                 #{}
         end

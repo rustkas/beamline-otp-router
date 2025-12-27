@@ -356,8 +356,11 @@ check_tenant_allowed(TenantId) ->
             lists:any(fun(Allowed) ->
                 case Allowed of
                     AllowedBin when is_binary(AllowedBin) -> AllowedBin =:= TenantIdBin;
-                    %% Non-binary allowlist entries are not supported for safety
-                    _List when is_list(_List) -> false;
+                    AllowedList when is_list(AllowedList) -> 
+                        case safe_list_to_binary(AllowedList) of
+                            Bin when is_binary(Bin) -> Bin =:= TenantIdBin;
+                            _ -> false
+                        end;
                     _ -> false
                 end
             end, AllowedTenants);
@@ -365,9 +368,14 @@ check_tenant_allowed(TenantId) ->
             %% Normalize TenantId to binary for map key lookup
             TenantIdBin = ensure_binary(TenantId, TenantId),
             maps:is_key(TenantIdBin, AllowedTenants) orelse
-            (is_list(TenantId) andalso maps:is_key(list_to_binary(TenantId), AllowedTenants));
+            (is_list(TenantId) andalso maps:is_key(safe_list_to_binary(TenantId), AllowedTenants));
         _ -> false
     end.
+
+-spec safe_list_to_binary(term()) -> binary() | error.
+safe_list_to_binary(L) when is_list(L) ->
+    try iolist_to_binary(L) catch _:_ -> error end;
+safe_list_to_binary(_) -> error.
 
 %% Internal: Get assignment subject from config or request
 -spec get_assignment_subject(map()) -> binary().
@@ -673,8 +681,7 @@ validate_route_decision(_) ->
 -spec get_assignment_status(binary()) -> map() | {error, not_found}.
 get_assignment_status(AssignmentId) when is_binary(AssignmentId) ->
     %% Check correlation context for assignment tracking
-    case (erlang:function_exported(router_correlation_context, get_by_assignment_id, 1) andalso
-          apply(router_correlation_context, get_by_assignment_id, [AssignmentId])) of
+    case router_correlation_context:get_correlation_context(AssignmentId) of
         {ok, Context} ->
             #{
                 assignment_id => AssignmentId,
