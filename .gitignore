@@ -51,8 +51,8 @@ nats-server.tar.gz
 *.txt
 *.log
 
-.ai
-.cursor
-.windsurf
-.agent
-.trae
+.ai/
+.cursor/
+.windsurf/
+.agent/
+.trae/
