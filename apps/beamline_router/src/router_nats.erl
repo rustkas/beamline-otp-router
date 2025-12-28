@@ -663,6 +663,7 @@ validate_nats_config() ->
             ResolvedMode = case ConfiguredMode of
                 undefined -> stub;
                 stub -> stub;
+                mock -> stub;
                 real -> {error, missing_url_for_real_mode};
                 _ -> {error, {invalid_mode, ConfiguredMode}}
             end,
@@ -685,6 +686,7 @@ validate_nats_config() ->
                         undefined -> real; %% Default to real if URL provided
                         real -> real;
                         stub -> stub;
+                        mock -> stub;
                         _ -> {error, {invalid_mode, ConfiguredMode}}
                     end,
                     
