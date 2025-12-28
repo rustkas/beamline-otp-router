@@ -50,3 +50,9 @@ nats-server-v2.10.7-linux-amd64
 nats-server.tar.gz
 *.txt
 *.log
+
+.ai
+.cursor
+.windsurf
+.agent
+.trae
