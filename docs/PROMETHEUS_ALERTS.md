@@ -173,7 +173,7 @@ groups:
         annotations:
           summary: "High tenant rejection rate"
           description: "Many messages rejected due to tenant validation failures. Check tenant allowlists and policy registry."
-          test_coverage: "Fault injection tests: test_ack_error_with_tenant_validation_fail_concurrent, test_tenant_isolation_during_concurrent_faults. See apps/otp/router/test/CONCURRENT_FAULTS_TEST_DOCUMENTATION.md#scenario-s1-ack-error--tenant-validation-fail-concurrent-messages"
+          test_coverage: "Fault injection tests: test_scenario_c_ack_nak_and_tenant_validation_fail, test_tenant_isolation_stress. See apps/otp/router/docs/tests/concurrent_faults/CONCURRENT_FAULTS_TEST_DOCUMENTATION.md#scenario-c-acknak--tenant-validation-fail"
 
       - alert: RouterIdempotencyDuplicatesHigh
         expr: sum(rate(router_results_duplicate_total[5m]) + rate(router_acks_duplicate_total[5m])) > 10
@@ -190,7 +190,7 @@ groups:
         annotations:
           summary: "JetStream MaxDeliver exhausted"
           description: "Messages exceeded MaxDeliver attempts. Check message processing logic and downstream dependencies."
-          test_coverage: "Fault injection tests: test_max_delivery_count_exhaustion (router_result_consumer_SUITE.erl - real scenario). See apps/otp/router/test/FAULT_INJECTION_TEST_SCENARIOS.md#4-max-delivery-count-exhaustion"
+          test_coverage: "Fault injection tests: test_maxdeliver_exhausted_metric_labels. See apps/otp/router/docs/tests/FAULT_INJECTION_TEST_SCENARIOS.md#4-max-delivery-count-exhaustion"
 
       - alert: RouterJetStreamRedeliveryHigh
         expr: sum(rate(router_jetstream_redelivery_total[5m])) > 20
@@ -199,7 +199,7 @@ groups:
         annotations:
           summary: "High JetStream redelivery rate"
           description: "Many messages being redelivered (NAK calls). Check message processing performance, tenant validation, and ACK handling."
-          test_coverage: "Fault injection tests: test_nak_with_publish_failure_recovery (router_result_consumer_SUITE.erl - real scenario). See apps/otp/router/test/FAULT_INJECTION_TEST_SCENARIOS.md#scenario-s3-nak--publish-failure-with-recovery"
+          test_coverage: "Fault injection tests: test_redelivery_metric_labels, test_nak_emits_metric. See apps/otp/router/docs/tests/FAULT_INJECTION_TEST_SCENARIOS.md#scenario-s3-nak--publish-failure-with-recovery"
       
       # Circuit Breaker Alerts (CP2)
       - alert: RouterCircuitBreakerOpened
